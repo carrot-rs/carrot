@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+*.pdb
+.DS_Store
+.reference/
+.claude/
+node_modules/
+package-lock.json
+log.txt
+/plan
