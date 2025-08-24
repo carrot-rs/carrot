@@ -1,0 +1,997 @@
+[workspace]
+members = [
+    # Inazuma Framework
+    "crates/inazuma",
+    "crates/inazuma/tooling/macros",
+    "crates/inazuma-clock",
+    "crates/inazuma-collections",
+    "crates/inazuma-refineable",
+    "crates/inazuma-refineable/derive_refineable",
+    "crates/inazuma-component-registry",
+    "crates/inazuma-fuzzy",
+    "crates/inazuma-gpui-util",
+    "crates/inazuma-icons",
+    "crates/inazuma-menu",
+    "crates/inazuma-perf",
+    "crates/inazuma-platform",
+    "crates/inazuma-picker",
+    "crates/inazuma-rope",
+    "crates/inazuma-settings-content",
+    "crates/inazuma-settings-framework",
+    "crates/inazuma-settings-macros",
+    "crates/inazuma-story",
+    "crates/inazuma-sum_tree",
+    "crates/inazuma-text",
+    "crates/inazuma-tokio",
+    "crates/inazuma-util",
+    "crates/inazuma-util-macros",
+
+    # Carrot App
+    "crates/carrot-anthropic",
+    "crates/carrot-app",
+    "crates/carrot-actions",
+    "crates/carrot-agent-settings",
+    "crates/carrot-askpass",
+    "crates/carrot-assets",
+    "crates/carrot-breadcrumbs",
+    "crates/carrot-buffer-diff",
+    "crates/carrot-chips",
+    "crates/carrot-cli-agents",
+    "crates/carrot-client",
+    "crates/carrot-cloud-api-types",
+    "crates/carrot-cloud-api-client",
+    "crates/carrot-cloud-llm-client",
+    "crates/carrot-cmdline",
+    "crates/carrot-completions",
+    "crates/carrot-context-server",
+    "crates/carrot-credentials-provider",
+    "crates/carrot-dap",
+    "crates/carrot-db",
+    "crates/carrot-edit-prediction-types",
+    "crates/carrot-editor",
+    "crates/carrot-env-vars",
+    "crates/carrot-extension",
+    "crates/carrot-feature-flags",
+    "crates/carrot-file-icons",
+    "crates/carrot-fs",
+    "crates/carrot-git",
+    "crates/carrot-git-hosting-providers",
+    "crates/carrot-grammars",
+    "crates/carrot-grid",
+    "crates/carrot-block-render",
+    "crates/carrot-i18n",
+    "crates/carrot-http-client",
+    "crates/carrot-http-client-tls",
+    "crates/carrot-json-schema-store",
+    "crates/carrot-language",
+    "crates/carrot-language-core",
+    "crates/carrot-language-model",
+    "crates/carrot-languages",
+    "crates/carrot-log",
+    "crates/carrot-lsp",
+    "crates/carrot-markdown",
+    "crates/carrot-multi-buffer",
+    "crates/carrot-net",
+    "crates/carrot-node-runtime",
+    "crates/carrot-open-ai",
+    "crates/carrot-open-router",
+    "crates/carrot-paths",
+    "crates/carrot-prettier",
+    "crates/carrot-project",
+    "crates/carrot-proto",
+    "crates/carrot-release-channel",
+    "crates/carrot-remote",
+    "crates/carrot-rpc",
+    "crates/carrot-session",
+    "crates/carrot-settings",
+    "crates/carrot-json-compat",
+    "crates/carrot-shell",
+    "crates/carrot-shell-integration",
+    "crates/carrot-snippet",
+    "crates/carrot-syntax",
+    "crates/carrot-snippet-provider",
+    "crates/carrot-sqlez",
+    "crates/carrot-sqlez-macros",
+    "crates/carrot-task",
+    "crates/carrot-telemetry",
+    "crates/carrot-telemetry-events",
+    "crates/carrot-term",
+    "crates/carrot-terminal",
+    "crates/carrot-theme",
+    "crates/carrot-theme-extension",
+    "crates/carrot-theme-selector",
+    "crates/carrot-theme-settings",
+    "crates/carrot-tracing",
+    "crates/carrot-tracing-macro",
+    "crates/carrot-ui",
+    "crates/carrot-ui-input",
+    "crates/carrot-ui-macros",
+    "crates/carrot-vim-mode-setting",
+    "crates/carrot-watch",
+    "crates/carrot-workspace",
+    "crates/carrot-worktree",
+    "crates/carrot-zeta-prompt",
+
+    # Leaf Crates
+    "crates/carrot-time-format",
+    "crates/carrot-shell-command-parser",
+    "crates/carrot-streaming-diff",
+    "crates/carrot-html-to-markdown",
+    "crates/carrot-audio",
+    "crates/carrot-media",
+    "crates/carrot-nc",
+    "crates/carrot-denoise",
+    "crates/carrot-crashes",
+    "crates/carrot-system-specs",
+    "crates/carrot-reqwest-client",
+    "crates/carrot-aws-http-client",
+    "crates/carrot-scheduler",
+
+    # Framework-Dependencies
+    "crates/carrot-panel",
+    # TODO: Requires carrot-agent-ui rebuild
+    # "crates/carrot-sidebar",
+    "crates/carrot-command-palette",
+    "crates/carrot-command-palette-hooks",
+    "crates/carrot-command-search",
+    "crates/carrot-ui-prompt",
+    "crates/carrot-platform-title-bar",
+    "crates/carrot-title-bar",
+    "crates/carrot-encoding-selector",
+    "crates/carrot-line-ending-selector",
+    "crates/carrot-go-to-line",
+    "crates/carrot-which-key",
+    "crates/carrot-tab-switcher",
+    "crates/carrot-notifications",
+    "crates/carrot-feedback",
+    "crates/carrot-onboarding",
+    "crates/carrot-settings-ui",
+    "crates/carrot-settings-profile-selector",
+    "crates/carrot-recent-projects",
+    "crates/carrot-activity-indicator",
+
+    # AI Provider
+    "crates/carrot-google-ai",
+    "crates/carrot-ollama",
+    "crates/carrot-mistral",
+    "crates/carrot-lmstudio",
+    "crates/carrot-deepseek",
+    "crates/carrot-codestral",
+    "crates/carrot-bedrock",
+    "crates/carrot-vercel",
+    "crates/carrot-x-ai",
+    "crates/carrot-opencode",
+    "crates/carrot-copilot",
+    "crates/carrot-copilot-chat",
+    "crates/carrot-copilot-ui",
+    "crates/carrot-language-models",
+
+    # Editor Features
+    "crates/carrot-outline",
+    "crates/carrot-outline-panel",
+    "crates/carrot-diagnostics",
+    "crates/carrot-search",
+    "crates/carrot-file-finder",
+    "crates/carrot-project-panel",
+    "crates/carrot-project-registry",
+    "crates/carrot-project-symbols",
+    "crates/carrot-vim",
+    # "crates/carrot-repl",  # see plan/29-HYBRID-TERMINAL-REPL.md — needs terminal type rework for Carrot's block architecture
+    "crates/carrot-snippets-ui",
+    "crates/carrot-csv-preview",
+    "crates/carrot-svg-preview",
+    "crates/carrot-image-viewer",
+    "crates/carrot-markdown-preview",
+    "crates/carrot-journal",
+    "crates/carrot-keymap-editor",
+    "crates/carrot-toolchain-selector",
+    "crates/carrot-language-selector",
+    "crates/carrot-language-extension",
+    "crates/carrot-language-tools",
+    "crates/carrot-language-onboarding",
+    "crates/carrot-vertical-tabs",
+
+    # AI/Agent
+    "crates/carrot-acp-thread",
+    "crates/carrot-acp-tools",
+    "crates/carrot-prompt-store",
+    "crates/carrot-rules-library",
+    "crates/carrot-web-search",
+    "crates/carrot-web-search-providers",
+    "crates/carrot-assistant-slash-command",
+    "crates/carrot-assistant-slash-commands",
+    "crates/carrot-assistant-text-thread",
+    "crates/carrot-agent-servers",
+    "crates/carrot-agent",
+    # TODO: Needs terminal-first rebuild
+    # "crates/carrot-agent-ui",
+    "crates/carrot-ai-onboarding",
+    "crates/carrot-action-log",
+
+    # Debug/DAP
+    "crates/carrot-dap-adapters",
+    "crates/carrot-debug-adapter-extension",
+    "crates/carrot-debugger-tools",
+    "crates/carrot-debugger-ui",
+
+    # Collab
+    "crates/carrot-livekit-api",
+    "crates/carrot-livekit-client",
+    "crates/carrot-call",
+    "crates/carrot-channel",
+    "crates/carrot-collab",
+    "crates/carrot-collab-ui",
+
+    # Extension System
+    # TODO: carrot-extension-cli, carrot-extension-host, carrot-extension-api need full rewrite:
+    # WIT namespace needs migration, wasmtime 33→36, drop legacy API versions — see plan/27-EXTENSION-SYSTEM-REWRITE.md
+    "crates/carrot-extension-cli",
+    "crates/carrot-extension-host",
+    "crates/carrot-extensions-ui",
+    "crates/carrot-extension-api",
+
+    # Edit Prediction
+    "crates/carrot-edit-prediction",
+    "crates/carrot-edit-prediction-cli",
+    "crates/carrot-edit-prediction-context",
+    "crates/carrot-edit-prediction-ui",
+
+    # Remaining
+    "crates/carrot-terminal-view",
+    "crates/carrot-tasks-ui",
+    "crates/carrot-remote-connection",
+    "crates/carrot-remote-server",
+    "crates/carrot-dev-container",
+    "crates/carrot-auto-update",
+    "crates/carrot-auto-update-helper",
+    "crates/carrot-auto-update-ui",
+    "crates/carrot-install-cli",
+    "crates/carrot-cli",
+    "crates/carrot-miniprofiler-ui",
+    "crates/carrot-inspector-ui",
+    "crates/carrot-component-preview",
+    "crates/carrot-storybook",
+    "crates/carrot-explorer-command-injector",
+    "crates/carrot-etw-tracing",
+    "crates/carrot-open-path-prompt",
+    "crates/carrot-docs-preprocessor",
+    "crates/carrot-schema-generator",
+    # TODO: Require carrot-agent-ui rebuild
+    # "crates/carrot-eval",
+    # "crates/carrot-eval-cli",
+    "crates/carrot-eval-utils",
+    "crates/carrot-fs-benchmarks",
+    "crates/carrot-project-benchmarks",
+    "crates/carrot-worktree-benchmarks",
+    "crates/carrot-log-settings",
+    "crates/carrot-git-graph",
+    "crates/carrot-git-ui",
+
+    # TODO: Platform Split — needs extraction from inazuma/src/platform/ with our objc2 migration
+
+    # Dev tooling
+    "crates/cargo-carrot",
+]
+default-members = ["crates/carrot-app"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+publish = false
+license-file = "LICENSE.md"
+
+[workspace.dependencies]
+# Inazuma Framework Crates
+inazuma = { path = "crates/inazuma" }
+inazuma-macros = { path = "crates/inazuma/tooling/macros" }
+inazuma-clock = { path = "crates/inazuma-clock" }
+inazuma-collections = { path = "crates/inazuma-collections" }
+inazuma-component-registry = { path = "crates/inazuma-component-registry" }
+inazuma-fuzzy = { path = "crates/inazuma-fuzzy" }
+inazuma-gpui-util = { path = "crates/inazuma-gpui-util" }
+inazuma-icons = { path = "crates/inazuma-icons" }
+inazuma-menu = { path = "crates/inazuma-menu" }
+inazuma-perf = { path = "crates/inazuma-perf" }
+inazuma-platform = { path = "crates/inazuma-platform" }
+inazuma-refineable = { path = "crates/inazuma-refineable" }
+inazuma-derive-refineable = { path = "crates/inazuma-refineable/derive_refineable" }
+inazuma-picker = { path = "crates/inazuma-picker" }
+inazuma-rope = { path = "crates/inazuma-rope" }
+inazuma-settings-content = { path = "crates/inazuma-settings-content" }
+inazuma-settings-framework = { path = "crates/inazuma-settings-framework" }
+inazuma-settings-macros = { path = "crates/inazuma-settings-macros" }
+inazuma-story = { path = "crates/inazuma-story" }
+inazuma-sum_tree = { path = "crates/inazuma-sum_tree" }
+inazuma-text = { path = "crates/inazuma-text" }
+inazuma-tokio = { path = "crates/inazuma-tokio" }
+inazuma-util = { path = "crates/inazuma-util" }
+inazuma-util-macros = { path = "crates/inazuma-util-macros" }
+
+# Carrot App Crates
+carrot-anthropic = { path = "crates/carrot-anthropic" }
+carrot-actions = { path = "crates/carrot-actions" }
+carrot-agent-settings = { path = "crates/carrot-agent-settings" }
+carrot-askpass = { path = "crates/carrot-askpass" }
+carrot-assets = { path = "crates/carrot-assets" }
+carrot-breadcrumbs = { path = "crates/carrot-breadcrumbs" }
+carrot-buffer-diff = { path = "crates/carrot-buffer-diff" }
+carrot-client = { path = "crates/carrot-client" }
+carrot-cloud-api-client = { path = "crates/carrot-cloud-api-client" }
+carrot-cloud-api-types = { path = "crates/carrot-cloud-api-types" }
+carrot-cloud-llm-client = { path = "crates/carrot-cloud-llm-client" }
+carrot-chips = { path = "crates/carrot-chips" }
+carrot-cli-agents = { path = "crates/carrot-cli-agents" }
+carrot-cmdline = { path = "crates/carrot-cmdline" }
+carrot-completions = { path = "crates/carrot-completions" }
+carrot-context-server = { path = "crates/carrot-context-server" }
+carrot-credentials-provider = { path = "crates/carrot-credentials-provider" }
+carrot-dap = { path = "crates/carrot-dap" }
+carrot-db = { path = "crates/carrot-db" }
+carrot-edit-prediction-types = { path = "crates/carrot-edit-prediction-types" }
+carrot-editor = { path = "crates/carrot-editor" }
+carrot-env-vars = { path = "crates/carrot-env-vars" }
+carrot-extension = { path = "crates/carrot-extension" }
+carrot-feature-flags = { path = "crates/carrot-feature-flags" }
+carrot-file-icons = { path = "crates/carrot-file-icons" }
+carrot-fs = { path = "crates/carrot-fs" }
+carrot-git = { path = "crates/carrot-git" }
+carrot-git-hosting-providers = { path = "crates/carrot-git-hosting-providers" }
+carrot-grammars = { path = "crates/carrot-grammars" }
+carrot-i18n = { path = "crates/carrot-i18n" }
+carrot-http-client = { path = "crates/carrot-http-client" }
+carrot-http-client-tls = { path = "crates/carrot-http-client-tls" }
+carrot-json-schema-store = { path = "crates/carrot-json-schema-store" }
+carrot-language = { path = "crates/carrot-language" }
+carrot-language-core = { path = "crates/carrot-language-core" }
+carrot-language-model = { path = "crates/carrot-language-model" }
+carrot-languages = { path = "crates/carrot-languages" }
+carrot-log = { path = "crates/carrot-log" }
+carrot-lsp = { path = "crates/carrot-lsp" }
+carrot-markdown = { path = "crates/carrot-markdown" }
+carrot-multi-buffer = { path = "crates/carrot-multi-buffer" }
+carrot-net = { path = "crates/carrot-net" }
+carrot-node-runtime = { path = "crates/carrot-node-runtime" }
+carrot-open-ai = { path = "crates/carrot-open-ai" }
+carrot-open-router = { path = "crates/carrot-open-router" }
+carrot-paths = { path = "crates/carrot-paths" }
+carrot-prettier = { path = "crates/carrot-prettier" }
+carrot-project = { path = "crates/carrot-project" }
+carrot-proto = { path = "crates/carrot-proto" }
+carrot-release-channel = { path = "crates/carrot-release-channel" }
+carrot-remote = { path = "crates/carrot-remote" }
+carrot-rpc = { path = "crates/carrot-rpc" }
+carrot-session = { path = "crates/carrot-session" }
+carrot-settings = { path = "crates/carrot-settings" }
+carrot-json-compat = { path = "crates/carrot-json-compat" }
+carrot-shell = { path = "crates/carrot-shell" }
+carrot-shell-integration = { path = "crates/carrot-shell-integration" }
+carrot-snippet = { path = "crates/carrot-snippet" }
+carrot-syntax = { path = "crates/carrot-syntax" }
+carrot-snippet-provider = { path = "crates/carrot-snippet-provider" }
+carrot-sqlez = { path = "crates/carrot-sqlez" }
+carrot-sqlez-macros = { path = "crates/carrot-sqlez-macros" }
+carrot-task = { path = "crates/carrot-task" }
+carrot-telemetry = { path = "crates/carrot-telemetry" }
+carrot-telemetry-events = { path = "crates/carrot-telemetry-events" }
+carrot-block-render = { path = "crates/carrot-block-render" }
+carrot-grid = { path = "crates/carrot-grid" }
+carrot-term = { path = "crates/carrot-term" }
+carrot-terminal = { path = "crates/carrot-terminal" }
+carrot-terminal-view = { path = "crates/carrot-terminal-view" }
+carrot-theme = { path = "crates/carrot-theme" }
+carrot-theme-extension = { path = "crates/carrot-theme-extension" }
+carrot-theme-selector = { path = "crates/carrot-theme-selector" }
+carrot-theme-settings = { path = "crates/carrot-theme-settings" }
+carrot-tracing = { path = "crates/carrot-tracing" }
+carrot-tracing-macro = { path = "crates/carrot-tracing-macro" }
+carrot-ui = { path = "crates/carrot-ui" }
+carrot-ui-input = { path = "crates/carrot-ui-input" }
+carrot-ui-macros = { path = "crates/carrot-ui-macros" }
+carrot-vim-mode-setting = { path = "crates/carrot-vim-mode-setting" }
+carrot-watch = { path = "crates/carrot-watch" }
+carrot-workspace = { path = "crates/carrot-workspace" }
+carrot-worktree = { path = "crates/carrot-worktree" }
+carrot-zeta-prompt = { path = "crates/carrot-zeta-prompt" }
+
+# Leaf Crates
+carrot-time-format = { path = "crates/carrot-time-format" }
+carrot-shell-command-parser = { path = "crates/carrot-shell-command-parser" }
+carrot-streaming-diff = { path = "crates/carrot-streaming-diff" }
+carrot-html-to-markdown = { path = "crates/carrot-html-to-markdown" }
+carrot-audio = { path = "crates/carrot-audio" }
+carrot-media = { path = "crates/carrot-media" }
+carrot-nc = { path = "crates/carrot-nc" }
+carrot-denoise = { path = "crates/carrot-denoise" }
+carrot-crashes = { path = "crates/carrot-crashes" }
+carrot-system-specs = { path = "crates/carrot-system-specs" }
+carrot-reqwest-client = { path = "crates/carrot-reqwest-client" }
+carrot-aws-http-client = { path = "crates/carrot-aws-http-client" }
+carrot-scheduler = { path = "crates/carrot-scheduler" }
+
+# Framework-Dependencies
+carrot-panel = { path = "crates/carrot-panel" }
+# TODO: Requires carrot-agent-ui rebuild
+# carrot-sidebar = { path = "crates/carrot-sidebar" }
+carrot-command-palette = { path = "crates/carrot-command-palette" }
+carrot-command-search = { path = "crates/carrot-command-search" }
+carrot-command-palette-hooks = { path = "crates/carrot-command-palette-hooks" }
+carrot-ui-prompt = { path = "crates/carrot-ui-prompt" }
+carrot-platform-title-bar = { path = "crates/carrot-platform-title-bar" }
+carrot-title-bar = { path = "crates/carrot-title-bar" }
+carrot-encoding-selector = { path = "crates/carrot-encoding-selector" }
+carrot-line-ending-selector = { path = "crates/carrot-line-ending-selector" }
+carrot-go-to-line = { path = "crates/carrot-go-to-line" }
+carrot-which-key = { path = "crates/carrot-which-key" }
+carrot-tab-switcher = { path = "crates/carrot-tab-switcher" }
+carrot-notifications = { path = "crates/carrot-notifications" }
+carrot-feedback = { path = "crates/carrot-feedback" }
+carrot-onboarding = { path = "crates/carrot-onboarding" }
+carrot-settings-ui = { path = "crates/carrot-settings-ui" }
+carrot-settings-profile-selector = { path = "crates/carrot-settings-profile-selector" }
+carrot-recent-projects = { path = "crates/carrot-recent-projects" }
+carrot-activity-indicator = { path = "crates/carrot-activity-indicator" }
+
+# AI Provider
+carrot-google-ai = { path = "crates/carrot-google-ai" }
+carrot-ollama = { path = "crates/carrot-ollama" }
+carrot-mistral = { path = "crates/carrot-mistral" }
+carrot-lmstudio = { path = "crates/carrot-lmstudio" }
+carrot-deepseek = { path = "crates/carrot-deepseek" }
+carrot-codestral = { path = "crates/carrot-codestral" }
+carrot-bedrock = { path = "crates/carrot-bedrock" }
+carrot-vercel = { path = "crates/carrot-vercel" }
+carrot-x-ai = { path = "crates/carrot-x-ai" }
+carrot-opencode = { path = "crates/carrot-opencode" }
+carrot-copilot = { path = "crates/carrot-copilot" }
+carrot-copilot-chat = { path = "crates/carrot-copilot-chat" }
+carrot-copilot-ui = { path = "crates/carrot-copilot-ui" }
+carrot-language-models = { path = "crates/carrot-language-models" }
+
+# Editor Features
+carrot-outline = { path = "crates/carrot-outline" }
+carrot-outline-panel = { path = "crates/carrot-outline-panel" }
+carrot-diagnostics = { path = "crates/carrot-diagnostics" }
+carrot-search = { path = "crates/carrot-search" }
+carrot-file-finder = { path = "crates/carrot-file-finder" }
+carrot-project-panel = { path = "crates/carrot-project-panel" }
+carrot-project-registry = { path = "crates/carrot-project-registry" }
+carrot-project-symbols = { path = "crates/carrot-project-symbols" }
+carrot-vim = { path = "crates/carrot-vim" }
+carrot-repl = { path = "crates/carrot-repl" }
+carrot-snippets-ui = { path = "crates/carrot-snippets-ui" }
+carrot-csv-preview = { path = "crates/carrot-csv-preview" }
+carrot-svg-preview = { path = "crates/carrot-svg-preview" }
+carrot-image-viewer = { path = "crates/carrot-image-viewer" }
+carrot-markdown-preview = { path = "crates/carrot-markdown-preview" }
+carrot-journal = { path = "crates/carrot-journal" }
+carrot-keymap-editor = { path = "crates/carrot-keymap-editor" }
+carrot-toolchain-selector = { path = "crates/carrot-toolchain-selector" }
+carrot-language-selector = { path = "crates/carrot-language-selector" }
+carrot-language-extension = { path = "crates/carrot-language-extension" }
+carrot-language-tools = { path = "crates/carrot-language-tools" }
+carrot-language-onboarding = { path = "crates/carrot-language-onboarding" }
+carrot-vertical-tabs = { path = "crates/carrot-vertical-tabs" }
+
+# AI/Agent
+carrot-acp-thread = { path = "crates/carrot-acp-thread" }
+carrot-acp-tools = { path = "crates/carrot-acp-tools" }
+carrot-prompt-store = { path = "crates/carrot-prompt-store" }
+carrot-rules-library = { path = "crates/carrot-rules-library" }
+carrot-web-search = { path = "crates/carrot-web-search" }
+carrot-web-search-providers = { path = "crates/carrot-web-search-providers" }
+carrot-assistant-slash-command = { path = "crates/carrot-assistant-slash-command" }
+carrot-assistant-slash-commands = { path = "crates/carrot-assistant-slash-commands" }
+carrot-assistant-text-thread = { path = "crates/carrot-assistant-text-thread" }
+carrot-agent-servers = { path = "crates/carrot-agent-servers" }
+carrot-agent = { path = "crates/carrot-agent" }
+# TODO: Needs terminal-first rebuild
+# carrot-agent-ui = { path = "crates/carrot-agent-ui" }
+carrot-ai-onboarding = { path = "crates/carrot-ai-onboarding" }
+carrot-action-log = { path = "crates/carrot-action-log" }
+
+# Debug/DAP
+carrot-dap-adapters = { path = "crates/carrot-dap-adapters" }
+carrot-debug-adapter-extension = { path = "crates/carrot-debug-adapter-extension" }
+carrot-debugger-tools = { path = "crates/carrot-debugger-tools" }
+carrot-debugger-ui = { path = "crates/carrot-debugger-ui" }
+
+# Collab
+carrot-livekit-api = { path = "crates/carrot-livekit-api" }
+carrot-livekit-client = { path = "crates/carrot-livekit-client" }
+carrot-call = { path = "crates/carrot-call" }
+carrot-channel = { path = "crates/carrot-channel" }
+carrot-collab = { path = "crates/carrot-collab" }
+carrot-collab-ui = { path = "crates/carrot-collab-ui" }
+
+# Extension System
+carrot-extension-cli = { path = "crates/carrot-extension-cli" }
+carrot-extension-host = { path = "crates/carrot-extension-host" }
+carrot-extensions-ui = { path = "crates/carrot-extensions-ui" }
+carrot-extension-api = { path = "crates/carrot-extension-api" }
+
+# Edit Prediction
+carrot-edit-prediction = { path = "crates/carrot-edit-prediction" }
+carrot-edit-prediction-cli = { path = "crates/carrot-edit-prediction-cli" }
+carrot-edit-prediction-context = { path = "crates/carrot-edit-prediction-context" }
+carrot-edit-prediction-ui = { path = "crates/carrot-edit-prediction-ui" }
+
+# Remaining
+carrot-tasks-ui = { path = "crates/carrot-tasks-ui" }
+carrot-remote-connection = { path = "crates/carrot-remote-connection" }
+carrot-remote-server = { path = "crates/carrot-remote-server" }
+carrot-dev-container = { path = "crates/carrot-dev-container" }
+carrot-auto-update = { path = "crates/carrot-auto-update" }
+carrot-auto-update-helper = { path = "crates/carrot-auto-update-helper" }
+carrot-auto-update-ui = { path = "crates/carrot-auto-update-ui" }
+carrot-install-cli = { path = "crates/carrot-install-cli" }
+carrot-cli = { path = "crates/carrot-cli" }
+carrot-miniprofiler-ui = { path = "crates/carrot-miniprofiler-ui" }
+carrot-inspector-ui = { path = "crates/carrot-inspector-ui" }
+carrot-component-preview = { path = "crates/carrot-component-preview" }
+carrot-storybook = { path = "crates/carrot-storybook" }
+carrot-explorer-command-injector = { path = "crates/carrot-explorer-command-injector" }
+carrot-etw-tracing = { path = "crates/carrot-etw-tracing" }
+carrot-open-path-prompt = { path = "crates/carrot-open-path-prompt" }
+carrot-docs-preprocessor = { path = "crates/carrot-docs-preprocessor" }
+carrot-schema-generator = { path = "crates/carrot-schema-generator" }
+# TODO: Require carrot-agent-ui rebuild
+# carrot-eval = { path = "crates/carrot-eval" }
+# carrot-eval-cli = { path = "crates/carrot-eval-cli" }
+carrot-eval-utils = { path = "crates/carrot-eval-utils" }
+carrot-fs-benchmarks = { path = "crates/carrot-fs-benchmarks" }
+carrot-project-benchmarks = { path = "crates/carrot-project-benchmarks" }
+carrot-worktree-benchmarks = { path = "crates/carrot-worktree-benchmarks" }
+carrot-log-settings = { path = "crates/carrot-log-settings" }
+carrot-git-graph = { path = "crates/carrot-git-graph" }
+carrot-git-ui = { path = "crates/carrot-git-ui" }
+
+# TODO: Platform Split — needs objc2 extraction from inazuma
+
+# ─── Serialization ──────────────────────────────────────────────────────────
+ciborium = "0.2"
+indexmap = { version = "2", features = ["serde"] }
+jsonc-parser = { version = "0.32.2", features = ["serde"] }
+quick-xml = "0.39.2"
+rust-ini = "0.21.3"
+schemars = "1"
+serde = { version = "1.0.221", features = ["derive", "rc"] }
+serde_json = "1"
+serde_json_lenient = "0.2"
+serde_path_to_error = "0.1.17"
+serde_repr = "0.1"
+serde_urlencoded = "0.7"
+toml = "0.8"
+toml_edit = { version = "0.22", default-features = false, features = ["parse", "serde"] }
+yaml-rust2 = "0.11.0"
+
+# ─── Concurrency Primitives ─────────────────────────────────────────────────
+arc-swap = "1.7"
+
+# ─── Accessibility (C6 / Task #93) ──────────────────────────────────────────
+accesskit = "0.20"
+
+# ─── Text Shaping ──────────────────────────────────────────────────────────
+harfrust = "0.6"
+lru = "0.17"
+
+# ─── Async Runtime ──────────────────────────────────────────────────────────
+async-channel = "2.3.1"
+async-compat = "0.2.1"
+async-compression = { version = "0.4", features = ["bzip2", "gzip", "futures-io"] }
+async-dispatcher = "0.1"
+async-fs = "2"
+async-lock = "2.1"
+async-pipe = { git = "https://github.com/carrot-rs/async-pipe-rs", rev = "82d00a04211cf4e1236029aa03e6b6ce2a74c553" }
+async-recursion = "1"
+async-std = { version = "1.12.0", features = ["unstable"] }
+async-tar = "0.5.1"
+async-task = "4.7"
+async-trait = "0.1"
+async-tungstenite = "0.31.0"
+async_zip = { version = "0.0.17", features = ["full"] }
+futures = "0.3"
+futures-concurrency = "7"
+futures-lite = "2"
+smol = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-socks = { version = "0.5.2", default-features = false, features = ["futures-io", "tokio"] }
+
+# ─── Database ───────────────────────────────────────────────────────────────
+libsqlite3-sys = { version = "0.30.1", features = ["bundled"] }
+sea-orm = { version = "=1.1.10", features = ["sqlx-postgres", "postgres-array", "runtime-tokio-rustls", "with-uuid"] }
+sea-orm-macros = "=1.1.10"
+sqlformat = "0.2"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "time", "uuid", "any"] }
+
+# ─── Logging / Tracing ─────────────────────────────────────────────────────
+env_logger = "0.11"
+log = { version = "0.4", features = ["std"] }
+simplelog = "0.12.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json", "registry", "tracing-log"] }
+tracing-tracy = { version = "0.11.4", features = ["enable", "ondemand"] }
+tracy-client = { version = "0.18.2", features = ["enable", "ondemand"] }
+
+# ─── HTTP / Networking ──────────────────────────────────────────────────────
+http = "1.1"
+http-body = "1.0"
+httparse = "1.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+rustls = "0.23.26"
+rustls-pki-types = "1.12"
+rustls-platform-verifier = "0.5.0"
+tiny_http = "0.12"
+tokio-native-tls = "0.3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
+url = "2"
+urlencoding = "2.1.2"
+
+# ─── Web / Server ──────────────────────────────────────────────────────────
+axum = { version = "0.6", features = ["json", "headers", "ws"] }
+tower = "0.4"
+tower-http = "0.4.4"
+
+# ─── macOS Platform (objc2 ecosystem) ──────────────────────────────────────
+block2 = "0.6"
+cbindgen = { version = "0.28.0", default-features = false }
+core-foundation = "=0.10.0"
+core-foundation-sys = "0.8.6"
+core-text = "=21.0.0"
+core-video = { version = "0.5.2", features = ["metal"] }
+dispatch2 = "0.3.1"
+fontique = { version = "0.8", features = ["std", "system"] }
+mach2 = "0.5"
+metal = "0.33"
+objc2 = "0.6"
+objc2-app-kit = "0.3"
+objc2-core-foundation = { version = "0.3", features = ["CFArray", "CFAttributedString", "CFCGTypes", "CFData", "CFDictionary", "CFLocale", "CFNumber", "CFRunLoop", "CFString", "CFUUID", "CFURL"] }
+objc2-core-graphics = { version = "0.3", features = ["CGColorSpace", "CGContext", "CGDataProvider", "CGDirectDisplay", "CGFont", "CGImage", "CGRemoteOperation"] }
+objc2-core-media = "0.3"
+objc2-core-text = { version = "0.3", features = ["CTFont", "CTFontCollection", "CTFontDescriptor", "CTFontTraits", "CTLine", "CTRun", "CTStringAttributes", "objc2-core-graphics"] }
+objc2-core-video = { version = "0.3", features = ["CVBase", "CVReturn", "CVDisplayLink", "CVMetalTexture", "CVMetalTextureCache", "CVPixelBuffer", "CVImageBuffer", "objc2-core-graphics", "objc2-metal"] }
+objc2-foundation = "0.3"
+objc2-metal = "0.3"
+objc2-quartz-core = { version = "0.3", features = ["objc2-core-graphics"] }
+objc2-screen-capture-kit = "0.3"
+scap = "0.0.8"
+skrifa = "0.40"
+swash = "0.2"
+
+# ─── Linux / FreeBSD Platform ──────────────────────────────────────────────
+as-raw-xcb-connection = "1"
+ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
+calloop = "0.14.3"
+calloop-wayland-source = "0.4.1"
+cosmic-text = "0.17.0"
+filedescriptor = "0.8.2"
+naga = { version = "29.0", features = ["wgsl-in"] }
+oo7 = { version = "0.6", default-features = false, features = ["async-std", "native_crypto"] }
+wayland-backend = { version = "0.3.3", features = ["client_system", "dlopen"] }
+wayland-client = "0.31.11"
+wayland-cursor = "0.31.11"
+wayland-protocols = { version = "0.32.9", features = ["client", "staging", "unstable"] }
+wayland-protocols-plasma = { version = "0.3.9", features = ["client"] }
+wayland-protocols-wlr = { version = "0.3.9", features = ["client"] }
+wgpu = "24"
+x11-clipboard = "0.9.3"
+x11rb = { version = "0.13.1", features = ["allow-unsafe-code", "xkb", "randr", "xinput", "cursor", "resource_manager", "sync", "dri3"] }
+xim = { version = "0.5.0", features = ["x11rb-xcb", "x11rb-client"] }
+xkbcommon = { version = "0.8.0", features = ["wayland", "x11"] }
+
+# ─── Windows Platform ──────────────────────────────────────────────────────
+embed-resource = "3.0"
+miow = "0.6.0"
+piper = "0.2.1"
+windows = "0.61"
+windows-core = "0.61"
+windows-numerics = "0.2"
+windows-registry = "0.5"
+windows-sys = { version = "0.59.0", features = ["Win32_System_Console", "Win32_Foundation", "Win32_Security", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+
+# ─── Terminal / PTY ─────────────────────────────────────────────────────────
+home = "0.5.5"
+polling = "3.8.0"
+portable-pty = "0.9.0"
+regex-automata = "0.4.3"
+rustix = { version = "1.0.0", default-features = false, features = ["std"] }
+rustix-openpty = "0.2.0"
+signal-hook = "0.4.3"
+unicode-width = "0.1"
+unicode-width-16 = { package = "unicode-width-16", version = "0.1.0" }
+vte = { version = "0.15.0", default-features = false, features = ["std", "ansi"] }
+
+# ─── Text / Parsing ────────────────────────────────────────────────────────
+aho-corasick = "1.1"
+fancy-regex = "0.14"
+linkify = "0.10"
+lsp-types = { git = "https://github.com/carrot-rs/lsp-types", rev = "a4f410987660bf560d1e617cb78117c6b6b9f599" }
+markdown = { version = "1.0.0", features = ["serde"] }
+markup5ever_rcdom = "0.3"
+pulldown-cmark = { version = "0.13.0", default-features = false }
+regex = "1"
+ropey = { version = "2.0.0-beta.1", features = ["metric_lines_lf", "metric_utf16"] }
+tendril = "0.4.3"
+unicase = "2"
+unicode-script = "0.5"
+unicode-segmentation = "1"
+
+# ─── Tree-sitter (grammars for syntax highlighting) ────────────────────────
+tree-sitter = { version = "0.26", features = ["wasm"] }
+tree-sitter-astro-next = "0.1.1"
+tree-sitter-bash = "0.23.3"
+tree-sitter-zsh = "0.63.3"
+tree-sitter-fish = "3.6.0"
+tree-sitter-nu = { git = "https://github.com/nushell/tree-sitter-nu", rev = "696d257f6b652edb50878a783b30ad7833dec49e" }
+tree-sitter-c = "0.24.1"
+tree-sitter-c-sharp = "0.23.1"
+tree-sitter-cmake = "0.7.1"
+tree-sitter-cpp = "0.23.4"
+tree-sitter-css = "0.23.2"
+tree-sitter-diff = "0.1.0"
+tree-sitter-elixir = "0.3"
+tree-sitter-embedded-template = "0.23.0"
+tree-sitter-gitcommit = "0.5.0"
+tree-sitter-go = "0.23.4"
+tree-sitter-go-mod = { git = "https://github.com/camdencheek/tree-sitter-go-mod", rev = "2e886870578eeba1927a2dc4bd2e2b3f598c5f9a", package = "tree-sitter-gomod" }
+tree-sitter-gowork = { git = "https://github.com/carrot-rs/tree-sitter-go-work", rev = "acb0617bf7f4fda02c6217676cc64acb89536dc7" }
+tree-sitter-graphql = "0.1.0"
+tree-sitter-heex = "0.8.1"
+tree-sitter-html = "0.23.2"
+tree-sitter-java = "0.23.5"
+tree-sitter-javascript = "0.23.1"
+tree-sitter-jsdoc = "0.23.2"
+tree-sitter-json = "0.24.8"
+tree-sitter-kotlin-sg = "0.4.0"
+tree-sitter-lua = "0.4.1"
+tree-sitter-make = "1.1.1"
+tree-sitter-md = "0.5.1"
+tree-sitter-php = "0.24.2"
+tree-sitter-proto = "0.2.0"
+tree-sitter-python = "0.23.6"
+tree-sitter-regex = "0.24"
+tree-sitter-ruby = "0.23.1"
+tree-sitter-rust = "0.24.0"
+tree-sitter-scala = "0.23.4"
+tree-sitter-sequel = "0.3.8"
+tree-sitter-svelte-next = "0.1.1"
+tree-sitter-swift = "0.7.0"
+tree-sitter-toml-ng = "0.7.0"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-yaml = "0.7.1"
+tree-sitter-zig = "1.1.2"
+
+# ─── Git ────────────────────────────────────────────────────────────────────
+git2 = "0.20"
+
+# ─── Crypto / Auth ──────────────────────────────────────────────────────────
+jsonwebtoken = "10.0"
+rsa = "0.9.6"
+sha1 = "0.11.0"
+sha1_smol = "1"
+sha2 = "0.10"
+zeroize = "1"
+
+# ─── AI / ML ───────────────────────────────────────────────────────────────
+agent-client-protocol = { version = "=0.10.2", features = ["unstable"] }
+candle-core = "0.10"
+candle-onnx = "0.10"
+tiktoken-rs = "0.6"
+
+# ─── AWS ────────────────────────────────────────────────────────────────────
+aws-config = { version = "1.8.10", features = ["behavior-version-latest"] }
+aws-credential-types = { version = "1.2.8", features = ["hardcoded-credentials"] }
+aws-sdk-bedrockruntime = { version = "1.112.0", features = ["behavior-version-latest"] }
+aws-sdk-kinesis = "1.51.0"
+aws-sdk-s3 = "1.15.0"
+aws-smithy-runtime-api = { version = "1.9.2", features = ["http-1x", "client"] }
+aws-smithy-types = { version = "1.3.4", features = ["http-body-1-x"] }
+
+# ─── Collab / WebRTC ───────────────────────────────────────────────────────
+libwebrtc = "0.3.26"
+livekit = { version = "0.7.32", features = ["tokio", "rustls-tls-native-roots"] }
+webrtc-sys = "0.3.23"
+
+# ─── Audio / Media ──────────────────────────────────────────────────────────
+cpal = "0.17"
+realfft = "3.4.0"
+rodio = { version = "0.20", features = ["wav"] }
+rustfft = { version = "6.2.0", features = ["avx"] }
+
+# ─── Jupyter / REPL ────────────────────────────────────────────────────────
+jupyter-protocol = "1.4.0"
+jupyter-websocket-client = "1.0.0"
+nbformat = "1.2.0"
+runtimelib = { version = "=1.4.0", default-features = false, features = ["async-dispatcher-runtime", "aws-lc-rs"] }
+
+# ─── WASM / Extensions ─────────────────────────────────────────────────────
+wasm-encoder = "0.221"
+wasmparser = "0.221"
+wasmtime = { version = "36.0.7", default-features = false, features = ["cranelift", "gc", "incremental-cache"] }
+wasmtime-wasi = "36.0.7"
+wit-bindgen = "0.41"
+
+# ─── Build Tools / Proc-Macros ──────────────────────────────────────────────
+proc-macro2 = "1.0.93"
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits"] }
+
+# ─── Crash Reporting ───────────────────────────────────────────────────────
+crash-handler = "0.6"
+minidumper = "0.9"
+
+# ─── Misc ──────────────────────────────────────────────────────────────────
+anyhow = "1"
+any_vec = "0.14"
+backtrace = "0.3"
+base64 = "0.22"
+bitflags = "2.6.0"
+brush-parser = "0.3"
+bytes = "1.0"
+bytemuck = "1"
+cargo_metadata = "0.19"
+cargo_toml = "0.21"
+cfg-if = "1.0.3"
+chardetng = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+circular-buffer = "1.0"
+clap = { version = "4", features = ["derive"] }
+command-fds = "0.3.1"
+convert_case = "0.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+crossbeam = "0.8.4"
+ctrlc = { version = "3.5", features = ["termination"] }
+ctor = "0.4"
+dap-types = { git = "https://github.com/carrot-rs/dap-types", rev = "1b461b310481d01e02b2603c16d7144b926339f8" }
+dashmap = "6.0"
+derive_more = "0.99"
+dialoguer = { version = "0.11.0", features = ["fuzzy-select"] }
+dirs = "6"
+documented = "0.9.1"
+dotenvy = "0.15.0"
+dunce = "1"
+ec4rs = "1.1"
+emojis = "0.6"
+encoding_rs = "0.8"
+enum-iterator = "2.1.0"
+envy = "0.4.2"
+etagere = "0.2"
+exec = "0.3.1"
+flume = "0.11"
+fork = "0.4.0"
+gh-workflow = "0.8.1"
+globset = "0.4"
+handlebars = "4.3"
+heapless = "0.9.2"
+heck = "0.5"
+heed = { version = "0.21.0", features = ["read-txn-no-tls"] }
+hex = "0.4"
+html5ever = "0.27"
+human_bytes = "0.4.1"
+ignore = "0.4"
+image = "0.25"
+imara-diff = "0.1.8"
+indoc = "2"
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+inventory = "0.3"
+is_executable = "1.0.5"
+itertools = "0.14"
+json_dotpath = "1.1"
+jsonschema = "0.37.0"
+libc = "0.2"
+lyon = "1.0"
+mermaid-rs-renderer = { version = "0.2.1", default-features = false }
+moka = { version = "0.12.10", features = ["sync"] }
+nanoid = "0.4"
+nix = { version = "0.29", features = ["user"] }
+notify = "8"
+num_cpus = "1.13"
+num-format = "0.4.4"
+num-traits = "0.2"
+once_cell = "1.19.0"
+open = "5.2.0"
+ordered-float = "4"
+parking = "2.0.0"
+parking_lot = "0.12"
+parse_int = "0.9"
+partial-json-fixer = "0.5.3"
+paste = "1"
+pathdiff = "0.2"
+pciid-parser = "0.8.0"
+percent-encoding = "2"
+pet = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-conda = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-core = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-fs = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-poetry = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-reporter = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pet-virtualenv = { git = "https://github.com/microsoft/python-environment-tools.git", rev = "9e61a22af989fe54937bf07c9f9cff1bc53d9056" }
+pin-project = "1.1.10"
+pollster = "0.4"
+postage = "0.5"
+pretty_assertions = { version = "1", features = ["unstable"] }
+process_control = "5"
+profiling = "1"
+prometheus = "0.14"
+proptest = "1"
+proptest-derive = "0.8.0"
+prost = "0.9"
+prost-build = "0.9"
+prost-types = "0.9"
+carrot-battery = { version = "0.11.0", package = "starship-battery" }
+rand = "0.9"
+raw-window-handle = "0.6"
+rayon = "1"
+refineable = { package = "gpui_refineable", version = "0.2.2" }
+resvg = { version = "0.45.0", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+rust-embed = { version = "8.7.2", features = ["interpolate-folder-path", "include-exclude"] }
+rustc-hash = "2"
+seahash = "4.1"
+semver = "1"
+shellexpand = "3"
+shlex = "1"
+slotmap = "1.0.6"
+smallvec = { version = "1.6", features = ["union", "const_new"] }
+spin = "0.10.0"
+stacksafe = "0.1"
+streaming-iterator = "0.1"
+strsim = "0.11"
+strum = { version = "0.27", features = ["derive"] }
+sys-locale = "0.3.1"
+sysinfo = "0.37.0"
+taffy = "=0.9.0"
+take-until = "0.2"
+tempfile = "3"
+thiserror = "2.0.12"
+time = { version = "0.3", features = ["macros", "parsing", "serde", "serde-well-known", "formatting", "local-offset"] }
+unindent = "0.2.0"
+usvg = { version = "0.45.0", default-features = false }
+uuid = { version = "1", features = ["v4", "v5", "v7", "serde"] }
+versions = "7.0.0"
+waker-fn = "1.2.0"
+walkdir = "2"
+wax = "0.7"
+web-time = "1.1.0"
+which = "7"
+yawc = "0.2.5"
+zstd = "0.13"
+
+[profile.dev]
+split-debuginfo = "unpacked"
+incremental = true
+codegen-units = 16
+
+[profile.dev.build-override]
+codegen-units = 16
+
+[profile.dev.package]
+quote = { opt-level = 3 }
+syn = { opt-level = 3 }
+proc-macro2 = { opt-level = 3 }
+taffy = { opt-level = 3 }
+resvg = { opt-level = 3 }
+
+[profile.release]
+debug = "limited"
+lto = "thin"
+codegen-units = 1
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "allow" }
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+style = { level = "allow", priority = -1 }
+type_complexity = "allow"
+too_many_arguments = "allow"
+large_enum_variant = "allow"
+
+# Motivation: `vec![a..b]` is the natural shape for range-carrying vectors
+# (text ranges, coordinate spans, snippet tabstops). Flagging this lint
+# produces noise across the test suite without catching real bugs.
+single_range_in_vec_init = "allow"
+
+# Motivation: the codebase uses `anyhow::Error` throughout, which is
+# intentionally large. Boxing every `Result<_, anyhow::Error>` return
+# would require an API-wide refactor without measurable benefit.
+result_large_err = "allow"
