@@ -1,0 +1,372 @@
+[package]
+name = "inazuma"
+version = "0.1.0"
+edition = "2024"
+description = "Inazuma (稲妻) — GPU-accelerated UI framework for Carrot"
+publish = false
+license-file.workspace = true
+autoexamples = false
+
+[features]
+default = []
+test-support = [
+    "leak-detection",
+    "backtrace",
+    "inazuma-collections/test-support",
+    "inazuma-util/test-support",
+    "carrot-http-client/test-support",
+    "wayland",
+    "x11",
+]
+inspector = ["inazuma-macros/inspector"]
+leak-detection = ["backtrace"]
+runtime_shaders = []
+screen-capture = ["objc2-core-media", "objc2-screen-capture-kit"]
+wayland = [
+    "bitflags",
+    "ashpd/wayland",
+    "calloop-wayland-source",
+    "wayland-backend",
+    "wayland-client",
+    "wayland-cursor",
+    "wayland-protocols",
+    "wayland-protocols-plasma",
+    "wayland-protocols-wlr",
+    "filedescriptor",
+    "xkbcommon",
+    "open",
+]
+x11 = [
+    "ashpd",
+    "as-raw-xcb-connection",
+    "x11rb",
+    "xkbcommon",
+    "xim",
+    "x11-clipboard",
+    "filedescriptor",
+    "open",
+]
+windows-manifest = []
+
+[lib]
+name = "inazuma"
+path = "src/inazuma.rs"
+doctest = false
+
+[dependencies]
+accesskit.workspace = true
+anyhow.workspace = true
+async-channel.workspace = true
+async-task.workspace = true
+backtrace = { workspace = true, optional = true }
+chrono.workspace = true
+circular-buffer.workspace = true
+ctor.workspace = true
+derive_more.workspace = true
+etagere.workspace = true
+futures.workspace = true
+futures-concurrency.workspace = true
+image.workspace = true
+inazuma-collections.workspace = true
+inazuma-macros = { path = "./tooling/macros", features = ["inspector"] }
+inazuma-sum_tree.workspace = true
+inazuma-util.workspace = true
+inazuma-util-macros.workspace = true
+inventory.workspace = true
+itertools.workspace = true
+libc.workspace = true
+log = { workspace = true, features = ["kv_unstable_serde", "serde"] }
+lyon.workspace = true
+num_cpus.workspace = true
+parking.workspace = true
+parking_lot.workspace = true
+pin-project.workspace = true
+pollster.workspace = true
+postage = { workspace = true, features = ["futures-traits"] }
+profiling.workspace = true
+proptest.workspace = true
+carrot-http-client.workspace = true
+rand.workspace = true
+raw-window-handle.workspace = true
+refineable.workspace = true
+resvg.workspace = true
+schemars = { workspace = true, features = ["indexmap2"] }
+seahash.workspace = true
+semver = { workspace = true, features = ["serde"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["preserve_order", "raw_value"] }
+slotmap.workspace = true
+smallvec.workspace = true
+smol.workspace = true
+spin.workspace = true
+stacksafe.workspace = true
+strum.workspace = true
+taffy.workspace = true
+thiserror.workspace = true
+url.workspace = true
+usvg.workspace = true
+uuid.workspace = true
+waker-fn.workspace = true
+web-time.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2.workspace = true
+flume.workspace = true
+fontique.workspace = true
+skrifa.workspace = true
+swash.workspace = true
+mach2.workspace = true
+objc2.workspace = true
+objc2-foundation.workspace = true
+objc2-app-kit.workspace = true
+objc2-metal.workspace = true
+objc2-quartz-core.workspace = true
+objc2-core-video.workspace = true
+objc2-core-foundation.workspace = true
+objc2-core-graphics.workspace = true
+objc2-core-text.workspace = true
+block2.workspace = true
+objc2-core-media = { workspace = true, optional = true }
+objc2-screen-capture-kit = { workspace = true, optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+flume.workspace = true
+oo7.workspace = true
+wgpu.workspace = true
+cosmic-text.workspace = true
+swash.workspace = true
+bytemuck.workspace = true
+
+ashpd = { workspace = true, optional = true }
+
+calloop.workspace = true
+filedescriptor = { workspace = true, optional = true }
+open = { workspace = true, optional = true }
+
+calloop-wayland-source = { workspace = true, optional = true }
+wayland-backend = { workspace = true, optional = true }
+wayland-client = { workspace = true, optional = true }
+wayland-cursor = { workspace = true, optional = true }
+wayland-protocols = { workspace = true, optional = true }
+wayland-protocols-plasma = { workspace = true, optional = true }
+wayland-protocols-wlr = { workspace = true, optional = true }
+
+as-raw-xcb-connection = { workspace = true, optional = true }
+x11rb = { workspace = true, optional = true }
+xkbcommon = { workspace = true, optional = true }
+xim = { workspace = true, optional = true }
+x11-clipboard = { workspace = true, optional = true }
+bitflags = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+flume.workspace = true
+rand.workspace = true
+windows = { workspace = true, features = [
+    "Foundation_Numerics",
+    "Storage_Search",
+    "Storage_Streams",
+    "System_Threading",
+    "UI_ViewManagement",
+    "Wdk_System_SystemServices",
+    "Win32_Globalization",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Direct3D_Fxc",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
+    "Win32_Graphics_Hlsl",
+    "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Security_Credentials",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Console",
+    "Win32_System_DataExchange",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Performance",
+    "Win32_System_Pipes",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_System_WinRT",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+] }
+windows-core.workspace = true
+windows-numerics.workspace = true
+windows-registry.workspace = true
+
+[dev-dependencies]
+backtrace.workspace = true
+criterion.workspace = true
+env_logger.workspace = true
+inazuma-collections = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+lyon = { workspace = true, features = ["extra"] }
+pretty_assertions.workspace = true
+proptest.workspace = true
+carrot-http-client = { workspace = true, features = ["test-support"] }
+rand.workspace = true
+unicode-segmentation.workspace = true
+
+[[bench]]
+name = "block_layout"
+harness = false
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+embed-resource.workspace = true
+windows-registry.workspace = true
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+cbindgen.workspace = true
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.build-dependencies]
+naga.workspace = true
+
+# ============================================================================
+# Learn Examples - Educational examples for learning GPUI
+# ============================================================================
+
+[[example]]
+name = "interactive_elements"
+path = "examples/learn/interactive_elements.rs"
+
+[[example]]
+name = "creating_components"
+path = "examples/learn/creating_components.rs"
+
+[[example]]
+name = "layout"
+path = "examples/learn/layout.rs"
+
+[[example]]
+name = "styling"
+path = "examples/learn/styling.rs"
+
+[[example]]
+name = "async_tasks"
+path = "examples/learn/async_tasks.rs"
+
+[[example]]
+name = "custom_drawing"
+path = "examples/learn/custom_drawing.rs"
+
+[[example]]
+name = "animation"
+path = "examples/learn/animation.rs"
+
+[[example]]
+name = "text"
+path = "examples/learn/text.rs"
+
+# ============================================================================
+# Bench Examples - Performance benchmarks
+# ============================================================================
+
+[[example]]
+name = "data_table"
+path = "examples/bench/data_table.rs"
+
+[[example]]
+name = "paths_bench"
+path = "examples/bench/paths_bench.rs"
+
+[[example]]
+name = "pattern"
+path = "examples/bench/pattern.rs"
+
+[[example]]
+name = "shadow"
+path = "examples/bench/shadow.rs"
+
+# ============================================================================
+# Legacy Examples - Original examples (to be updated)
+# ============================================================================
+
+[[example]]
+name = "focus_visible"
+path = "examples/legacy/focus_visible.rs"
+
+[[example]]
+name = "gif_viewer"
+path = "examples/legacy/gif_viewer.rs"
+
+[[example]]
+name = "gradient"
+path = "examples/legacy/gradient.rs"
+
+[[example]]
+name = "hello_world"
+path = "examples/legacy/hello_world.rs"
+
+[[example]]
+name = "image_loading"
+path = "examples/legacy/image_loading.rs"
+
+[[example]]
+name = "input"
+path = "examples/legacy/input.rs"
+
+[[example]]
+name = "layer_shell"
+path = "examples/legacy/layer_shell.rs"
+
+[[example]]
+name = "on_window_close_quit"
+path = "examples/legacy/on_window_close_quit.rs"
+
+[[example]]
+name = "opacity"
+path = "examples/legacy/opacity.rs"
+
+[[example]]
+name = "scrollable"
+path = "examples/legacy/scrollable.rs"
+
+[[example]]
+name = "svg"
+path = "examples/legacy/svg/svg.rs"
+
+[[example]]
+name = "tab_stop"
+path = "examples/legacy/tab_stop.rs"
+
+[[example]]
+name = "tree"
+path = "examples/legacy/tree.rs"
+
+[[example]]
+name = "uniform_list"
+path = "examples/legacy/uniform_list.rs"
+
+[[example]]
+name = "window"
+path = "examples/legacy/window.rs"
+
+[[example]]
+name = "window_positioning"
+path = "examples/legacy/window_positioning.rs"
+
+[[example]]
+name = "window_shadow"
+path = "examples/legacy/window_shadow.rs"
+
+[lints]
+workspace = true
