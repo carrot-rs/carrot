@@ -1,0 +1,10 @@
+[package]
+name = "carrot-i18n"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file.workspace = true
+description = "Internationalization for Carrot — English base, German, Chinese"
+
+[dependencies]
+rust-i18n = "3"
