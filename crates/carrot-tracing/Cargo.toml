@@ -1,0 +1,22 @@
+[package]
+name = "carrot-tracing"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+tracy = ["tracing-tracy", "tracy-client"]
+
+[dependencies]
+carrot-log.workspace = true
+tracing.workspace = true
+
+tracing-subscriber.workspace = true
+tracing-tracy = { workspace = true, optional = true }
+tracy-client = { workspace = true, optional = true }
+
+carrot-tracing-macro.workspace = true
