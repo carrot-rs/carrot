@@ -1,0 +1,17 @@
+[package]
+name = "carrot-theme-selector"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+carrot-theme = { workspace = true }
+carrot-theme-settings = { workspace = true }
+carrot-fs = { workspace = true }
+inazuma = { workspace = true }
+inazuma-settings-framework = { workspace = true }
+anyhow = { workspace = true }
+log = "0.4"
+
+[lints]
+workspace = true
