@@ -1,0 +1,16 @@
+[package]
+name = "carrot-assets"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+description = "Bundled assets for Carrot — themes, fonts, keymaps, icons"
+
+[dependencies]
+inazuma = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rust-embed.workspace = true
+
+[lints]
+workspace = true
