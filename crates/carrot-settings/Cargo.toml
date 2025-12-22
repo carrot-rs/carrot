@@ -1,0 +1,26 @@
+[package]
+name = "carrot-settings"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+inazuma.workspace = true
+inazuma-collections.workspace = true
+inazuma-settings-framework.workspace = true
+inazuma-settings-content.workspace = true
+inazuma-settings-macros.workspace = true
+carrot-paths.workspace = true
+dirs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+log.workspace = true
+indexmap.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+rust-embed.workspace = true
+
+[lints]
+workspace = true
