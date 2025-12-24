@@ -1,0 +1,17 @@
+[package]
+name = "carrot-shell-command-parser"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/shell_command_parser.rs"
+
+[dependencies]
+brush-parser.workspace = true
+
+[dev-dependencies]
