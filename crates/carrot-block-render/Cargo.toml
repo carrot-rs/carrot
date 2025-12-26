@@ -1,0 +1,43 @@
+[package]
+name = "carrot-block-render"
+version = "0.1.0"
+edition = "2024"
+description = "Carrot Block Render — GPU passes for terminal blocks (reads carrot-grid, targets inazuma)"
+publish = false
+license-file.workspace = true
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+arc-swap.workspace = true
+harfrust.workspace = true
+inazuma.workspace = true
+lru.workspace = true
+carrot-grid.workspace = true
+carrot-theme.workspace = true
+wgpu.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+carrot-term.workspace = true
+
+[[bench]]
+name = "render"
+harness = false
+
+[[bench]]
+name = "idle_frame"
+harness = false
+
+[[bench]]
+name = "resize"
+harness = false
+
+[[bench]]
+name = "yes_4k"
+harness = false
+
+[lints]
+workspace = true
