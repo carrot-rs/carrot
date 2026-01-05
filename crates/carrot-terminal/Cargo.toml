@@ -1,0 +1,32 @@
+[package]
+name = "carrot-terminal"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+futures.workspace = true
+inazuma-collections.workspace = true
+inazuma.workspace = true
+inazuma-settings-framework.workspace = true
+inazuma-settings-content.workspace = true
+inazuma-util.workspace = true
+log = { workspace = true }
+carrot-shell-integration.workspace = true
+carrot-task.workspace = true
+carrot-grid = { path = "../carrot-grid" }
+carrot-term = { path = "../carrot-term" }
+portable-pty = "0.8"
+parking_lot = { workspace = true }
+flume = { workspace = true }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smol.workspace = true
+
+[dev-dependencies]
+sysinfo.workspace = true
+
+[lints]
+workspace = true
