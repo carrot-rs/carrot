@@ -1,0 +1,84 @@
+[package]
+name = "carrot-title-bar"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/title_bar.rs"
+doctest = false
+
+[features]
+default = []
+stories = ["dep:inazuma-story"]
+test-support = [
+    "carrot-call/test-support",
+    "carrot-client/test-support",
+
+    "inazuma/test-support",
+
+    "carrot-project/test-support",
+    "carrot-remote/test-support",
+    "inazuma-util/test-support",
+    "carrot-workspace/test-support",
+    "carrot-recent-projects/test-support",
+]
+
+[dependencies]
+anyhow.workspace = true
+carrot-auto-update.workspace = true
+carrot-platform-title-bar.workspace = true
+carrot-call.workspace = true
+carrot-channel.workspace = true
+chrono.workspace = true
+carrot-client.workspace = true
+carrot-cloud-api-types.workspace = true
+carrot-db.workspace = true
+carrot-git-ui.workspace = true
+inazuma = { workspace = true, features = ["screen-capture"] }
+inazuma-icons.workspace = true
+carrot-livekit-client.workspace = true
+carrot-notifications.workspace = true
+carrot-project.workspace = true
+carrot-recent-projects.workspace = true
+carrot-remote.workspace = true
+carrot-remote-connection.workspace = true
+carrot-rpc.workspace = true
+semver.workspace = true
+schemars.workspace = true
+serde.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+inazuma-story = { workspace = true, optional = true }
+carrot-telemetry.workspace = true
+carrot-theme.workspace = true
+carrot-ui.workspace = true
+carrot-vertical-tabs.workspace = true
+carrot-command-search.workspace = true
+inazuma-util.workspace = true
+carrot-shell.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+log.workspace = true
+inazuma-menu = { version = "0.1.0", path = "../inazuma-menu" }
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+carrot-call = { workspace = true, features = ["test-support"] }
+carrot-client = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-notifications = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-release-channel.workspace = true
+carrot-remote = { workspace = true, features = ["test-support"] }
+carrot-rpc = { workspace = true, features = ["test-support"] }
+semver.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
