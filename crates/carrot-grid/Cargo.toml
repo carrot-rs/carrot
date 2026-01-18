@@ -1,0 +1,30 @@
+[package]
+name = "carrot-grid"
+version = "0.1.0"
+edition = "2024"
+description = "Carrot Grid — pure terminal-cell data structure (Cell, PageList, StyleAtlas)"
+publish = false
+license-file.workspace = true
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+inazuma-collections.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+
+[[bench]]
+name = "grid"
+harness = false
+
+[[bench]]
+name = "memory"
+harness = false
+
+[lints]
+workspace = true
