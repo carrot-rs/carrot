@@ -1,0 +1,60 @@
+[package]
+name = "carrot-term"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+description = "Terminal emulation core for Carrot"
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "bitflags/serde", "vte/serde"]
+
+[[bench]]
+name = "simd_scan"
+harness = false
+
+[[bench]]
+name = "vt_pipeline"
+harness = false
+
+[[bench]]
+name = "termbench_budget"
+harness = false
+
+[[bench]]
+name = "phase_g_api"
+harness = false
+
+[dependencies]
+base64.workspace = true
+bitflags.workspace = true
+crossbeam.workspace = true
+home.workspace = true
+libc.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+polling.workspace = true
+carrot-grid.workspace = true
+regex-automata.workspace = true
+# Nicht im Workspace: crate renames package to unicode-width
+unicode-width = { package = "unicode-width-16", version = "0.1.0" }
+vte.workspace = true
+serde = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix-openpty.workspace = true
+rustix.workspace = true
+signal-hook.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+piper.workspace = true
+miow.workspace = true
+windows-sys.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
