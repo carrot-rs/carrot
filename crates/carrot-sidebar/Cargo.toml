@@ -1,0 +1,61 @@
+[package]
+name = "carrot-sidebar"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/sidebar.rs"
+
+[features]
+default = []
+
+[dependencies]
+carrot-acp-thread.workspace = true
+carrot-action-log.workspace = true
+carrot-agent.workspace = true
+agent-client-protocol.workspace = true
+carrot-agent-settings.workspace = true
+carrot-agent-ui.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+inazuma-collections.workspace = true
+carrot-editor.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs.workspace = true
+carrot-git.workspace = true
+inazuma.workspace = true
+inazuma-menu.workspace = true
+carrot-project.workspace = true
+carrot-recent-projects.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-vim-mode-setting.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-acp-thread = { workspace = true, features = ["test-support"] }
+carrot-agent = { workspace = true, features = ["test-support"] }
+carrot-agent-ui = { workspace = true, features = ["test-support"] }
+carrot-assistant-text-thread = { workspace = true, features = ["test-support"] }
+carrot-editor.workspace = true
+carrot-language-model = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-prompt-store.workspace = true
+carrot-recent-projects = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs = { workspace = true, features = ["test-support"] }
+carrot-git.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
