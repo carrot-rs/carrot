@@ -1,0 +1,28 @@
+[package]
+name = "carrot-platform-title-bar"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/platform_title_bar.rs"
+doctest = false
+
+[dependencies]
+carrot-feature-flags.workspace = true
+inazuma.workspace = true
+carrot-project.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+carrot-ui.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
