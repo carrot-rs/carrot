@@ -1,0 +1,90 @@
+[package]
+name = "carrot-workspace"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/workspace.rs"
+doctest = false
+
+[features]
+test-support = [
+    "carrot-client/test-support",
+    "carrot-http-client/test-support",
+    "carrot-db/test-support",
+    "carrot-project/test-support",
+    "carrot-remote/test-support",
+    "carrot-session/test-support",
+    "inazuma-settings-framework/test-support",
+    "inazuma/test-support",
+    "carrot-fs/test-support",
+]
+
+[dependencies]
+any_vec.workspace = true
+carrot-agent-settings.workspace = true
+anyhow.workspace = true
+async-recursion.workspace = true
+carrot-client.workspace = true
+chrono.workspace = true
+inazuma-clock.workspace = true
+inazuma-collections.workspace = true
+inazuma-component-registry.workspace = true
+carrot-db.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+carrot-git.workspace = true
+inazuma.workspace = true
+carrot-http-client.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+inazuma-menu.workspace = true
+carrot-markdown.workspace = true
+carrot-node-runtime.workspace = true
+parking_lot.workspace = true
+postage.workspace = true
+carrot-project.workspace = true
+carrot-remote.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+carrot-session.workspace = true
+carrot-shell-integration.workspace = true
+carrot-terminal.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+carrot-sqlez.workspace = true
+strum.workspace = true
+carrot-task.workspace = true
+carrot-telemetry.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-vim-mode-setting.workspace = true
+carrot-actions.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+carrot-client = { workspace = true, features = ["test-support"] }
+carrot-db = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-remote = { workspace = true, features = ["test-support"] }
+carrot-session = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-http-client = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+tempfile.workspace = true
+carrot-log.workspace = true
