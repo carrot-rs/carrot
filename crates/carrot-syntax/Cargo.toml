@@ -1,0 +1,104 @@
+[package]
+name = "carrot-syntax"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+description = "Standalone syntax highlighting for UI components (Input, Markdown code blocks)"
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/syntax.rs"
+doctest = false
+
+[features]
+tree-sitter-languages = [
+    "dep:tree-sitter-astro-next",
+    "dep:tree-sitter-bash",
+    "dep:tree-sitter-c",
+    "dep:tree-sitter-c-sharp",
+    "dep:tree-sitter-cmake",
+    "dep:tree-sitter-cpp",
+    "dep:tree-sitter-css",
+    "dep:tree-sitter-diff",
+    "dep:tree-sitter-elixir",
+    "dep:tree-sitter-embedded-template",
+    "dep:tree-sitter-go",
+    "dep:tree-sitter-graphql",
+    "dep:tree-sitter-html",
+    "dep:tree-sitter-java",
+    "dep:tree-sitter-javascript",
+    "dep:tree-sitter-jsdoc",
+    "dep:tree-sitter-kotlin-sg",
+    "dep:tree-sitter-lua",
+    "dep:tree-sitter-make",
+    "dep:tree-sitter-md",
+    "dep:tree-sitter-php",
+    "dep:tree-sitter-proto",
+    "dep:tree-sitter-python",
+    "dep:tree-sitter-ruby",
+    "dep:tree-sitter-rust",
+    "dep:tree-sitter-scala",
+    "dep:tree-sitter-sequel",
+    "dep:tree-sitter-swift",
+    "dep:tree-sitter-toml-ng",
+    "dep:tree-sitter-typescript",
+    "dep:tree-sitter-svelte-next",
+    "dep:tree-sitter-yaml",
+    "dep:tree-sitter-zig",
+]
+
+[dependencies]
+inazuma.workspace = true
+inazuma-sum_tree.workspace = true
+carrot-theme.workspace = true
+ropey.workspace = true
+lsp-types = { workspace = true, features = ["proposed"] }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_repr.workspace = true
+anyhow.workspace = true
+log.workspace = true
+tracing.workspace = true
+enum-iterator.workspace = true
+once_cell.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tree-sitter.workspace = true
+tree-sitter-json.workspace = true
+tree-sitter-astro-next = { workspace = true, optional = true }
+tree-sitter-bash = { workspace = true, optional = true }
+tree-sitter-c = { workspace = true, optional = true }
+tree-sitter-c-sharp = { workspace = true, optional = true }
+tree-sitter-cmake = { workspace = true, optional = true }
+tree-sitter-cpp = { workspace = true, optional = true }
+tree-sitter-css = { workspace = true, optional = true }
+tree-sitter-diff = { workspace = true, optional = true }
+tree-sitter-elixir = { workspace = true, optional = true }
+tree-sitter-embedded-template = { workspace = true, optional = true }
+tree-sitter-go = { workspace = true, optional = true }
+tree-sitter-graphql = { workspace = true, optional = true }
+tree-sitter-html = { workspace = true, optional = true }
+tree-sitter-java = { workspace = true, optional = true }
+tree-sitter-javascript = { workspace = true, optional = true }
+tree-sitter-jsdoc = { workspace = true, optional = true }
+tree-sitter-kotlin-sg = { workspace = true, optional = true }
+tree-sitter-lua = { workspace = true, optional = true }
+tree-sitter-make = { workspace = true, optional = true }
+tree-sitter-md = { workspace = true, optional = true }
+tree-sitter-php = { workspace = true, optional = true }
+tree-sitter-proto = { workspace = true, optional = true }
+tree-sitter-python = { workspace = true, optional = true }
+tree-sitter-ruby = { workspace = true, optional = true }
+tree-sitter-rust = { workspace = true, optional = true }
+tree-sitter-scala = { workspace = true, optional = true }
+tree-sitter-sequel = { workspace = true, optional = true }
+tree-sitter-svelte-next = { workspace = true, optional = true }
+tree-sitter-swift = { workspace = true, optional = true }
+tree-sitter-toml-ng = { workspace = true, optional = true }
+tree-sitter-typescript = { workspace = true, optional = true }
+tree-sitter-yaml = { workspace = true, optional = true }
+tree-sitter-zig = { workspace = true, optional = true }
