@@ -1,0 +1,52 @@
+[package]
+name = "carrot-terminal-view"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/terminal_view.rs"
+doctest = false
+
+[features]
+test-support = ["inazuma/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+dirs.workspace = true
+inazuma.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma-picker.workspace = true
+inazuma-util.workspace = true
+log.workspace = true
+lsp-types = { workspace = true, features = ["proposed"] }
+parking_lot.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-chips.workspace = true
+carrot-cli-agents.workspace = true
+carrot-completions = { path = "../carrot-completions" }
+carrot-project.workspace = true
+carrot-project-registry.workspace = true
+carrot-session.workspace = true
+carrot-settings.workspace = true
+carrot-shell.workspace = true
+carrot-shell-integration.workspace = true
+carrot-block-render.workspace = true
+carrot-grid.workspace = true
+carrot-term = { path = "../carrot-term" }
+carrot-task.workspace = true
+carrot-terminal.workspace = true
+carrot-theme.workspace = true
+carrot-ui.workspace = true
+carrot-ui-input.workspace = true
+carrot-workspace.workspace = true
+serde_json.workspace = true
+strsim.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+inazuma = { workspace = true, features = ["test-support"] }
