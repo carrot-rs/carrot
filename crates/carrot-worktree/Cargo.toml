@@ -1,0 +1,76 @@
+[package]
+name = "carrot-worktree"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lib]
+path = "src/worktree.rs"
+doctest = false
+test = false
+
+[[test]]
+name = "integration"
+required-features = ["test-support"]
+path = "tests/integration/main.rs"
+
+[lints]
+workspace = true
+
+[features]
+test-support = [
+    "inazuma/test-support",
+
+    "carrot-language/test-support",
+    "pretty_assertions",
+    "inazuma-settings-framework/test-support",
+    "inazuma-text/test-support",
+    "inazuma-util/test-support",
+]
+
+[dependencies]
+anyhow.workspace = true
+async-lock.workspace = true
+chardetng.workspace = true
+inazuma-clock.workspace = true
+inazuma-collections.workspace = true
+encoding_rs.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+carrot-git.workspace = true
+inazuma.workspace = true
+ignore.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+carrot-paths.workspace = true
+postage.workspace = true
+pretty_assertions = { workspace = true, optional = true }
+carrot-rpc = { workspace = true, features = ["inazuma"] }
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+smol.workspace = true
+inazuma-sum_tree.workspace = true
+inazuma-text.workspace = true
+tracing.workspace = true
+inazuma-util.workspace = true
+carrot-tracing.workspace = true
+
+[dev-dependencies]
+inazuma-clock = { workspace = true, features = ["test-support"] }
+inazuma-collections = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-paths = { workspace = true, features = ["test-support"] }
+rand.workspace = true
+carrot-rpc = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-worktree = { workspace = true, features = ["test-support"] }
+carrot-log.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["tracing"]
