@@ -1,0 +1,48 @@
+[package]
+name = "carrot-language-tools"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/language_tools.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-command-palette-hooks.workspace = true
+carrot-editor.workspace = true
+carrot-edit-prediction.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+carrot-lsp.workspace = true
+inazuma-menu.workspace = true
+carrot-project.workspace = true
+carrot-proto.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-telemetry.workspace = true
+carrot-theme.workspace = true
+tree-sitter.workspace = true
+sysinfo.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-editor = { workspace = true, features = ["test-support"] }
+carrot-release-channel.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+semver.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-log.workspace = true
+carrot-theme-settings.workspace = true
