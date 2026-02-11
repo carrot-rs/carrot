@@ -1,0 +1,130 @@
+[package]
+name = "carrot-project"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/project.rs"
+doctest = false
+test = false
+
+[[test]]
+name = "integration"
+required-features = ["test-support"]
+path = "tests/integration/project_tests.rs"
+
+[features]
+test-support = [
+    "carrot-buffer-diff/test-support",
+    "carrot-client/test-support",
+    "carrot-language/test-support",
+    "carrot-remote/test-support",
+    "inazuma-settings-framework/test-support",
+    "carrot-snippet-provider/test-support",
+    "inazuma-text/test-support",
+    "carrot-prettier/test-support",
+    "carrot-worktree/test-support",
+    "inazuma/test-support",
+    "carrot-dap/test-support",
+]
+
+[dependencies]
+aho-corasick.workspace = true
+anyhow.workspace = true
+carrot-askpass.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+carrot-buffer-diff.workspace = true
+circular-buffer.workspace = true
+carrot-client.workspace = true
+inazuma-clock.workspace = true
+inazuma-collections.workspace = true
+carrot-context-server.workspace = true
+carrot-credentials-provider.workspace = true
+carrot-dap.workspace = true
+carrot-extension.workspace = true
+fancy-regex.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+carrot-git.workspace = true
+carrot-git-hosting-providers.workspace = true
+globset.workspace = true
+inazuma.workspace = true
+carrot-http-client.workspace = true
+image.workspace = true
+itertools.workspace = true
+indexmap.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+carrot-markdown.workspace = true
+carrot-node-runtime.workspace = true
+parking_lot.workspace = true
+carrot-paths.workspace = true
+postage.workspace = true
+carrot-prettier.workspace = true
+rand.workspace = true
+regex.workspace = true
+carrot-release-channel.workspace = true
+carrot-remote.workspace = true
+carrot-rpc.workspace = true
+schemars.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+sha2.workspace = true
+shellexpand.workspace = true
+smallvec.workspace = true
+smol.workspace = true
+carrot-snippet.workspace = true
+carrot-snippet-provider.workspace = true
+inazuma-sum_tree.workspace = true
+carrot-task.workspace = true
+tempfile.workspace = true
+carrot-terminal.workspace = true
+inazuma-text.workspace = true
+toml.workspace = true
+url.workspace = true
+percent-encoding.workspace = true
+inazuma-util.workspace = true
+carrot-watch.workspace = true
+wax.workspace = true
+which.workspace = true
+carrot-worktree.workspace = true
+zeroize.workspace = true
+carrot-log.workspace = true
+carrot-tracing.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+carrot-client = { workspace = true, features = ["test-support"] }
+encoding_rs.workspace = true
+inazuma-collections = { workspace = true, features = ["test-support"] }
+carrot-context-server = { workspace = true, features = ["test-support"] }
+carrot-buffer-diff = { workspace = true, features = ["test-support"] }
+carrot-dap = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+git2.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-lsp = { workspace = true, features = ["test-support"] }
+carrot-prettier = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-project = {workspace = true, features = ["test-support"]}
+carrot-rpc = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-snippet-provider = { workspace = true, features = ["test-support"] }
+unindent.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-worktree = { workspace = true, features = ["test-support"] }
+carrot-remote = { workspace = true, features = ["test-support"] }
+
+[package.metadata.cargo-machete]
+ignored = ["tracing"]
