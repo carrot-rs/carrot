@@ -1,0 +1,25 @@
+[package]
+name = "carrot-snippets-ui"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/snippets_ui.rs"
+
+[dependencies]
+carrot-file-icons.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma.workspace = true
+carrot-language.workspace = true
+carrot-open-path-prompt.workspace = true
+carrot-paths.workspace = true
+inazuma-picker.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
