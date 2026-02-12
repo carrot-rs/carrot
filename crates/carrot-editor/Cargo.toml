@@ -1,0 +1,147 @@
+[package]
+name = "carrot-editor"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/editor.rs"
+doctest = false
+
+[features]
+test-support = [
+    "inazuma-text/test-support",
+    "carrot-language/test-support",
+    "inazuma/test-support",
+    "carrot-multi-buffer/test-support",
+    "carrot-project/test-support",
+    "carrot-theme/test-support",
+    "inazuma-util/test-support",
+    "carrot-workspace/test-support",
+    "tree-sitter-c",
+    "tree-sitter-rust",
+    "tree-sitter-typescript",
+    "tree-sitter-html",
+    "proptest",
+    "unindent",
+]
+
+[dependencies]
+aho-corasick.workspace = true
+anyhow.workspace = true
+carrot-assets.workspace = true
+carrot-breadcrumbs.workspace = true
+carrot-client.workspace = true
+inazuma-clock.workspace = true
+inazuma-collections.workspace = true
+convert_case.workspace = true
+carrot-dap.workspace = true
+carrot-db.workspace = true
+carrot-buffer-diff.workspace = true
+emojis.workspace = true
+carrot-feature-flags.workspace = true
+carrot-file-icons.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+carrot-fs.workspace = true
+carrot-git.workspace = true
+inazuma.workspace = true
+indoc.workspace = true
+carrot-edit-prediction-types.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+linkify.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+carrot-markdown.workspace = true
+inazuma-menu.workspace = true
+carrot-multi-buffer.workspace = true
+ordered-float.workspace = true
+parking_lot.workspace = true
+pretty_assertions.workspace = true
+carrot-project.workspace = true
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
+rand.workspace = true
+regex.workspace = true
+carrot-rpc.workspace = true
+inazuma-rope.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+smol.workspace = true
+carrot-snippet.workspace = true
+inazuma-sum_tree.workspace = true
+carrot-task.workspace = true
+carrot-telemetry.workspace = true
+inazuma-text.workspace = true
+time.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+tree-sitter-c = { workspace = true, optional = true }
+tree-sitter-html = { workspace = true, optional = true }
+tree-sitter-rust = { workspace = true, optional = true }
+tree-sitter-typescript = { workspace = true, optional = true }
+tree-sitter-python = { workspace = true, optional = true }
+carrot-tracing.workspace = true
+tracing.workspace = true
+unicode-segmentation.workspace = true
+unicode-script.workspace = true
+unindent = { workspace = true, optional = true }
+carrot-ui.workspace = true
+carrot-ui-input.workspace = true
+url.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-vim-mode-setting.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+carrot-log.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+ctor.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-languages = {workspace = true, features = ["test-support"] }
+carrot-lsp = { workspace = true, features = ["test-support"] }
+carrot-markdown = { workspace = true, features = ["test-support"] }
+carrot-multi-buffer = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+proptest.workspace = true
+proptest-derive.workspace = true
+carrot-release-channel.workspace = true
+rand.workspace = true
+semver.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+
+inazuma-text = { workspace = true, features = ["test-support"] }
+carrot-theme = { workspace = true, features = ["test-support"] }
+tree-sitter-c.workspace = true
+tree-sitter-html.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-yaml.workspace = true
+tree-sitter-bash.workspace = true
+tree-sitter-md.workspace = true
+unicode-width.workspace = true
+unindent.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
+
+carrot-log.workspace = true
+
+
+[[bench]]
+name = "editor_render"
+harness = false
+
+[[bench]]
+name = "display_map"
+harness = false
