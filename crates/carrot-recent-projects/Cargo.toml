@@ -1,0 +1,76 @@
+[package]
+name = "carrot-recent-projects"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/recent_projects.rs"
+doctest = false
+
+[features]
+default = []
+test-support = ["carrot-remote/test-support", "carrot-remote-connection/test-support", "carrot-project/test-support", "carrot-workspace/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+carrot-askpass.workspace = true
+carrot-db.workspace = true
+carrot-dev-container.workspace = true
+carrot-editor.workspace = true
+carrot-extension-host.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+inazuma-menu.workspace = true
+carrot-node-runtime.workspace = true
+carrot-open-path-prompt.workspace = true
+ordered-float.workspace = true
+carrot-paths.workspace = true
+inazuma-picker.workspace = true
+carrot-project.workspace = true
+carrot-release-channel.workspace = true
+carrot-remote.workspace = true
+carrot-remote-connection.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-shell.workspace = true
+smol.workspace = true
+carrot-task.workspace = true
+carrot-telemetry.workspace = true
+carrot-ui.workspace = true
+carrot-ui-input.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+carrot-worktree.workspace = true
+carrot-actions.workspace = true
+indoc.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-registry = "0.6.0"
+
+[dev-dependencies]
+carrot-editor = { workspace = true, features = ["test-support"] }
+carrot-extension.workspace = true
+carrot-fs.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-http-client.workspace = true
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-release-channel.workspace = true
+carrot-remote = { workspace = true, features = ["test-support"] }
+carrot-remote-connection = { workspace = true, features = ["test-support"] }
+carrot-remote-server.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
