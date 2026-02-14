@@ -1,0 +1,80 @@
+[package]
+name = "carrot-languages"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+test-support = [
+    "load-grammars"
+]
+load-grammars = [
+    "carrot-grammars/load-grammars",
+    "tree-sitter",
+    "tree-sitter-gitcommit",
+]
+
+[dependencies]
+anyhow.workspace = true
+async-compression.workspace = true
+async-fs.workspace = true
+async-tar.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+inazuma-collections.workspace = true
+futures.workspace = true
+globset.workspace = true
+inazuma.workspace = true
+carrot-grammars.workspace = true
+carrot-http-client.workspace = true
+itertools.workspace = true
+carrot-json-schema-store.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+carrot-node-runtime.workspace = true
+parking_lot.workspace = true
+pet-conda.workspace = true
+pet-core.workspace = true
+pet-fs.workspace = true
+pet-poetry.workspace = true
+pet-reporter.workspace = true
+pet-virtualenv.workspace = true
+pet.workspace = true
+carrot-project.workspace = true
+regex.workspace = true
+inazuma-rope.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_lenient.workspace = true
+inazuma-settings-framework.workspace = true
+smallvec.workspace = true
+semver.workspace = true
+smol.workspace = true
+carrot-snippet.workspace = true
+carrot-task.workspace = true
+carrot-terminal.workspace = true
+carrot-theme.workspace = true
+tree-sitter = { workspace = true, optional = true }
+tree-sitter-gitcommit = { workspace = true, optional = true }
+url.workspace = true
+inazuma-util.workspace = true
+
+[dev-dependencies]
+carrot-fs = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-theme = { workspace = true, features = ["test-support"] }
+tree-sitter-bash.workspace = true
+tree-sitter-c.workspace = true
+tree-sitter-cpp.workspace = true
+tree-sitter-css.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter.workspace = true
+unindent.workspace = true
