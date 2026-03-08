@@ -1,0 +1,50 @@
+[package]
+name = "carrot-dap-adapters"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[features]
+test-support = [
+    "carrot-dap/test-support",
+    "inazuma/test-support",
+    "carrot-task/test-support",
+    "inazuma-util/test-support",
+]
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/dap_adapters.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+inazuma-collections.workspace = true
+carrot-dap.workspace = true
+dotenvy.workspace = true
+futures.workspace = true
+carrot-fs.workspace = true
+inazuma.workspace = true
+json_dotpath.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-paths.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smol.workspace = true
+carrot-task.workspace = true
+inazuma-util.workspace = true
+
+[dev-dependencies]
+carrot-dap = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-http-client.workspace = true
+carrot-node-runtime.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-task = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
