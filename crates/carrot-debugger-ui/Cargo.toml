@@ -1,0 +1,92 @@
+[package]
+name = "carrot-debugger-ui"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/debugger_ui.rs"
+doctest = false
+
+[features]
+test-support = [
+    "carrot-dap/test-support",
+    "carrot-dap-adapters/test-support",
+    "carrot-debugger-tools/test-support",
+    "carrot-editor/test-support",
+    "inazuma/test-support",
+    "carrot-project/test-support",
+    "inazuma-util/test-support",
+    "carrot-workspace/test-support",
+    "unindent",
+]
+
+[dependencies]
+carrot-term.workspace = true
+anyhow.workspace = true
+bitflags.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-command-palette-hooks.workspace = true
+carrot-dap.workspace = true
+carrot-dap-adapters = { workspace = true, optional = true }
+carrot-db.workspace = true
+carrot-debugger-tools.workspace = true
+carrot-editor.workspace = true
+carrot-feature-flags.workspace = true
+carrot-file-icons.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma.workspace = true
+hex.workspace = true
+indoc.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+inazuma-menu.workspace = true
+carrot-notifications.workspace = true
+parking_lot.workspace = true
+parse_int.workspace = true
+carrot-paths.workspace = true
+inazuma-picker.workspace = true
+pretty_assertions.workspace = true
+carrot-project.workspace = true
+carrot-rpc.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_lenient.workspace = true
+inazuma-settings-framework.workspace = true
+sysinfo.workspace = true
+carrot-task.workspace = true
+carrot-tasks-ui.workspace = true
+carrot-terminal-view.workspace = true
+inazuma-text.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+tree-sitter-json.workspace = true
+tree-sitter.workspace = true
+carrot-ui.workspace = true
+carrot-ui-input.workspace = true
+unindent = { workspace = true, optional = true }
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-dap = { workspace = true, features = ["test-support"] }
+carrot-dap-adapters = { workspace = true, features = ["test-support"] }
+carrot-debugger-tools = { workspace = true, features = ["test-support"] }
+carrot-editor = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+tree-sitter-go.workspace = true
+unindent.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
+carrot-log.workspace = true
