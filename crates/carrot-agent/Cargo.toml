@@ -1,0 +1,108 @@
+[package]
+name = "carrot-agent"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lib]
+path = "src/agent.rs"
+
+[features]
+test-support = ["carrot-db/test-support"]
+eval = []
+unit-eval = []
+e2e = []
+
+[lints]
+workspace = true
+
+[dependencies]
+carrot-acp-thread.workspace = true
+carrot-action-log.workspace = true
+agent-client-protocol.workspace = true
+carrot-agent-servers.workspace = true
+carrot-agent-settings.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+carrot-client.workspace = true
+carrot-cloud-api-types.workspace = true
+carrot-cloud-llm-client.workspace = true
+inazuma-collections.workspace = true
+carrot-context-server.workspace = true
+carrot-db.workspace = true
+derive_more.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+carrot-git.workspace = true
+inazuma.workspace = true
+handlebars = { workspace = true, features = ["rust-embed"] }
+heck.workspace = true
+carrot-html-to-markdown.workspace = true
+carrot-http-client.workspace = true
+indoc.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+carrot-language-model.workspace = true
+carrot-language-models.workspace = true
+log.workspace = true
+open.workspace = true
+parking_lot.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+carrot-prompt-store.workspace = true
+regex.workspace = true
+rust-embed.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-shell-command-parser.workspace = true
+smallvec.workspace = true
+smol.workspace = true
+carrot-sqlez.workspace = true
+carrot-streaming-diff.workspace = true
+strsim.workspace = true
+carrot-task.workspace = true
+carrot-telemetry.workspace = true
+inazuma-text.workspace = true
+thiserror.workspace = true
+carrot-ui.workspace = true
+url.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-watch.workspace = true
+carrot-web-search.workspace = true
+carrot-env-vars.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+carrot-agent-servers = { workspace = true, "features" = ["test-support"] }
+carrot-client = { workspace = true, "features" = ["test-support"] }
+inazuma-clock = { workspace = true, "features" = ["test-support"] }
+carrot-context-server = { workspace = true, "features" = ["test-support"] }
+ctor.workspace = true
+carrot-db = { workspace = true, "features" = ["test-support"] }
+carrot-editor = { workspace = true, "features" = ["test-support"] }
+env_logger.workspace = true
+carrot-eval-utils.workspace = true
+carrot-fs = { workspace = true, "features" = ["test-support"] }
+carrot-git = { workspace = true, "features" = ["test-support"] }
+inazuma = { workspace = true, "features" = ["test-support"] }
+inazuma-tokio.workspace = true
+carrot-language = { workspace = true, "features" = ["test-support"] }
+carrot-language-model = { workspace = true, "features" = ["test-support"] }
+carrot-lsp = { workspace = true, "features" = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-project = { workspace = true, "features" = ["test-support"] }
+rand.workspace = true
+carrot-reqwest-client.workspace = true
+inazuma-settings-framework = { workspace = true, "features" = ["test-support"] }
+tempfile.workspace = true
+
+carrot-theme = { workspace = true, "features" = ["test-support"] }
+
+unindent = { workspace = true }
+
+carrot-log.workspace = true
