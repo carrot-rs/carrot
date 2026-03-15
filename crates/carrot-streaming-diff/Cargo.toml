@@ -1,0 +1,20 @@
+[package]
+name = "carrot-streaming-diff"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/streaming_diff.rs"
+
+[dependencies]
+ordered-float.workspace = true
+inazuma-rope.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
