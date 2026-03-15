@@ -1,0 +1,160 @@
+use std::sync::Arc;
+
+use anyhow::{Context as _, Result};
+use carrot_dap::adapters::DebugTaskDefinition;
+use carrot_dap::client::DebugAdapterClient;
+use carrot_project::{Project, debugger::session::Session};
+use carrot_task::SharedTaskContext;
+use carrot_terminal_view::terminal_panel::TerminalPanel;
+use carrot_workspace::Workspace;
+use inazuma::{Entity, TestAppContext, WindowHandle};
+use inazuma_settings_framework::SettingsStore;
+
+use crate::{debugger_panel::DebugPanel, session::DebugSession};
+
+#[cfg(test)]
+mod attach_modal;
+#[cfg(test)]
+mod console;
+#[cfg(test)]
+mod dap_logger;
+#[cfg(test)]
+mod debugger_panel;
+#[cfg(test)]
+mod inline_values;
+#[cfg(test)]
+mod module_list;
+#[cfg(test)]
+mod new_process_modal;
+#[cfg(test)]
+mod persistence;
+#[cfg(test)]
+mod stack_frame_list;
+#[cfg(test)]
+mod variable_list;
+
+pub fn init_test(cx: &mut inazuma::TestAppContext) {
+    #[cfg(test)]
+    carrot_log::init_test();
+
+    cx.update(|cx| {
+        let settings = SettingsStore::test(cx);
+        cx.set_global(settings);
+        carrot_terminal_view::init(cx);
+        carrot_theme_settings::init(carrot_theme::LoadThemes::JustBase, cx);
+        carrot_command_palette_hooks::init(cx);
+        carrot_editor::init(cx);
+        crate::init(cx);
+        carrot_dap_adapters::init(cx);
+    });
+}
+
+pub async fn init_test_workspace(
+    project: &Entity<Project>,
+    cx: &mut TestAppContext,
+) -> WindowHandle<Workspace> {
+    let workspace_handle =
+        cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+    let debugger_panel = workspace_handle
+        .update(cx, |_workspace, window, cx| {
+            cx.spawn_in(window, async move |this, cx| {
+                DebugPanel::load(this, cx).await
+            })
+        })
+        .unwrap()
+        .await
+        .expect("Failed to load debug panel");
+
+    let terminal_panel = workspace_handle
+        .update(cx, |_workspace, window, cx| {
+            let weak_workspace = cx.entity().downgrade();
+            cx.spawn_in(window, async move |_, cx| {
+                TerminalPanel::load(weak_workspace, cx.clone()).await
+            })
+        })
+        .unwrap()
+        .await
+        .expect("Failed to load terminal panel");
+
+    workspace_handle
+        .update(cx, |workspace, window, cx| {
+            workspace.add_panel(debugger_panel, window, cx);
+            workspace.add_panel(terminal_panel, window, cx);
+        })
+        .unwrap();
+    workspace_handle
+}
+
+#[track_caller]
+pub fn active_debug_session_panel(
+    workspace: WindowHandle<Workspace>,
+    cx: &mut TestAppContext,
+) -> Entity<DebugSession> {
+    workspace
+        .update(cx, |workspace, _window, cx| {
+            let debug_panel = workspace.panel::<DebugPanel>(cx).unwrap();
+            debug_panel
+                .update(cx, |this, _| this.active_session())
+                .unwrap()
+        })
+        .unwrap()
+}
+
+pub fn start_debug_session_with<T: Fn(&Arc<DebugAdapterClient>) + 'static>(
+    workspace: &WindowHandle<Workspace>,
+    cx: &mut inazuma::TestAppContext,
+    config: DebugTaskDefinition,
+    configure: T,
+) -> Result<Entity<Session>> {
+    let _subscription = carrot_project::debugger::test::intercept_debug_sessions(cx, configure);
+    workspace.update(cx, |workspace, window, cx| {
+        workspace.start_debug_session(
+            config.to_scenario(),
+            SharedTaskContext::default(),
+            None,
+            None,
+            window,
+            cx,
+        )
+    })?;
+    cx.run_until_parked();
+    let session = workspace.read_with(cx, |workspace, cx| {
+        workspace
+            .panel::<DebugPanel>(cx)
+            .and_then(|panel| {
+                panel
+                    .read(cx)
+                    .sessions_with_children
+                    .keys()
+                    .max_by_key(|session| session.read(cx).session_id(cx))
+            })
+            .map(|session| session.read(cx).running_state().read(cx).session())
+            .cloned()
+            .context("Failed to get active session")
+    })??;
+
+    Ok(session)
+}
+
+pub fn start_debug_session<T: Fn(&Arc<DebugAdapterClient>) + 'static>(
+    workspace: &WindowHandle<Workspace>,
+    cx: &mut inazuma::TestAppContext,
+    configure: T,
+) -> Result<Entity<Session>> {
+    use serde_json::json;
+
+    start_debug_session_with(
+        workspace,
+        cx,
+        DebugTaskDefinition {
+            adapter: "fake-adapter".into(),
+            label: "test".into(),
+            config: json!({
+                "request": "launch"
+            }),
+            tcp_connection: None,
+        },
+        configure,
+    )
+}
