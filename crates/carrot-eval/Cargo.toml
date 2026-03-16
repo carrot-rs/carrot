@@ -1,0 +1,70 @@
+[package]
+name = "carrot-eval"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+license-file.workspace = true
+default-run = "carrot-eval"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "carrot-eval"
+path = "src/eval.rs"
+
+[[bin]]
+name = "explorer"
+path = "src/explorer.rs"
+
+[dependencies]
+carrot-acp-thread.workspace = true
+carrot-agent = { workspace = true, features = ["eval"] }
+agent-client-protocol.workspace = true
+carrot-agent-settings.workspace = true
+carrot-agent-ui.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+carrot-buffer-diff.workspace = true
+chrono.workspace = true
+clap.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-debug-adapter-extension.workspace = true
+dirs.workspace = true
+dotenvy.workspace = true
+env_logger.workspace = true
+carrot-extension.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+inazuma-platform.workspace = true
+inazuma-tokio.workspace = true
+handlebars.workspace = true
+carrot-language.workspace = true
+carrot-language-extension.workspace = true
+carrot-language-model.workspace = true
+carrot-language-models.workspace = true
+carrot-languages = { workspace = true, features = ["load-grammars"] }
+carrot-markdown.workspace = true
+carrot-node-runtime.workspace = true
+pathdiff.workspace = true
+carrot-paths.workspace = true
+pretty_assertions.workspace = true
+carrot-project.workspace = true
+carrot-prompt-store.workspace = true
+regex.workspace = true
+rand.workspace = true
+carrot-release-channel.workspace = true
+carrot-reqwest-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+shellexpand.workspace = true
+carrot-telemetry.workspace = true
+# carrot-terminal-view: REMOVED — wird in Phase 20 gebaut
+toml.workspace = true
+unindent.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-watch.workspace = true
