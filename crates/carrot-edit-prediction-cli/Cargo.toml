@@ -1,0 +1,88 @@
+[package]
+name = "carrot-edit-prediction-cli"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ep"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+carrot-anthropic.workspace = true
+carrot-http-client.workspace = true
+chrono.workspace = true
+clap = "4"
+carrot-client.workspace = true
+carrot-cloud-llm-client.workspace = true
+inazuma-collections.workspace = true
+carrot-db.workspace = true
+carrot-debug-adapter-extension.workspace = true
+dirs.workspace = true
+carrot-extension.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+inazuma-platform.workspace = true
+inazuma-tokio.workspace = true
+indoc.workspace = true
+carrot-language.workspace = true
+carrot-language-extension.workspace = true
+carrot-language-model.workspace = true
+carrot-language-models.workspace = true
+carrot-languages = { workspace = true, features = ["load-grammars"] }
+libc.workspace = true
+log.workspace = true
+carrot-node-runtime.workspace = true
+carrot-open-ai.workspace = true
+
+carrot-paths.workspace = true
+carrot-project.workspace = true
+carrot-prompt-store.workspace = true
+carrot-release-channel.workspace = true
+carrot-reqwest-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+shellexpand.workspace = true
+smol.workspace = true
+carrot-sqlez.workspace = true
+strum.workspace = true
+carrot-sqlez-macros.workspace = true
+# carrot-terminal-view: REMOVED — wird in Phase 20 gebaut
+inazuma-util.workspace = true
+carrot-watch.workspace = true
+carrot-edit-prediction = { workspace = true, features = ["cli-support"] }
+carrot-telemetry-events.workspace = true
+wasmtime.workspace = true
+carrot-zeta-prompt.workspace = true
+rand.workspace = true
+similar = "2.7.0"
+flate2 = "1.1.8"
+toml.workspace = true
+rust-embed.workspace = true
+gaoya = "0.2.0"
+
+# Wasmtime is included as a dependency in order to enable the same
+# features that are enabled in Carrot.
+#
+# If we don't enable these features we get crashes when creating
+# a Tree-sitter WasmStore.
+[features]
+dynamic_prompts = []
+
+[package.metadata.cargo-machete]
+ignored = ["wasmtime"]
+
+[dev-dependencies]
+inazuma = { workspace = true, features = ["test-support"] }
+indoc.workspace = true
+pretty_assertions.workspace = true
+carrot-project = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+carrot-workspace = { workspace = true, features = ["test-support"] }
