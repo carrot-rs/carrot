@@ -1,0 +1,43 @@
+[package]
+description = "Shared logic for communication between the Carrot app and the server"
+edition.workspace = true
+name = "carrot-rpc"
+version = "0.1.0"
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/rpc.rs"
+doctest = false
+
+[features]
+inazuma = ["dep:inazuma"]
+test-support = ["inazuma-collections/test-support", "inazuma/test-support", "carrot-proto/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+async-tungstenite.workspace = true
+base64.workspace = true
+inazuma-collections.workspace = true
+futures.workspace = true
+inazuma = { workspace = true, optional = true }
+parking_lot.workspace = true
+carrot-proto.workspace = true
+rand.workspace = true
+rsa.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+strum.workspace = true
+tracing = { workspace = true, features = ["log"] }
+inazuma-util.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+inazuma-collections = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-proto = { workspace = true, features = ["test-support"] }
+carrot-log.workspace = true
