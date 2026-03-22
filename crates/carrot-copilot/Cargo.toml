@@ -1,0 +1,71 @@
+[package]
+name = "carrot-copilot"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/copilot.rs"
+doctest = false
+
+[features]
+default = []
+test-support = [
+    "inazuma-collections/test-support",
+    "inazuma/test-support",
+    "carrot-language/test-support",
+    "carrot-lsp/test-support",
+    "inazuma-settings-framework/test-support",
+    "inazuma-util/test-support",
+]
+
+[dependencies]
+anyhow.workspace = true
+inazuma-collections.workspace = true
+carrot-command-palette-hooks.workspace = true
+carrot-copilot-chat.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+carrot-edit-prediction-types.workspace = true
+inazuma-icons.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+carrot-node-runtime.workspace = true
+parking_lot.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+inazuma-sum_tree.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+async-std.workspace = true
+
+[dev-dependencies]
+inazuma-collections = { workspace = true, features = ["test-support"] }
+carrot-editor = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+indoc.workspace = true
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-lsp = { workspace = true, features = ["test-support"] }
+carrot-node-runtime = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-rpc = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-theme = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-log.workspace = true
+carrot-theme-settings.workspace = true
