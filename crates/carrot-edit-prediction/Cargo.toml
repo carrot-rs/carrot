@@ -1,0 +1,85 @@
+[package]
+name = "carrot-edit-prediction"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/edit_prediction.rs"
+
+[features]
+cli-support = []
+
+[dependencies]
+carrot-ai-onboarding.workspace = true
+anyhow.workspace = true
+heapless.workspace = true
+carrot-buffer-diff.workspace = true
+carrot-client.workspace = true
+inazuma-clock.workspace = true
+carrot-cloud-api-types.workspace = true
+carrot-cloud-llm-client.workspace = true
+inazuma-collections.workspace = true
+carrot-copilot.workspace = true
+carrot-copilot-ui.workspace = true
+carrot-db.workspace = true
+carrot-edit-prediction-types.workspace = true
+carrot-edit-prediction-context.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+indoc.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+carrot-language-model.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+inazuma-menu.workspace = true
+carrot-open-ai.workspace = true
+postage.workspace = true
+pretty_assertions.workspace = true
+carrot-project.workspace = true
+pulldown-cmark.workspace = true
+rand.workspace = true
+regex.workspace = true
+carrot-release-channel.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+strum.workspace = true
+carrot-telemetry.workspace = true
+carrot-telemetry-events.workspace = true
+inazuma-text.workspace = true
+thiserror.workspace = true
+time.workspace = true
+toml.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-workspace.workspace = true
+carrot-worktree.workspace = true
+carrot-actions.workspace = true
+carrot-zeta-prompt.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+inazuma-clock = { workspace = true, features = ["test-support"] }
+carrot-cloud-llm-client = { workspace = true, features = ["test-support"] }
+ctor.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+indoc.workspace = true
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-language-model = { workspace = true, features = ["test-support"] }
+carrot-lsp.workspace = true
+parking_lot.workspace = true
+carrot-project = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
+
+carrot-log.workspace = true
