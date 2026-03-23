@@ -1,0 +1,27 @@
+[package]
+name = "carrot-codestral"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license-file.workspace = true
+
+[lib]
+path = "src/codestral.rs"
+
+[dependencies]
+anyhow.workspace = true
+carrot-edit-prediction-types.workspace = true
+carrot-edit-prediction.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+carrot-http-client.workspace = true
+inazuma-icons.workspace = true
+carrot-language.workspace = true
+carrot-language-model.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-text.workspace = true
+carrot-zeta-prompt.workspace = true
+
+[dev-dependencies]
