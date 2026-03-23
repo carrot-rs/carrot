@@ -1,0 +1,25 @@
+[package]
+name = "carrot-web-search-providers"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/web_search_providers.rs"
+
+[dependencies]
+anyhow.workspace = true
+carrot-client.workspace = true
+carrot-cloud-api-types.workspace = true
+carrot-cloud-llm-client.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+carrot-http-client.workspace = true
+carrot-language-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+carrot-web-search.workspace = true
