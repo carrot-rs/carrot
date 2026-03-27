@@ -1,0 +1,22 @@
+[package]
+name = "carrot-denoise"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+candle-core.workspace = true
+candle-onnx.workspace = true
+log.workspace = true
+# Version mismatch: workspace has 0.9, carrot-denoise needs 0.14
+prost = "0.14"
+
+rodio = { workspace = true, features = ["wav"] }
+
+rustfft.workspace = true
+realfft.workspace = true
+thiserror.workspace = true
