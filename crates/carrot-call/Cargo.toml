@@ -1,0 +1,58 @@
+[package]
+name = "carrot-call"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/call.rs"
+doctest = false
+
+[features]
+test-support = [
+    "carrot-client/test-support",
+    "inazuma-collections/test-support",
+    "inazuma/test-support",
+    "carrot-livekit-client/test-support",
+    "carrot-project/test-support",
+    "inazuma-util/test-support",
+    "carrot-workspace/test-support"
+]
+
+[dependencies]
+anyhow.workspace = true
+carrot-audio.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+carrot-feature-flags.workspace = true
+inazuma = { workspace = true, features = ["screen-capture"] }
+inazuma-tokio.workspace = true
+carrot-language.workspace = true
+carrot-livekit-client.workspace = true
+log.workspace = true
+postage.workspace = true
+carrot-project.workspace = true
+serde.workspace = true
+inazuma-settings-content.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-telemetry.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+
+[dev-dependencies]
+carrot-client = { workspace = true, features = ["test-support"] }
+inazuma-collections = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
+
+carrot-livekit-client = { workspace = true, features = ["test-support"] }
