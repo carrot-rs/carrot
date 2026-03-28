@@ -1,0 +1,114 @@
+[package]
+name = "carrot-remote-server"
+description = "Daemon used for remote editing"
+edition.workspace = true
+version = "0.1.0"
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/server.rs"
+doctest = false
+
+[[bin]]
+name = "carrot-remote-server"
+
+[features]
+default = []
+debug-embed = ["dep:rust-embed"]
+test-support = ["carrot-fs/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+carrot-askpass.workspace = true
+clap.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-crashes.workspace = true
+carrot-dap-adapters.workspace = true
+carrot-debug-adapter-extension.workspace = true
+env_logger.workspace = true
+carrot-extension.workspace = true
+carrot-extension-host.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+carrot-git.workspace = true
+carrot-git-hosting-providers.workspace = true
+git2 = { workspace = true, features = ["vendored-libgit2"] }
+inazuma.workspace = true
+inazuma-platform.workspace = true
+inazuma-tokio.workspace = true
+carrot-http-client.workspace = true
+image.workspace = true
+carrot-json-schema-store.workspace = true
+carrot-language.workspace = true
+carrot-language-extension.workspace = true
+carrot-languages.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+carrot-net.workspace = true
+carrot-node-runtime.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+carrot-proto.workspace = true
+carrot-release-channel.workspace = true
+carrot-remote.workspace = true
+carrot-reqwest-client.workspace = true
+carrot-rpc.workspace = true
+rust-embed = { workspace = true, optional = true, features = ["debug-embed"] }
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+shellexpand.workspace = true
+smol.workspace = true
+sysinfo.workspace = true
+carrot-task.workspace = true
+inazuma-util.workspace = true
+carrot-watch.workspace = true
+carrot-worktree.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[target.'cfg(not(windows))'.dependencies]
+crash-handler.workspace = true
+fork.workspace = true
+libc.workspace = true
+minidumper.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+inazuma = { workspace = true, features = ["windows-manifest"] }
+
+[dev-dependencies]
+carrot-action-log.workspace = true
+carrot-agent = { workspace = true, features = ["test-support"] }
+carrot-client = { workspace = true, features = ["test-support"] }
+inazuma-clock = { workspace = true, features = ["test-support"] }
+carrot-editor = { workspace = true, features = ["test-support"] }
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-http-client = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-node-runtime = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-remote = { workspace = true, features = ["test-support"] }
+carrot-theme-settings.workspace = true
+carrot-theme = { workspace = true, features = ["test-support"] }
+carrot-language-model = { workspace = true, features = ["test-support"] }
+carrot-lsp = { workspace = true, features = ["test-support"] }
+unindent.workspace = true
+serde_json.workspace = true
+carrot-log.workspace = true
+
+[build-dependencies]
+cargo_toml.workspace = true
+toml.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["git2", "rust-embed", "paths"]
