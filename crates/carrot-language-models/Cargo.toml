@@ -1,0 +1,73 @@
+[package]
+name = "carrot-language-models"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/language_models.rs"
+
+[dependencies]
+carrot-ai-onboarding.workspace = true
+carrot-anthropic = { workspace = true, features = ["schemars"] }
+anyhow.workspace = true
+aws-config = { workspace = true, features = ["behavior-version-latest"] }
+aws-credential-types = { workspace = true, features = ["hardcoded-credentials"] }
+carrot-aws-http-client.workspace = true
+base64.workspace = true
+carrot-bedrock = { workspace = true, features = ["schemars"] }
+carrot-client.workspace = true
+carrot-cloud-api-types.workspace = true
+carrot-cloud-llm-client.workspace = true
+inazuma-collections.workspace = true
+inazuma-component-registry.workspace = true
+convert_case.workspace = true
+carrot-copilot.workspace = true
+carrot-copilot-chat.workspace = true
+carrot-copilot-ui.workspace = true
+carrot-credentials-provider.workspace = true
+carrot-deepseek = { workspace = true, features = ["schemars"] }
+carrot-extension.workspace = true
+carrot-extension-host.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+carrot-google-ai = { workspace = true, features = ["schemars"] }
+inazuma.workspace = true
+inazuma-tokio.workspace = true
+carrot-http-client.workspace = true
+carrot-language.workspace = true
+carrot-language-model.workspace = true
+carrot-lmstudio = { workspace = true, features = ["schemars"] }
+log.workspace = true
+inazuma-menu.workspace = true
+carrot-mistral = { workspace = true, features = ["schemars"] }
+carrot-ollama = { workspace = true, features = ["schemars"] }
+carrot-open-ai = { workspace = true, features = ["schemars"] }
+carrot-opencode = { workspace = true, features = ["schemars"] }
+carrot-open-router = { workspace = true, features = ["schemars"] }
+partial-json-fixer.workspace = true
+carrot-release-channel.workspace = true
+schemars.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+smol.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+tiktoken-rs.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+carrot-ui.workspace = true
+carrot-ui-input.workspace = true
+inazuma-util.workspace = true
+carrot-vercel = { workspace = true, features = ["schemars"] }
+carrot-x-ai = { workspace = true, features = ["schemars"] }
+
+[dev-dependencies]
+carrot-language-model = { workspace = true, features = ["test-support"] }
+pretty_assertions.workspace = true
+
