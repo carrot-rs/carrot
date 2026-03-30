@@ -1,0 +1,86 @@
+[package]
+name = "carrot-client"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/client.rs"
+doctest = false
+
+[features]
+test-support = ["inazuma-clock/test-support", "inazuma-collections/test-support", "inazuma/test-support", "carrot-rpc/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+async-tungstenite = { workspace = true, features = ["tokio", "tokio-rustls-manual-roots"] }
+base64.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+inazuma-clock.workspace = true
+carrot-cloud-api-client.workspace = true
+carrot-cloud-llm-client.workspace = true
+inazuma-collections.workspace = true
+carrot-credentials-provider.workspace = true
+carrot-db.workspace = true
+derive_more.workspace = true
+carrot-feature-flags.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+inazuma-tokio.workspace = true
+carrot-http-client.workspace = true
+carrot-http-client-tls.workspace = true
+httparse.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+carrot-paths.workspace = true
+postage.workspace = true
+rand.workspace = true
+regex.workspace = true
+carrot-release-channel.workspace = true
+carrot-rpc = { workspace = true, features = ["inazuma"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+inazuma-settings-framework.workspace = true
+sha2.workspace = true
+smol.workspace = true
+carrot-telemetry.workspace = true
+carrot-telemetry-events.workspace = true
+inazuma-text.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tiny_http.workspace = true
+tokio-socks.workspace = true
+tokio.workspace = true
+url.workspace = true
+inazuma-util.workspace = true
+carrot-worktree.workspace = true
+
+[dev-dependencies]
+inazuma-clock = { workspace = true, features = ["test-support"] }
+inazuma-collections = { workspace = true, features = ["test-support"] }
+carrot-fs.workspace = true
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-http-client = { workspace = true, features = ["test-support"] }
+carrot-rpc = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+semver.workspace = true
+windows.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation.workspace = true
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+tokio-native-tls.workspace = true
+
+[target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
+rustls-pki-types.workspace = true
+tokio-rustls.workspace = true
