@@ -1,0 +1,80 @@
+[package]
+name = "carrot-extension-host"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/extension_host.rs"
+doctest = false
+
+[features]
+test-support = []
+
+[dependencies]
+anyhow.workspace = true
+async-compression.workspace = true
+async-tar.workspace = true
+async-trait.workspace = true
+carrot-client.workspace = true
+carrot-cloud-api-types.workspace = true
+inazuma-collections.workspace = true
+carrot-dap.workspace = true
+carrot-extension.workspace = true
+carrot-fs.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+inazuma-tokio.workspace = true
+carrot-http-client.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-lsp.workspace = true
+moka.workspace = true
+carrot-node-runtime.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+carrot-remote.workspace = true
+carrot-release-channel.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_lenient.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-task.workspace = true
+carrot-telemetry.workspace = true
+tempfile.workspace = true
+toml.workspace = true
+tracing.workspace = true
+url.workspace = true
+inazuma-util.workspace = true
+wasmparser.workspace = true
+wasmtime-wasi.workspace = true
+wasmtime.workspace = true
+carrot-tracing.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+ctor.workspace = true
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-language-extension.workspace = true
+parking_lot.workspace = true
+carrot-project = { workspace = true, features = ["test-support"] }
+
+carrot-reqwest-client.workspace = true
+carrot-theme = { workspace = true, features = ["test-support"] }
+carrot-theme-settings.workspace = true
+carrot-theme-extension.workspace = true
+carrot-log.workspace = true
+
+[[bench]]
+name = "extension_compilation_benchmark"
+harness = false
+
+[package.metadata.cargo-machete]
+ignored = ["tracing"]
