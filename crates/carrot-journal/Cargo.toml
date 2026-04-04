@@ -1,0 +1,28 @@
+[package]
+name = "carrot-journal"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/journal.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+carrot-editor.workspace = true
+inazuma.workspace = true
+log.workspace = true
+serde.workspace = true
+inazuma-settings-framework.workspace = true
+shellexpand.workspace = true
+carrot-shell.workspace = true
+carrot-workspace.workspace = true
+
+[dev-dependencies]
+carrot-editor = { workspace = true, features = ["test-support"] }
