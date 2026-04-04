@@ -1,0 +1,21 @@
+[package]
+name = "carrot-svg-preview"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/svg_preview.rs"
+
+[dependencies]
+carrot-multi-buffer.workspace = true
+carrot-file-icons.workspace = true
+inazuma.workspace = true
+carrot-language.workspace = true
+carrot-ui.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
