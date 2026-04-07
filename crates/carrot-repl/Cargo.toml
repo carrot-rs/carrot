@@ -1,0 +1,82 @@
+[package]
+name = "carrot-repl"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+test-support = []
+
+[lib]
+path = "src/repl.rs"
+doctest = false
+
+[dependencies]
+carrot-term.workspace = true
+anyhow.workspace = true
+async-dispatcher.workspace = true
+async-task.workspace = true
+async-tungstenite = { workspace = true, features = ["tokio", "tokio-rustls-manual-roots", "tokio-runtime"] }
+base64.workspace = true
+carrot-client.workspace = true
+inazuma-collections.workspace = true
+carrot-command-palette-hooks.workspace = true
+carrot-editor.workspace = true
+carrot-feature-flags.workspace = true
+carrot-file-icons.workspace = true
+futures.workspace = true
+inazuma.workspace = true
+carrot-html-to-markdown.workspace = true
+carrot-http-client.workspace = true
+image.workspace = true
+jupyter-websocket-client.workspace = true
+jupyter-protocol.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-markdown.workspace = true
+inazuma-menu.workspace = true
+carrot-multi-buffer.workspace = true
+nbformat.workspace = true
+carrot-project.workspace = true
+carrot-remote.workspace = true
+runtimelib.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+shlex.workspace = true
+smol.workspace = true
+carrot-telemetry.workspace = true
+carrot-terminal.workspace = true
+# carrot-terminal-view: REMOVED — wird in Phase 20 gebaut
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+uuid.workspace = true
+carrot-workspace.workspace = true
+inazuma-picker.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-editor = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-http-client = { workspace = true, features = ["test-support"] }
+indoc.workspace = true
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-languages = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+# carrot-terminal-view: REMOVED — wird in Phase 20 gebaut
+carrot-theme = { workspace = true, features = ["test-support"] }
+tree-sitter-md.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-python.workspace = true
+carrot-workspace = { workspace = true, features = ["test-support"] }
+inazuma-util = { workspace = true, features = ["test-support"] }
+
+[package.metadata.cargo-machete]
+ignored = ["carrot-remote"]
