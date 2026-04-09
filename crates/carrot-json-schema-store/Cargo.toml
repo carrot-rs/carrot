@@ -1,0 +1,34 @@
+[package]
+name = "carrot-json-schema-store"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/json_schema_store.rs"
+
+[features]
+default = []
+
+[dependencies]
+anyhow.workspace = true
+inazuma-collections.workspace = true
+carrot-dap.workspace = true
+parking_lot.workspace = true
+carrot-extension.workspace = true
+inazuma.workspace = true
+carrot-language.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-snippet-provider.workspace = true
+carrot-task.workspace = true
+carrot-theme.workspace = true
+inazuma-util.workspace = true
