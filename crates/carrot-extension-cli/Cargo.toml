@@ -1,0 +1,36 @@
+[package]
+name = "carrot-extension-cli"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "carrot-extension"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+carrot-cloud-api-types.workspace = true
+env_logger.workspace = true
+carrot-extension.workspace = true
+carrot-fs.workspace = true
+inazuma-platform.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-reqwest-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_lenient.workspace = true
+inazuma-settings-content.workspace = true
+carrot-snippet-provider.workspace = true
+carrot-task.workspace = true
+carrot-theme-settings.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true
+tree-sitter.workspace = true
+wasmtime.workspace = true
