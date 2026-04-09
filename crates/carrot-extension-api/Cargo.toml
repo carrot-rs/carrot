@@ -1,0 +1,24 @@
+[package]
+name = "carrot-extension-api"
+version = "0.1.0"
+description = "APIs for creating Carrot extensions in Rust"
+repository = "https://github.com/carrot-rs/carrot"
+documentation = "https://docs.rs/carrot_extension_api"
+keywords = ["carrot", "extension"]
+edition.workspace = true
+publish = false
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/extension_api.rs"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+wit-bindgen.workspace = true
+
+[package.metadata.component]
+target = { path = "wit" }
