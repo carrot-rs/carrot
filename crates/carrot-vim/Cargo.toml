@@ -1,0 +1,77 @@
+[package]
+name = "carrot-vim"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/vim.rs"
+doctest = false
+
+[features]
+neovim = ["nvim-rs", "async-compat", "async-trait", "tokio"]
+
+[dependencies]
+anyhow.workspace = true
+async-compat = { workspace = true, "optional" = true }
+async-trait = { workspace = true, "optional" = true }
+inazuma-collections.workspace = true
+carrot-command-palette.workspace = true
+carrot-command-palette-hooks.workspace = true
+carrot-db.workspace = true
+carrot-editor.workspace = true
+env_logger.workspace = true
+futures.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma.workspace = true
+itertools.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+carrot-multi-buffer.workspace = true
+nvim-rs = { git = "https://github.com/KillTheMule/nvim-rs", rev = "764dd270c642f77f10f3e19d05cc178a6cbe69f3", features = ["use_tokio"], optional = true }
+inazuma-picker.workspace = true
+carrot-project.workspace = true
+regex.workspace = true
+schemars.workspace = true
+carrot-search.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-task.workspace = true
+inazuma-text.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+inazuma-menu.workspace = true
+tokio = { workspace = true, optional = true }
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+inazuma-util-macros.workspace = true
+carrot-vim-mode-setting.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-command-palette = { workspace = true, features = ["test-support"] }
+carrot-editor = { workspace = true, features = ["test-support"] }
+carrot-git-ui = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+indoc.workspace = true
+carrot-language = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-lsp = { workspace = true, features = ["test-support"] }
+carrot-markdown-preview.workspace = true
+parking_lot.workspace = true
+carrot-project-panel.workspace = true
+carrot-outline-panel.workspace = true
+carrot-release-channel.workspace = true
+semver.workspace = true
+carrot-settings-ui.workspace = true
+inazuma-settings-framework.workspace = true
+inazuma-perf.workspace = true
+inazuma-util = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
+carrot-search = { workspace = true, features = ["test-support"] }
