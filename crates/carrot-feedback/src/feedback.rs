@@ -1,0 +1,98 @@
+use carrot_actions::feedback::{EmailCarrot, FileBugReport, RequestFeature};
+use carrot_system_specs::{CopySystemSpecsIntoClipboard, SystemSpecs};
+use carrot_workspace::Workspace;
+use inazuma::{App, ClipboardItem, PromptLevel, actions};
+use inazuma_util::ResultExt;
+
+actions!(
+    carrot,
+    [
+        /// Opens the Carrot repository on GitHub.
+        OpenCarrotRepo,
+    ]
+);
+
+const CARROT_REPO_URL: &str = "https://github.com/carrot-rs/carrot";
+
+const REQUEST_FEATURE_URL: &str = "https://github.com/carrot-rs/carrot/discussions/new/choose";
+
+fn file_bug_report_url(specs: &SystemSpecs) -> String {
+    format!(
+        concat!(
+            "https://github.com/carrot-rs/carrot/issues/new",
+            "?",
+            "template=10_bug_report.yml",
+            "&",
+            "environment={}"
+        ),
+        urlencoding::encode(&specs.to_string())
+    )
+}
+
+fn email_carrot_url(specs: &SystemSpecs) -> String {
+    format!(
+        concat!("mailto:hi@carrot.dev", "?", "body={}"),
+        email_body(specs)
+    )
+}
+
+fn email_body(specs: &SystemSpecs) -> String {
+    let body = format!("\n\nSystem Information:\n\n{}", specs);
+    urlencoding::encode(&body).to_string()
+}
+
+pub fn init(cx: &mut App) {
+    cx.observe_new(|workspace: &mut Workspace, _, _| {
+        workspace
+            .register_action(|_, _: &CopySystemSpecsIntoClipboard, window, cx| {
+                let specs = SystemSpecs::new(window, cx);
+
+                cx.spawn_in(window, async move |_, cx| {
+                    let specs = specs.await.to_string();
+
+                    cx.update(|_, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(specs.clone()))
+                    })
+                    .log_err();
+
+                    cx.prompt(
+                        PromptLevel::Info,
+                        "Copied into clipboard",
+                        Some(&specs),
+                        &["OK"],
+                    )
+                    .await
+                })
+                .detach();
+            })
+            .register_action(|_, _: &RequestFeature, _, cx| {
+                cx.open_url(REQUEST_FEATURE_URL);
+            })
+            .register_action(move |_, _: &FileBugReport, window, cx| {
+                let specs = SystemSpecs::new(window, cx);
+                cx.spawn_in(window, async move |_, cx| {
+                    let specs = specs.await;
+                    cx.update(|_, cx| {
+                        cx.open_url(&file_bug_report_url(&specs));
+                    })
+                    .log_err();
+                })
+                .detach();
+            })
+            .register_action(move |_, _: &EmailCarrot, window, cx| {
+                let specs = SystemSpecs::new(window, cx);
+                cx.spawn_in(window, async move |_, cx| {
+                    let specs = specs.await;
+                    cx.update(|_, cx| {
+                        cx.open_url(&email_carrot_url(&specs));
+                    })
+                    .log_err();
+                })
+                .detach();
+            })
+            .register_action(move |_, _: &OpenCarrotRepo, _, cx| {
+                cx.open_url(CARROT_REPO_URL);
+            });
+    })
+    .detach();
+}
