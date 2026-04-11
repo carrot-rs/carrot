@@ -1,0 +1,54 @@
+[package]
+name = "carrot-keymap-editor"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/keymap_editor.rs"
+
+[dependencies]
+anyhow.workspace = true
+inazuma-collections.workspace = true
+carrot-command-palette.workspace = true
+carrot-db.workspace = true
+carrot-editor.workspace = true
+carrot-fs.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma.workspace = true
+itertools.workspace = true
+carrot-json-compat.workspace = true
+carrot-json-schema-store.workspace = true
+carrot-language.workspace = true
+log.workspace = true
+inazuma-menu.workspace = true
+carrot-notifications.workspace = true
+carrot-paths.workspace = true
+carrot-project.workspace = true
+carrot-search.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-shell.workspace = true
+carrot-telemetry.workspace = true
+tempfile.workspace = true
+carrot-theme.workspace = true
+carrot-theme-settings.workspace = true
+tree-sitter-json.workspace = true
+tree-sitter-rust.workspace = true
+carrot-ui-input.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
+carrot-actions.workspace = true
+
+[dev-dependencies]
+carrot-db = {"workspace"= true, "features" = ["test-support"]}
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+carrot-workspace = { workspace = true, features = ["test-support"] }
