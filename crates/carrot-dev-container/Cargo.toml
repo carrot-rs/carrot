@@ -1,0 +1,39 @@
+[package]
+name = "carrot-dev-container"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+carrot-http-client.workspace = true
+http.workspace = true
+inazuma.workspace = true
+futures.workspace = true
+log.workspace = true
+carrot-node-runtime.workspace = true
+inazuma-menu.workspace = true
+carrot-paths.workspace = true
+inazuma-picker.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-shell.workspace = true
+smol.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-worktree.workspace = true
+carrot-workspace.workspace = true
+
+[dev-dependencies]
+carrot-fs = { workspace = true, features = ["test-support"] }
+inazuma = { workspace = true, features = ["test-support"] }
+carrot-project = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+inazuma-settings-framework = { workspace = true, features = ["test-support"] }
+
+carrot-workspace = { workspace = true, features = ["test-support"] }
+carrot-worktree = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true
