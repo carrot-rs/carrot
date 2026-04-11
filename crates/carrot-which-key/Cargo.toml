@@ -1,0 +1,23 @@
+[package]
+name = "carrot-which-key"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/which_key.rs"
+doctest = false
+
+[dependencies]
+carrot-command-palette.workspace = true
+inazuma.workspace = true
+serde.workspace = true
+inazuma-settings-framework.workspace = true
+carrot-theme-settings.workspace = true
+carrot-ui.workspace = true
+inazuma-util.workspace = true
+carrot-workspace.workspace = true
