@@ -1,0 +1,532 @@
+use crate::multibuffer_hint::MultibufferHint;
+use carrot_actions::OpenOnboarding;
+use carrot_client::{Client, UserStore, carrot_urls};
+use carrot_db::kvp::KeyValueStore;
+use carrot_ui::{
+    Divider, KeyBinding, ParentElement as _, StatefulInteractiveElement, Vector, VectorName,
+    WithScrollbar as _, prelude::*, rems_from_px,
+};
+pub use carrot_workspace::welcome::ShowWelcome;
+use carrot_workspace::welcome::WelcomePage;
+use carrot_workspace::{
+    AppState, PaneRole, Workspace, WorkspaceId,
+    dock::DockPosition,
+    item::{Item, ItemEvent},
+    notifications::NotifyResultExt as _,
+    register_serializable_item, workspace_opener,
+};
+use inazuma::{
+    Action, AnyElement, App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable,
+    IntoElement, KeyContext, Render, ScrollHandle, SharedString, Subscription, Task, WeakEntity,
+    Window, actions,
+};
+use inazuma_settings_framework::SettingsStore;
+use std::sync::Arc;
+
+mod base_keymap_picker;
+mod basics_page;
+pub mod multibuffer_hint;
+mod theme_preview;
+
+pub const FIRST_OPEN: &str = "first_open";
+pub const DOCS_URL: &str = "https://carrot.dev/docs/";
+
+actions!(
+    onboarding,
+    [
+        /// Finish the onboarding process.
+        Finish,
+        /// Sign in while in the onboarding flow.
+        SignIn,
+        /// Open the user account in carrot.dev while in the onboarding flow.
+        OpenAccount,
+        /// Resets the welcome screen hints to their initial state.
+        ResetHints
+    ]
+);
+
+pub fn init(cx: &mut App) {
+    cx.observe_new(|workspace: &mut Workspace, _, _cx| {
+        workspace
+            .register_action(|_workspace, _: &ResetHints, _, cx| MultibufferHint::set_count(0, cx));
+    })
+    .detach();
+
+    cx.on_action(|_: &OpenOnboarding, cx| {
+        carrot_shell::with_active_workspace(cx, |workspace, window, cx| {
+            workspace
+                .with_local_workspace(window, cx, |workspace, window, cx| {
+                    let existing = workspace
+                        .active_pane()
+                        .read(cx)
+                        .items()
+                        .find_map(|item| item.downcast::<Onboarding>());
+
+                    if let Some(existing) = existing {
+                        workspace.activate_item(&existing, true, true, window, cx);
+                    } else {
+                        let settings_page = Onboarding::new(workspace, cx);
+                        workspace.add_item_to_active_pane(
+                            Box::new(settings_page),
+                            None,
+                            true,
+                            window,
+                            cx,
+                        )
+                    }
+                })
+                .detach();
+        });
+    });
+
+    cx.on_action(|_: &ShowWelcome, cx| {
+        carrot_shell::with_active_workspace(cx, |workspace, window, cx| {
+            workspace
+                .with_local_workspace(window, cx, |workspace, window, cx| {
+                    let existing = workspace
+                        .active_pane()
+                        .read(cx)
+                        .items()
+                        .find_map(|item| item.downcast::<WelcomePage>());
+
+                    if let Some(existing) = existing {
+                        workspace.activate_item(&existing, true, true, window, cx);
+                    } else {
+                        let settings_page = cx
+                            .new(|cx| WelcomePage::new(workspace.weak_handle(), false, window, cx));
+                        workspace.add_item_to_active_pane(
+                            Box::new(settings_page),
+                            None,
+                            true,
+                            window,
+                            cx,
+                        )
+                    }
+                })
+                .detach();
+        });
+    });
+
+    base_keymap_picker::init(cx);
+
+    register_serializable_item::<Onboarding>(cx);
+    register_serializable_item::<WelcomePage>(cx);
+}
+
+pub fn show_onboarding_view(app_state: Arc<AppState>, cx: &mut App) -> Task<anyhow::Result<()>> {
+    carrot_telemetry::event!("Onboarding Page Opened");
+    if let Some(opener) = workspace_opener(cx) {
+        let task = opener.open_paths(&[], app_state, None, cx);
+        cx.spawn(async move |cx| {
+            let workspace = task.await?;
+            let entity_id = workspace.entity_id();
+            cx.update(|cx| {
+                for window in cx.windows() {
+                    let _ = window.update(cx, |_, window, cx| {
+                        if let Some(ws) = Workspace::for_window(window, cx) {
+                            if ws.entity_id() == entity_id {
+                                ws.update(cx, |workspace, cx| {
+                                    workspace.toggle_dock(DockPosition::Left, window, cx);
+                                    let onboarding_page = Onboarding::new(workspace, cx);
+                                    workspace.add_item_to_center(
+                                        Box::new(onboarding_page.clone()),
+                                        window,
+                                        cx,
+                                    );
+
+                                    window.focus(&onboarding_page.focus_handle(cx), cx);
+
+                                    cx.notify();
+
+                                    let kvp = KeyValueStore::global(cx);
+                                    carrot_db::write_and_log(cx, move || async move {
+                                        kvp.write_kvp(FIRST_OPEN.to_string(), "false".to_string())
+                                            .await
+                                    });
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+            anyhow::Ok(())
+        })
+    } else {
+        Task::ready(Err(anyhow::anyhow!("No workspace opener registered")))
+    }
+}
+
+struct Onboarding {
+    workspace: WeakEntity<Workspace>,
+    focus_handle: FocusHandle,
+    user_store: Entity<UserStore>,
+    scroll_handle: ScrollHandle,
+    _settings_subscription: Subscription,
+}
+
+impl Onboarding {
+    fn new(workspace: &Workspace, cx: &mut App) -> Entity<Self> {
+        let font_family_cache = carrot_theme::FontFamilyCache::global(cx);
+
+        cx.new(|cx| {
+            cx.spawn(async move |this, cx| {
+                font_family_cache.prefetch(cx).await;
+                this.update(cx, |_, cx| {
+                    cx.notify();
+                })
+            })
+            .detach();
+
+            Self {
+                workspace: workspace.weak_handle(),
+                focus_handle: cx.focus_handle(),
+                scroll_handle: ScrollHandle::new(),
+                user_store: workspace.user_store().clone(),
+                _settings_subscription: cx
+                    .observe_global::<SettingsStore>(move |_, cx| cx.notify()),
+            }
+        })
+    }
+
+    fn on_finish(_: &Finish, _: &mut Window, cx: &mut App) {
+        carrot_telemetry::event!("Finish Setup");
+        go_to_welcome_page(cx);
+    }
+
+    fn handle_sign_in(&mut self, _: &SignIn, window: &mut Window, cx: &mut Context<Self>) {
+        let client = Client::global(cx);
+        let workspace = self.workspace.clone();
+
+        window
+            .spawn(cx, async move |mut cx| {
+                client
+                    .sign_in_with_optional_connect(true, &cx)
+                    .await
+                    .notify_workspace_async_err(workspace, &mut cx);
+            })
+            .detach();
+    }
+
+    fn handle_open_account(_: &OpenAccount, _: &mut Window, cx: &mut App) {
+        cx.open_url(&carrot_urls::account_url(cx))
+    }
+
+    fn render_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        crate::basics_page::render_basics_page(cx).into_any_element()
+    }
+}
+
+impl Render for Onboarding {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .image_cache(inazuma::retain_all("onboarding-page"))
+            .key_context({
+                let mut ctx = KeyContext::new_with_defaults();
+                ctx.add("Onboarding");
+                ctx.add("menu");
+                ctx
+            })
+            .track_focus(&self.focus_handle)
+            .size_full()
+            .bg(cx.theme().colors().editor.background)
+            .on_action(Self::on_finish)
+            .on_action(cx.listener(Self::handle_sign_in))
+            .on_action(Self::handle_open_account)
+            .on_action(cx.listener(|_, _: &inazuma_menu::SelectNext, window, cx| {
+                window.focus_next(cx);
+                cx.notify();
+            }))
+            .on_action(
+                cx.listener(|_, _: &inazuma_menu::SelectPrevious, window, cx| {
+                    window.focus_prev(cx);
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .max_w(Rems(48.0))
+                    .size_full()
+                    .mx_auto()
+                    .child(
+                        v_flex()
+                            .id("page-content")
+                            .m_auto()
+                            .p_12()
+                            .size_full()
+                            .max_w_full()
+                            .min_w_0()
+                            .gap_6()
+                            .overflow_y_scroll()
+                            .child(
+                                h_flex()
+                                    .w_full()
+                                    .gap_4()
+                                    .justify_between()
+                                    .child(
+                                        h_flex()
+                                            .gap_4()
+                                            .child(Vector::square(
+                                                VectorName::CarrotLogo,
+                                                rems(2.5),
+                                            ))
+                                            .child(
+                                                v_flex()
+                                                    .child(
+                                                        Headline::new("Welcome to Carrot")
+                                                            .size(HeadlineSize::Small),
+                                                    )
+                                                    .child(
+                                                        Label::new("The editor for what's next")
+                                                            .color(Color::Muted)
+                                                            .size(LabelSize::Small)
+                                                            .italic(),
+                                                    ),
+                                            ),
+                                    )
+                                    .child({
+                                        ButtonCommon::size(
+                                            Button::new("finish_setup", "Finish Setup")
+                                                .style(ButtonStyle::FILLED),
+                                            ButtonSize::Medium,
+                                        )
+                                        .width(Rems(12.0))
+                                        .key_binding(
+                                            KeyBinding::for_action_in(
+                                                &Finish,
+                                                &self.focus_handle,
+                                                cx,
+                                            )
+                                            .size(rems_from_px(12.)),
+                                        )
+                                        .on_click(
+                                            |_, window: &mut Window, cx| {
+                                                window.dispatch_action(Finish.boxed_clone(), cx);
+                                            },
+                                        )
+                                    }),
+                            )
+                            .child(
+                                Divider::horizontal().color(carrot_ui::DividerColor::BorderVariant),
+                            )
+                            .child(self.render_page(cx))
+                            .track_scroll(&self.scroll_handle),
+                    )
+                    .vertical_scrollbar_for(&self.scroll_handle, window, cx),
+            )
+    }
+}
+
+impl EventEmitter<ItemEvent> for Onboarding {}
+
+impl Focusable for Onboarding {
+    fn focus_handle(&self, _: &App) -> inazuma::FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+impl Item for Onboarding {
+    type Event = ItemEvent;
+
+    fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
+        "Onboarding".into()
+    }
+
+    fn pane_role(&self, _cx: &App) -> PaneRole {
+        PaneRole::Editor
+    }
+
+    fn telemetry_event_text(&self) -> Option<&'static str> {
+        Some("Onboarding Page Opened")
+    }
+
+    fn show_toolbar(&self) -> bool {
+        false
+    }
+
+    fn can_split(&self) -> bool {
+        true
+    }
+
+    fn clone_on_split(
+        &self,
+        _workspace_id: Option<WorkspaceId>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<Option<Entity<Self>>> {
+        Task::ready(Some(cx.new(|cx| Onboarding {
+            workspace: self.workspace.clone(),
+            user_store: self.user_store.clone(),
+            scroll_handle: ScrollHandle::new(),
+            focus_handle: cx.focus_handle(),
+            _settings_subscription: cx.observe_global::<SettingsStore>(move |_, cx| cx.notify()),
+        })))
+    }
+
+    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(carrot_workspace::item::ItemEvent)) {
+        f(*event)
+    }
+}
+
+fn go_to_welcome_page(cx: &mut App) {
+    carrot_shell::with_active_workspace(cx, |workspace, window, cx| {
+        let Some((onboarding_id, onboarding_idx)) = workspace
+            .active_pane()
+            .read(cx)
+            .items()
+            .enumerate()
+            .find_map(|(idx, item)| {
+                let _ = item.downcast::<Onboarding>()?;
+                Some((item.item_id(), idx))
+            })
+        else {
+            return;
+        };
+
+        workspace.active_pane().update(cx, |pane, cx| {
+            // Get the index here to get around the borrow checker
+            let idx = pane.items().enumerate().find_map(|(idx, item)| {
+                let _ = item.downcast::<WelcomePage>()?;
+                Some(idx)
+            });
+
+            if let Some(idx) = idx {
+                pane.activate_item(idx, true, true, window, cx);
+            } else {
+                let item = Box::new(
+                    cx.new(|cx| WelcomePage::new(workspace.weak_handle(), false, window, cx)),
+                );
+                pane.add_item(item, true, true, Some(onboarding_idx), window, cx);
+            }
+
+            pane.remove_item(onboarding_id, false, false, window, cx);
+        });
+    });
+}
+
+impl carrot_workspace::SerializableItem for Onboarding {
+    fn serialized_item_kind() -> &'static str {
+        "OnboardingPage"
+    }
+
+    fn cleanup(
+        workspace_id: carrot_workspace::WorkspaceId,
+        alive_items: Vec<carrot_workspace::ItemId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> inazuma::Task<inazuma::Result<()>> {
+        carrot_workspace::delete_unloaded_items(
+            alive_items,
+            workspace_id,
+            "onboarding_pages",
+            &persistence::OnboardingPagesDb::global(cx),
+            cx,
+        )
+    }
+
+    fn deserialize(
+        _project: Entity<carrot_project::Project>,
+        workspace: WeakEntity<Workspace>,
+        workspace_id: carrot_workspace::WorkspaceId,
+        item_id: carrot_workspace::ItemId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> inazuma::Task<inazuma::Result<Entity<Self>>> {
+        let db = persistence::OnboardingPagesDb::global(cx);
+        window.spawn(cx, async move |cx| {
+            if let Some(_) = db.get_onboarding_page(item_id, workspace_id)? {
+                workspace.update(cx, |workspace, cx| Onboarding::new(workspace, cx))
+            } else {
+                Err(anyhow::anyhow!("No onboarding page to deserialize"))
+            }
+        })
+    }
+
+    fn serialize(
+        &mut self,
+        workspace: &mut Workspace,
+        item_id: carrot_workspace::ItemId,
+        _closing: bool,
+        _window: &mut Window,
+        cx: &mut carrot_ui::Context<Self>,
+    ) -> Option<inazuma::Task<inazuma::Result<()>>> {
+        let workspace_id = workspace.database_id()?;
+
+        let db = persistence::OnboardingPagesDb::global(cx);
+        Some(
+            cx.background_spawn(
+                async move { db.save_onboarding_page(item_id, workspace_id).await },
+            ),
+        )
+    }
+
+    fn should_serialize(&self, event: &Self::Event) -> bool {
+        event == &ItemEvent::UpdateTab
+    }
+}
+
+mod persistence {
+    use carrot_db::{
+        query,
+        sqlez::{domain::Domain, thread_safe_connection::ThreadSafeConnection},
+        sqlez_macros::sql,
+    };
+    use carrot_workspace::WorkspaceDb;
+
+    pub struct OnboardingPagesDb(ThreadSafeConnection);
+
+    impl Domain for OnboardingPagesDb {
+        const NAME: &str = stringify!(OnboardingPagesDb);
+
+        const MIGRATIONS: &[&str] = &[
+            sql!(
+                        CREATE TABLE onboarding_pages (
+                            workspace_id INTEGER,
+                            item_id INTEGER UNIQUE,
+                            page_number INTEGER,
+
+                            PRIMARY KEY(workspace_id, item_id),
+                            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                            ON DELETE CASCADE
+                        ) STRICT;
+            ),
+            sql!(
+                        CREATE TABLE onboarding_pages_2 (
+                            workspace_id INTEGER,
+                            item_id INTEGER UNIQUE,
+
+                            PRIMARY KEY(workspace_id, item_id),
+                            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                            ON DELETE CASCADE
+                        ) STRICT;
+                        INSERT INTO onboarding_pages_2 SELECT workspace_id, item_id FROM onboarding_pages;
+                        DROP TABLE onboarding_pages;
+                        ALTER TABLE onboarding_pages_2 RENAME TO onboarding_pages;
+            ),
+        ];
+    }
+
+    carrot_db::static_connection!(OnboardingPagesDb, [WorkspaceDb]);
+
+    impl OnboardingPagesDb {
+        query! {
+            pub async fn save_onboarding_page(
+                item_id: carrot_workspace::ItemId,
+                workspace_id: carrot_workspace::WorkspaceId
+            ) -> Result<()> {
+                INSERT OR REPLACE INTO onboarding_pages(item_id, workspace_id)
+                VALUES (?, ?)
+            }
+        }
+
+        query! {
+            pub fn get_onboarding_page(
+                item_id: carrot_workspace::ItemId,
+                workspace_id: carrot_workspace::WorkspaceId
+            ) -> Result<Option<carrot_workspace::ItemId>> {
+                SELECT item_id
+                FROM onboarding_pages
+                WHERE item_id = ? AND workspace_id = ?
+            }
+        }
+    }
+}
