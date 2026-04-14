@@ -1,0 +1,25 @@
+[package]
+name = "cargo-carrot"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "cargo-carrot"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+cargo_metadata = { workspace = true }
+ignore = { workspace = true }
+notify-debouncer-mini = "0.5"
+shared_child = "1"
+libc = "0.2"
+env_logger = "0.11"
+ctrlc = "3"
+
+[lints]
+workspace = true
