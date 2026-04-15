@@ -1,0 +1,39 @@
+name: Documentation
+description: Report missing, incorrect, or unclear documentation.
+title: "docs: "
+labels: ["documentation", "needs-triage"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where
+      description: README anchor, file path, or URL.
+      placeholder: e.g. README.md#configure, ARCHITECTURE.md "Layer 4", crates/carrot-grid/README.md
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Issue Kind
+      options:
+        - Missing — should exist but does not
+        - Incorrect — the docs say something wrong
+        - Unclear — the wording is ambiguous or hard to follow
+        - Outdated — was correct, now stale
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What is wrong / missing / unclear, and what would make it correct.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Wording
+      description: Optional — paste a draft replacement so a maintainer can land it directly.
