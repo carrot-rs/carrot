@@ -1,0 +1,77 @@
+name: Performance Regression
+description: Report a measurable performance regression — input lag, frame drops, memory bloat, slow scroll, slow startup.
+title: "perf: "
+labels: ["performance", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Carrot ships with hard performance budgets (sub-millisecond input,
+        120 fps compositing, < 25 MB for 30 000-line sessions). If you
+        are hitting one of those walls, **measurements** matter — back
+        the report with numbers, not impressions.
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What feels slow / heavy?
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurement
+    attributes:
+      label: Measurement
+      description: |
+        Concrete numbers. Examples:
+        - `cat huge.log` → 800 ms cold, 400 ms warm.
+        - Scroll-back at 30 k lines → 38 fps under `wgpu` backend.
+        - `carrot` startup p99 → 920 ms (target: < 250 ms).
+        Include how you measured (timing harness, OS profiler, screen recording with frame counter).
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps + sample input (if shareable).
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (X11)
+        - Linux (Wayland)
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU / Backend
+      placeholder: e.g. Apple M3 Pro / Metal, AMD 7900 XTX / Vulkan 1.3.290
+
+  - type: input
+    id: version
+    attributes:
+      label: Carrot Version / Commit
+      placeholder: e.g. v0.1.0, main@abc1234
+    validations:
+      required: true
+
+  - type: textarea
+    id: profile
+    attributes:
+      label: Profile / Trace
+      description: |
+        Attach a flamegraph, `tracy` capture, `Instruments` trace, or
+        `perf` output if available. Any sampling profile narrows the fix
+        from days to hours.

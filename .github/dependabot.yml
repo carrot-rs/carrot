@@ -1,0 +1,52 @@
+version: 2
+
+updates:
+  # Cargo workspace — keep direct dependencies fresh, batch security
+  # patches into a single PR per week to avoid flooding the queue.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      cargo-minor:
+        update-types:
+          - minor
+          - patch
+      security-patches:
+        applies-to: security-updates
+        update-types:
+          - patch
+          - minor
+          - major
+
+  # GitHub Actions — same cadence, separate label so dependency
+  # dashboards stay readable.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      gh-actions-minor:
+        update-types:
+          - minor
+          - patch

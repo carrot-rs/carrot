@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Question / Discussion
+    url: https://github.com/carrot-rs/carrot/discussions
+    about: Ask the community, propose ideas, or share feedback. Issues are reserved for bugs and concrete feature requests.
+  - name: Security Vulnerability
+    url: https://github.com/carrot-rs/carrot/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories. Do not open a public issue.

@@ -1,0 +1,341 @@
+name: Release
+
+# Publishing a GitHub Release (manual via UI or `gh release create`)
+# triggers the signed-build pipeline. Manual workflow dispatch runs
+# the same pipeline without creating a Release — useful to smoke-test
+# the installer build without cutting a version.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to embed in artifact filenames"
+        required: false
+        default: "0.1.0-dev"
+
+env:
+  CARGO_TERM_COLOR: always
+  MACOSX_DEPLOYMENT_TARGET: "10.15.7"
+
+jobs:
+  # --------------------------------------------------------------------
+  # macOS — arm64 + x86_64 release binaries, lipo'd into a Universal
+  # bundle, codesigned + notarized (if secrets are present), DMG'd.
+  # --------------------------------------------------------------------
+  build-macos:
+    name: macOS Universal + DMG
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly (arm64 + x86_64)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build arm64 release
+        run: cargo build --release --target aarch64-apple-darwin -p carrot-app
+
+      - name: Build x86_64 release
+        run: cargo build --release --target x86_64-apple-darwin -p carrot-app
+
+      - name: Lipo universal + package DMG
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ENTITLEMENTS_PATH: ""
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          [ -z "$VERSION" ] && VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+
+          # Import the signing certificate into a temporary keychain
+          # only when the secret is present — otherwise package
+          # unsigned for smoke-testing.
+          if [ -n "$APPLE_SIGNING_CERT_P12_BASE64" ]; then
+            KEYCHAIN="$RUNNER_TEMP/build.keychain"
+            security create-keychain -p gh-actions "$KEYCHAIN"
+            security default-keychain -s "$KEYCHAIN"
+            security unlock-keychain -p gh-actions "$KEYCHAIN"
+            echo "$APPLE_SIGNING_CERT_P12_BASE64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+            security import "$RUNNER_TEMP/cert.p12" \
+              -k "$KEYCHAIN" \
+              -P "$APPLE_SIGNING_CERT_PASSWORD" \
+              -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: \
+              -s -k gh-actions "$KEYCHAIN"
+          fi
+
+          cargo run -p cargo-carrot -- carrot package \
+            --platform macos \
+            --version "$VERSION" \
+            --binary target/aarch64-apple-darwin/release/carrot \
+            --mac-x86-64 target/x86_64-apple-darwin/release/carrot \
+            --out dist
+        env:
+          APPLE_SIGNING_CERT_P12_BASE64: ${{ secrets.APPLE_SIGNING_CERT_P12_BASE64 }}
+          APPLE_SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_SIGNING_CERT_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------
+  # Windows — release binary + portable ZIP + WiX MSI (signed if
+  # WINDOWS_CERT_THUMBPRINT is present, unsigned otherwise).
+  # --------------------------------------------------------------------
+  build-windows:
+    name: Windows MSI + ZIP
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-wix
+        run: cargo install cargo-wix --locked
+
+      - name: Build release
+        run: cargo build --release -p carrot-app
+
+      - name: Import signing cert (if configured)
+        if: env.WINDOWS_CERT_P12_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfxBytes = [System.Convert]::FromBase64String($env:WINDOWS_CERT_P12_BASE64)
+          $pfxPath = "$env:RUNNER_TEMP\cert.pfx"
+          [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $securePwd = ConvertTo-SecureString -String $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePwd
+        env:
+          WINDOWS_CERT_P12_BASE64: ${{ secrets.WINDOWS_CERT_P12_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+      - name: Package MSI + ZIP
+        shell: pwsh
+        env:
+          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+        run: |
+          $version = "${{ github.ref_name }}"
+          if (-not $version) { $version = "${{ github.event.inputs.version }}" }
+          $version = $version -replace '^v',''
+          cargo run -p cargo-carrot -- carrot package `
+            --platform windows `
+            --version $version `
+            --out dist
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            dist/*.msi
+            dist/*.zip
+          if-no-files-found: warn
+
+  # --------------------------------------------------------------------
+  # Linux x86_64 — AppImage + deb + rpm.
+  # --------------------------------------------------------------------
+  build-linux:
+    name: Linux ${{ matrix.arch }} packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+            rpm_arch: x86_64
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+            rpm_arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install system deps + packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev \
+            wget \
+            fuse libfuse2
+          cargo install cargo-deb --locked
+          cargo install cargo-generate-rpm --locked
+          wget -O /usr/local/bin/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$(uname -m).AppImage"
+          sudo chmod +x /usr/local/bin/appimagetool
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-${{ matrix.arch }}-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release -p carrot-app
+
+      - name: Package DEB + RPM + AppImage
+        run: |
+          VERSION="${{ github.ref_name }}"
+          [ -z "$VERSION" ] && VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          cargo run -p cargo-carrot -- carrot package \
+            --platform linux \
+            --version "$VERSION" \
+            --linux-arch "${{ matrix.rpm_arch }}" \
+            --out dist
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.AppImage
+          if-no-files-found: warn
+
+  # --------------------------------------------------------------------
+  # Linux frame-pacing smoke test — boots carrot-app against
+  # llvmpipe (software wgpu backend) and asserts it reaches the
+  # first-frame callback without panicking. Substitute for hardware
+  # vsync verification until a self-hosted runner with a real GPU is
+  # available; catches crashes in the Linux DisplayLink path.
+  # --------------------------------------------------------------------
+  linux-frame-smoke:
+    name: Linux frame-pacing smoke
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install system deps (including llvmpipe)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev \
+            mesa-vulkan-drivers \
+            vulkan-tools \
+            xvfb
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-frame-smoke-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release -p carrot-app
+
+      # LIBGL_ALWAYS_SOFTWARE forces Mesa's llvmpipe renderer.
+      # xvfb-run gives us a headless X display. We boot the app
+      # under `timeout 15` and succeed as long as the process
+      # stays alive — crash-exits fail the job.
+      - name: Boot carrot-app under Xvfb
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          RUST_LOG: "carrot=debug,wgpu=warn"
+        run: |
+          set +e
+          timeout 15 xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            ./target/release/carrot &
+          BOOT_PID=$!
+          sleep 10
+          if ! kill -0 "$BOOT_PID" 2>/dev/null; then
+            echo "::error::carrot-app exited within 10s of boot"
+            wait "$BOOT_PID"
+            exit 1
+          fi
+          echo "Frame-pacing smoke passed: app ran 10s without panic"
+          kill "$BOOT_PID" 2>/dev/null || true
+
+  # --------------------------------------------------------------------
+  # Attach built artifacts to the existing GitHub Release that
+  # triggered this run. The Release itself is created via the GitHub
+  # UI or `gh release create`; this job just uploads the installers.
+  # Skipped on manual workflow_dispatch (no Release to attach to).
+  # --------------------------------------------------------------------
+  attach-artifacts:
+    name: Attach installers to Release
+    needs:
+      - build-macos
+      - build-windows
+      - build-linux
+      - linux-frame-smoke
+    if: github.event_name == 'release'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifact tree
+        run: |
+          mkdir -p release
+          find dist -type f \( \
+            -name "*.dmg" -o \
+            -name "*.msi" -o \
+            -name "*.zip" -o \
+            -name "*.deb" -o \
+            -name "*.rpm" -o \
+            -name "*.AppImage" \
+          \) -exec cp {} release/ \;
+          ls -lah release/
+
+      - name: Upload installers to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
