@@ -1,0 +1,5 @@
+# Default owner for the entire repo. Pull requests are auto-routed to
+# this user for review. As contributors come on board, refine ownership
+# per-path (e.g. `crates/inazuma/ @nyxb @another-maintainer`).
+
+* @nyxb
