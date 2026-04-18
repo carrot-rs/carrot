@@ -1,0 +1,169 @@
+# Carrot Default Keybindings — macOS
+#
+# Format: [[section]] with context + bindings
+# User overrides go in ~/.carrot/keymap.toml
+
+# === Global (no context restriction) ===
+[[section]]
+context = ""
+
+[section.bindings]
+"cmd-q" = "carrot::Quit"
+"cmd-," = "carrot::OpenSettings"
+"cmd-shift-p" = "carrot::ToggleCommandPalette"
+"cmd-p" = "command_search::ToggleCommandSearch"
+"cmd-n" = "carrot::NewWindow"
+"cmd-+" = "carrot::IncreaseFontSize"
+"cmd-=" = "carrot::IncreaseFontSize"
+"cmd--" = "carrot::DecreaseFontSize"
+"cmd-0" = "carrot::ResetFontSize"
+
+# === Workspace context ===
+[[section]]
+context = "Workspace"
+
+[section.bindings]
+"cmd-t" = "session::NewSession"
+"cmd-w" = "session::CloseActiveSession"
+"cmd-shift-]" = "session::ActivateNextSession"
+"cmd-shift-[" = "session::ActivatePreviousSession"
+"cmd-1" = "session::ActivateSession1"
+"cmd-2" = "session::ActivateSession2"
+"cmd-3" = "session::ActivateSession3"
+"cmd-4" = "session::ActivateSession4"
+"cmd-5" = "session::ActivateSession5"
+"cmd-6" = "session::ActivateSession6"
+"cmd-7" = "session::ActivateSession7"
+"cmd-8" = "session::ActivateSession8"
+"cmd-9" = "session::ActivateSession9"
+"cmd-d" = "pane::SplitAndMoveRight"
+"cmd-shift-d" = "pane::SplitAndMoveDown"
+"cmd-f" = "buffer_search::Deploy"
+
+# === Editor context (search bar, future code editor) ===
+[[section]]
+context = "Editor"
+
+[section.bindings]
+"escape" = "editor::Cancel"
+"backspace" = "editor::Backspace"
+"shift-backspace" = "editor::Backspace"
+"delete" = "editor::Delete"
+"left" = "editor::MoveLeft"
+"right" = "editor::MoveRight"
+"up" = "editor::MoveUp"
+"down" = "editor::MoveDown"
+"shift-left" = "editor::SelectLeft"
+"shift-right" = "editor::SelectRight"
+"shift-up" = "editor::SelectUp"
+"shift-down" = "editor::SelectDown"
+"cmd-left" = { action = "editor::MoveToBeginningOfLine", data = { stop_at_soft_wraps = true, stop_at_indent = true } }
+"cmd-right" = { action = "editor::MoveToEndOfLine", data = { stop_at_soft_wraps = true } }
+"cmd-shift-left" = { action = "editor::SelectToBeginningOfLine", data = { stop_at_soft_wraps = true, stop_at_indent = true } }
+"cmd-shift-right" = { action = "editor::SelectToEndOfLine", data = { stop_at_soft_wraps = true } }
+"alt-left" = "editor::MoveToPreviousWordStart"
+"alt-right" = "editor::MoveToNextWordEnd"
+"alt-shift-left" = "editor::SelectToPreviousWordStart"
+"alt-shift-right" = "editor::SelectToNextWordEnd"
+"alt-backspace" = { action = "editor::DeleteToPreviousWordStart", data = { ignore_newlines = false, ignore_brackets = false } }
+"alt-delete" = { action = "editor::DeleteToNextWordEnd", data = { ignore_newlines = false, ignore_brackets = false } }
+"cmd-backspace" = "editor::DeleteToBeginningOfLine"
+"cmd-delete" = "editor::DeleteToEndOfLine"
+"cmd-a" = "editor::SelectAll"
+"cmd-x" = "editor::Cut"
+"cmd-c" = "editor::Copy"
+"cmd-v" = "editor::Paste"
+"cmd-z" = "editor::Undo"
+"cmd-shift-z" = "editor::Redo"
+"cmd-up" = "editor::MoveToBeginning"
+"cmd-down" = "editor::MoveToEnd"
+"enter" = "editor::Newline"
+"tab" = "editor::Tab"
+"shift-tab" = "editor::Backtab"
+
+# === Terminal context ===
+[[section]]
+context = "Terminal"
+
+[section.bindings]
+"cmd-c" = "terminal::Copy"
+"cmd-v" = "terminal::Paste"
+"cmd-k" = "terminal::Clear"
+"cmd-up" = "terminal::ScrollPageUp"
+"cmd-down" = "terminal::ScrollPageDown"
+"cmd-home" = "terminal::ScrollToTop"
+"cmd-end" = "terminal::ScrollToBottom"
+
+# === Input context (Carrot Mode) ===
+[[section]]
+context = "CarrotInput"
+
+[section.bindings]
+"enter" = "input::Submit"
+"tab" = "input::AcceptCompletion"
+"up" = "input::HistoryPrev"
+"down" = "input::HistoryNext"
+"escape" = "input::Cancel"
+"ctrl-c" = "terminal::SendInterrupt"
+"ctrl-l" = "terminal::Clear"
+
+# === Input context (carrot-ui text fields: search, modal inputs, etc.) ===
+[[section]]
+context = "Input"
+
+[section.bindings]
+"backspace" = "input::Backspace"
+"shift-backspace" = "input::Backspace"
+"ctrl-backspace" = "input::DeleteToPreviousWordStart"
+"delete" = "input::Delete"
+"shift-delete" = "input::Delete"
+"cmd-backspace" = "input::DeleteToBeginningOfLine"
+"cmd-delete" = "input::DeleteToEndOfLine"
+"alt-backspace" = "input::DeleteToPreviousWordStart"
+"alt-delete" = "input::DeleteToNextWordEnd"
+"enter" = ["input::Enter", { secondary = false }]
+"shift-enter" = ["input::Enter", { secondary = true }]
+"secondary-enter" = ["input::Enter", { secondary = true }]
+"escape" = "input::Escape"
+"up" = "input::MoveUp"
+"down" = "input::MoveDown"
+"left" = "input::MoveLeft"
+"right" = "input::MoveRight"
+"pageup" = "input::MovePageUp"
+"pagedown" = "input::MovePageDown"
+"tab" = "input::IndentInline"
+"shift-tab" = "input::OutdentInline"
+"cmd-]" = "input::Indent"
+"cmd-[" = "input::Outdent"
+"shift-left" = "ui::SelectLeft"
+"shift-right" = "ui::SelectRight"
+"shift-up" = "ui::SelectUp"
+"shift-down" = "ui::SelectDown"
+"home" = "input::MoveHome"
+"end" = "input::MoveEnd"
+"shift-home" = "input::SelectToStartOfLine"
+"shift-end" = "input::SelectToEndOfLine"
+"ctrl-shift-a" = "input::SelectToStartOfLine"
+"ctrl-shift-e" = "input::SelectToEndOfLine"
+"shift-cmd-left" = "input::SelectToStartOfLine"
+"shift-cmd-right" = "input::SelectToEndOfLine"
+"alt-shift-left" = "input::SelectToPreviousWordStart"
+"alt-shift-right" = "input::SelectToNextWordEnd"
+"ctrl-cmd-space" = "input::ShowCharacterPalette"
+"cmd-a" = "input::SelectAll"
+"cmd-c" = "input::Copy"
+"cmd-x" = "input::Cut"
+"cmd-v" = "input::Paste"
+"ctrl-a" = "input::MoveHome"
+"cmd-left" = "input::MoveHome"
+"ctrl-e" = "input::MoveEnd"
+"cmd-right" = "input::MoveEnd"
+"cmd-z" = "input::Undo"
+"cmd-shift-z" = "input::Redo"
+"cmd-up" = "input::MoveToStart"
+"cmd-down" = "input::MoveToEnd"
+"alt-left" = "input::MoveToPreviousWord"
+"alt-right" = "input::MoveToNextWord"
+"cmd-shift-up" = "input::SelectToStart"
+"cmd-shift-down" = "input::SelectToEnd"
+"cmd-." = "input::ToggleCodeActions"
