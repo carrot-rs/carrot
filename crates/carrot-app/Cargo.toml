@@ -1,0 +1,155 @@
+[package]
+name = "carrot-app"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "carrot"
+path = "src/main.rs"
+
+[dependencies]
+inazuma = { workspace = true }
+inazuma-clock = { workspace = true }
+inazuma-collections = { workspace = true }
+inazuma-menu = { workspace = true }
+inazuma-rope = { workspace = true }
+inazuma-util = { workspace = true }
+inazuma-settings-framework = { workspace = true }
+inazuma-tokio = { workspace = true }
+carrot-acp-tools = { workspace = true }
+carrot-audio = { workspace = true }
+carrot-actions = { workspace = true }
+carrot-activity-indicator = { workspace = true }
+carrot-agent = { workspace = true }
+carrot-assets = { workspace = true }
+carrot-auto-update = { workspace = true }
+carrot-auto-update-ui = { workspace = true }
+carrot-breadcrumbs = { workspace = true }
+carrot-call = { workspace = true }
+carrot-channel = { workspace = true }
+carrot-notifications = { workspace = true }
+carrot-cli = { workspace = true }
+carrot-cli-agents = { workspace = true }
+carrot-client = { workspace = true }
+carrot-collab-ui = { workspace = true }
+carrot-command-palette = { workspace = true }
+carrot-command-search = { workspace = true }
+carrot-completions = { path = "../carrot-completions" }
+carrot-crashes = { workspace = true }
+carrot-credentials-provider = { workspace = true }
+carrot-db = { workspace = true }
+carrot-debugger-tools = { workspace = true }
+carrot-debugger-ui = { workspace = true }
+carrot-diagnostics = { workspace = true }
+carrot-edit-prediction-ui = { workspace = true }
+carrot-editor = { workspace = true }
+carrot-encoding-selector = { workspace = true }
+carrot-extension-host = { workspace = true }
+carrot-feature-flags = { workspace = true }
+carrot-feedback = { workspace = true }
+carrot-file-finder = { workspace = true }
+carrot-fs = { workspace = true }
+carrot-git-ui = { workspace = true }
+carrot-go-to-line = { workspace = true }
+carrot-http-client = { workspace = true }
+carrot-image-viewer = { workspace = true }
+carrot-install-cli = { workspace = true }
+carrot-keymap-editor = { workspace = true }
+carrot-paths = { workspace = true }
+carrot-language = { workspace = true }
+carrot-language-model = { workspace = true }
+carrot-language-onboarding = { workspace = true }
+carrot-language-selector = { workspace = true }
+carrot-language-tools = { workspace = true }
+carrot-line-ending-selector = { workspace = true }
+carrot-markdown = { workspace = true }
+carrot-node-runtime = { workspace = true }
+carrot-onboarding = { workspace = true }
+carrot-outline-panel = { workspace = true }
+carrot-platform-title-bar = { workspace = true }
+carrot-project = { workspace = true }
+carrot-project-panel = { workspace = true }
+carrot-project-registry = { workspace = true }
+carrot-prompt-store = { workspace = true }
+carrot-proto = { workspace = true }
+carrot-recent-projects = { workspace = true }
+carrot-release-channel = { workspace = true }
+carrot-remote = { workspace = true }
+carrot-search = { workspace = true }
+carrot-session = { workspace = true }
+carrot-settings = { workspace = true }
+carrot-settings-ui = { workspace = true }
+carrot-shell = { workspace = true }
+carrot-shell-integration = { workspace = true }
+carrot-tab-switcher = { workspace = true }
+carrot-telemetry = { workspace = true }
+carrot-telemetry-events = { workspace = true }
+carrot-term = { path = "../carrot-term" }
+carrot-terminal = { workspace = true }
+carrot-terminal-view = { workspace = true }
+carrot-time-format = { workspace = true }
+carrot-toolchain-selector = { workspace = true }
+carrot-ui = { workspace = true }
+carrot-vertical-tabs = { workspace = true }
+carrot-vim = { workspace = true }
+carrot-vim-mode-setting = { workspace = true }
+carrot-theme = { workspace = true }
+carrot-theme-settings = { workspace = true }
+carrot-title-bar = { workspace = true }
+carrot-workspace = { workspace = true }
+anyhow = { workspace = true }
+futures.workspace = true
+log = { workspace = true }
+env_logger.workspace = true
+image.workspace = true
+parking_lot = { workspace = true }
+reqwest = { workspace = true }
+smol.workspace = true
+sysinfo.workspace = true
+time = { workspace = true, features = ["local-offset", "formatting", "macros"] }
+semver.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+dirs.workspace = true
+strsim.workspace = true
+lsp-types = { workspace = true, features = ["proposed"] }
+# Version mismatch: workspace has 2.0.0-beta.1, carrot-app needs 1
+ropey = "1"
+url = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true
+
+# --- Linux packaging (cargo-deb) -------------------------------------------
+# Debian-package metadata. `cargo deb -p carrot-app --no-build` picks this
+# up after a release `cargo build`. Asset paths are relative to the
+# workspace root when resolved inside the runner.
+[package.metadata.deb]
+name = "carrot"
+maintainer = "Dennis Ollhoff <dennis@ollhoff.life>"
+copyright = "2026 Nyxb"
+license-file = ["../../LICENSE.md", "0"]
+extended-description = """\
+Carrot is a terminal-first agentic development environment built on \
+the Inazuma GPU UI framework. Block-based command history, native \
+Nushell support, MCP-integrated agent tooling.\
+"""
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/carrot", "usr/bin/carrot", "755"],
+    ["assets/carrot.desktop", "usr/share/applications/carrot.desktop", "644"],
+    ["assets/carrot.png", "usr/share/icons/hicolor/512x512/apps/carrot.png", "644"],
+]
+
+# --- Linux packaging (cargo-generate-rpm) ----------------------------------
+# RPM metadata. Matches the .deb asset layout so behaviour is identical
+# across Fedora / RHEL / openSUSE.
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/carrot", dest = "/usr/bin/carrot", mode = "0755" },
+    { source = "assets/carrot.desktop", dest = "/usr/share/applications/carrot.desktop", mode = "0644" },
+    { source = "assets/carrot.png", dest = "/usr/share/icons/hicolor/512x512/apps/carrot.png", mode = "0644" },
+]
