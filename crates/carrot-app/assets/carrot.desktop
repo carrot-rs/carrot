@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Carrot
+GenericName=Terminal Emulator
+Comment=Terminal-first agentic development environment
+Exec=carrot %U
+Icon=carrot
+Terminal=false
+Categories=System;TerminalEmulator;Development;
+StartupWMClass=carrot
+Keywords=shell;prompt;command;commandline;cmd;
