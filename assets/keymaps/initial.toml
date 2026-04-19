@@ -1,0 +1,19 @@
+# Carrot keymap
+#
+# For information on binding keys, see the Carrot
+# documentation: https://carrot.dev/docs/key-bindings
+#
+# To see the default key bindings run `carrot: open default keymap`
+# from the command palette.
+
+[[section]]
+context = "Workspace"
+
+[section.bindings]
+# "shift shift" = "file_finder::Toggle"
+
+[[section]]
+context = "Editor && vim_mode == insert"
+
+[section.bindings]
+# "j k" = "vim::NormalBefore"
