@@ -1,0 +1,220 @@
+# One Dark — Atom's iconic dark theme
+# https://github.com/atom/one-dark-syntax
+
+[theme]
+name = "One Dark"
+author = "GitHub (Atom)"
+appearance = "dark"
+
+[style]
+# === Backgrounds ===
+background = "oklch(0.2925 0.0157 264.3)"
+"surface.background" = "oklch(0.3121 0.0176 262.24)"
+"elevated_surface.background" = "oklch(0.34 0.0189 264.28)"
+"element.background" = "oklch(0.3121 0.0176 262.24)"
+"element.hover" = "oklch(0.34 0.0189 264.28)"
+"element.active" = "oklch(0.3699 0.0153 259.81)"
+"element.selected" = "oklch(0.3699 0.0153 259.81)"
+"element.disabled" = "oklch(0.3121 0.0176 262.24)"
+"drop_target.background" = "oklch(0.7683 0.1103 133 / 0.251)"
+"ghost_element.background" = "oklch(0 0 none / 0)"
+"ghost_element.hover" = "oklch(0.34 0.0189 264.28)"
+"ghost_element.active" = "oklch(0.3699 0.0153 259.81)"
+"ghost_element.selected" = "oklch(0.3699 0.0153 259.81)"
+
+# === Borders ===
+border = "oklch(0.3699 0.0153 259.81)"
+"border.variant" = "oklch(0.54 0.0189 264.28)"
+"border.focused" = "oklch(0.7304 0.1213 245.3)"
+"border.selected" = "oklch(0.7304 0.1213 245.3 / 0.4)"
+"border.transparent" = "oklch(0 0 none / 0)"
+"border.disabled" = "oklch(0.3121 0.0176 262.24)"
+
+# === Text ===
+text = "oklch(0.7621 0.0202 262.99)"
+"text.muted" = "oklch(0.6125 0.0162 264.45)"
+"text.placeholder" = "oklch(0.4983 0.0225 262.91)"
+"text.disabled" = "oklch(0.4983 0.0225 262.91)"
+"text.accent" = "oklch(0.7304 0.1213 245.3)"
+
+# === Icons ===
+icon = "oklch(0.7621 0.0202 262.99)"
+"icon.muted" = "oklch(0.6125 0.0162 264.45)"
+"icon.disabled" = "oklch(0.4983 0.0225 262.91)"
+"icon.accent" = "oklch(0.7304 0.1213 245.3)"
+
+# === Workspace Chrome ===
+"status_bar.background" = "oklch(0.263 0.0127 258.37)"
+"title_bar.background" = "oklch(0.263 0.0127 258.37)"
+"title_bar.inactive_background" = "oklch(0.2473 0.0122 264.32)"
+"toolbar.background" = "oklch(0.2925 0.0157 264.3)"
+"tab_bar.background" = "oklch(0.263 0.0127 258.37)"
+"tab.active_background" = "oklch(0.3325 0.0157 264.3)"
+"tab.inactive_background" = "oklch(0.263 0.0127 258.37)"
+"tab.active_foreground" = "oklch(0.7621 0.0202 262.99)"
+"tab.inactive_foreground" = "oklch(0.6125 0.0162 264.45)"
+"panel.background" = "oklch(0.263 0.0127 258.37)"
+
+# === Editor ===
+"editor.foreground" = "oklch(0.7621 0.0202 262.99)"
+"editor.background" = "oklch(0.2925 0.0157 264.3)"
+"editor.gutter.background" = "oklch(0.2925 0.0157 264.3)"
+"editor.active_line.background" = "oklch(0.3121 0.0176 262.24 / 0.749)"
+"editor.line_number" = "oklch(0.4983 0.0225 262.91)"
+"editor.active_line_number" = "oklch(0.7621 0.0202 262.99)"
+"editor.invisible" = "oklch(0.3699 0.0153 259.81)"
+"editor.wrap_guide" = "oklch(0.3699 0.0153 259.81 / 0.051)"
+
+# === Search ===
+"search.match_background" = "oklch(0.8249 0.097 82.26 / 0.251)"
+
+# === Scrollbar ===
+"scrollbar.thumb.background" = "oklch(1 0 none / 0.102)"
+"scrollbar.thumb.hover_background" = "oklch(1 0 none / 0.2)"
+"scrollbar.track.background" = "oklch(0 0 none / 0)"
+
+# === Terminal (ANSI-16 + dim) ===
+"terminal.background" = "oklch(0.2925 0.0157 264.3)"
+"terminal.accent" = "oklch(0.7304 0.1213 245.3)"
+"terminal.foreground" = "oklch(0.7621 0.0202 262.99)"
+"terminal.bright_foreground" = "oklch(0.8878 0.0088 264.52)"
+"terminal.dim_foreground" = "oklch(0.6125 0.0162 264.45)"
+"terminal.ansi.black" = "oklch(0.2925 0.0157 264.3)"
+"terminal.ansi.red" = "oklch(0.6709 0.1448 17)"
+"terminal.ansi.green" = "oklch(0.7683 0.1103 133)"
+"terminal.ansi.yellow" = "oklch(0.8249 0.097 82.26)"
+"terminal.ansi.blue" = "oklch(0.7304 0.1213 245.3)"
+"terminal.ansi.magenta" = "oklch(0.6936 0.1635 318.21)"
+"terminal.ansi.cyan" = "oklch(0.7231 0.0916 206.31)"
+"terminal.ansi.white" = "oklch(0.7621 0.0202 262.99)"
+"terminal.ansi.bright_black" = "oklch(0.4983 0.0225 262.91)"
+"terminal.ansi.bright_red" = "oklch(0.7209 0.1241 17.49)"
+"terminal.ansi.bright_green" = "oklch(0.8153 0.0999 133.29)"
+"terminal.ansi.bright_yellow" = "oklch(0.8678 0.0739 83.52)"
+"terminal.ansi.bright_blue" = "oklch(0.7849 0.1021 242.22)"
+"terminal.ansi.bright_magenta" = "oklch(0.7475 0.1432 319.25)"
+"terminal.ansi.bright_cyan" = "oklch(0.7778 0.0876 205.83)"
+"terminal.ansi.bright_white" = "oklch(0.8878 0.0088 264.52)"
+"terminal.ansi.dim_black" = "oklch(0.2393 0.0142 266.97)"
+"terminal.ansi.dim_red" = "oklch(0.5176 0.1067 16.86)"
+"terminal.ansi.dim_green" = "oklch(0.5928 0.0833 133.45)"
+"terminal.ansi.dim_yellow" = "oklch(0.6329 0.0725 82.09)"
+"terminal.ansi.dim_blue" = "oklch(0.5618 0.0908 245.53)"
+"terminal.ansi.dim_magenta" = "oklch(0.5361 0.123 318.32)"
+"terminal.ansi.dim_cyan" = "oklch(0.5566 0.069 207.04)"
+"terminal.ansi.dim_white" = "oklch(0.5885 0.015 262.35)"
+
+# === Git / Version Control ===
+"version_control.added" = "oklch(0.7683 0.1103 133)"
+"version_control.modified" = "oklch(0.8249 0.097 82.26)"
+"version_control.deleted" = "oklch(0.6709 0.1448 17)"
+
+# === Status ===
+error = "oklch(0.6709 0.1448 17)"
+"error.background" = "oklch(0.6709 0.1448 17 / 0.102)"
+"error.border" = "oklch(0.6709 0.1448 17 / 0.2)"
+warning = "oklch(0.8249 0.097 82.26)"
+"warning.background" = "oklch(0.8249 0.097 82.26 / 0.102)"
+"warning.border" = "oklch(0.8249 0.097 82.26 / 0.2)"
+success = "oklch(0.7683 0.1103 133)"
+"success.background" = "oklch(0.7683 0.1103 133 / 0.102)"
+"success.border" = "oklch(0.7683 0.1103 133 / 0.2)"
+info = "oklch(0.7304 0.1213 245.3)"
+"info.background" = "oklch(0.7304 0.1213 245.3 / 0.102)"
+"info.border" = "oklch(0.7304 0.1213 245.3 / 0.2)"
+
+# === Link ===
+"link_text.hover" = "oklch(0.7304 0.1213 245.3)"
+
+# === Carrot-spezifisch (Block-System) ===
+"block.success_badge" = "oklch(0.7683 0.1103 133)"
+"block.error_badge" = "oklch(0.6709 0.1448 17)"
+"block.running_badge" = "oklch(0.8249 0.097 82.26)"
+
+# === Players ===
+[[style.players]]
+cursor = "oklch(0.7304 0.1213 245.3)"
+background = "oklch(0.7304 0.1213 245.3)"
+selection = "oklch(0.7304 0.1213 245.3 / 0.239)"
+
+[[style.players]]
+cursor = "oklch(0.7683 0.1103 133)"
+background = "oklch(0.7683 0.1103 133)"
+selection = "oklch(0.7683 0.1103 133 / 0.239)"
+
+[[style.players]]
+cursor = "oklch(0.6936 0.1635 318.21)"
+background = "oklch(0.6936 0.1635 318.21)"
+selection = "oklch(0.6936 0.1635 318.21 / 0.239)"
+
+[[style.players]]
+cursor = "oklch(0.6709 0.1448 17)"
+background = "oklch(0.6709 0.1448 17)"
+selection = "oklch(0.6709 0.1448 17 / 0.239)"
+
+# === Syntax Highlighting ===
+[style.syntax.attribute]
+color = "oklch(0.7273 0.0949 63.82)"
+
+[style.syntax.boolean]
+color = "oklch(0.7273 0.0949 63.82)"
+
+[style.syntax.comment]
+color = "oklch(0.4983 0.0225 262.91)"
+font_style = "italic"
+
+[style.syntax."comment.doc"]
+color = "oklch(0.551 0.0234 264.36)"
+font_style = "italic"
+
+[style.syntax.constant]
+color = "oklch(0.7273 0.0949 63.82)"
+
+[style.syntax.constructor]
+color = "oklch(0.8249 0.097 82.26)"
+
+[style.syntax.function]
+color = "oklch(0.7304 0.1213 245.3)"
+
+[style.syntax.keyword]
+color = "oklch(0.6936 0.1635 318.21)"
+
+[style.syntax.number]
+color = "oklch(0.7273 0.0949 63.82)"
+
+[style.syntax.operator]
+color = "oklch(0.7231 0.0916 206.31)"
+
+[style.syntax.property]
+color = "oklch(0.6709 0.1448 17)"
+
+[style.syntax.string]
+color = "oklch(0.7683 0.1103 133)"
+
+[style.syntax."string.escape"]
+color = "oklch(0.7231 0.0916 206.31)"
+
+[style.syntax."string.regex"]
+color = "oklch(0.7231 0.0916 206.31)"
+
+[style.syntax.tag]
+color = "oklch(0.6709 0.1448 17)"
+
+[style.syntax.type]
+color = "oklch(0.8249 0.097 82.26)"
+
+[style.syntax.variable]
+color = "oklch(0.7621 0.0202 262.99)"
+
+[style.syntax."variable.special"]
+color = "oklch(0.7273 0.0949 63.82)"
+
+[style.syntax.punctuation]
+color = "oklch(0.7621 0.0202 262.99)"
+
+[style.syntax."punctuation.bracket"]
+color = "oklch(0.656 0.0205 265.91)"
+
+[style.syntax.title]
+color = "oklch(0.7304 0.1213 245.3)"
+font_weight = 700
