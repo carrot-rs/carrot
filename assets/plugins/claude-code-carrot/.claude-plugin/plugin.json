@@ -1,0 +1,10 @@
+{
+  "name": "raijin",
+  "version": "1.0.0",
+  "description": "Raijin terminal integration for Claude Code. Forwards every hook event as an OSC 7777 envelope so Raijin can surface agent metadata (status, blocks, tasks, worktrees, PR context, rules, context usage) without replacing the Claude Code TUI.",
+  "author": {
+    "name": "Raijin",
+    "url": "https://github.com/nyxb/raijin"
+  },
+  "hooks": "hooks/hooks.json"
+}
