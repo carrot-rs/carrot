@@ -1,0 +1,144 @@
+# Carrot Default Keybindings — Linux
+#
+# Format: [[section]] with context + bindings
+# User overrides go in ~/.carrot/keymap.toml
+
+# === Global (no context restriction) ===
+[[section]]
+context = ""
+
+[section.bindings]
+"ctrl-q" = "carrot::Quit"
+"ctrl-," = "carrot::OpenSettings"
+"ctrl-shift-p" = "carrot::ToggleCommandPalette"
+"ctrl-p" = "command_search::ToggleCommandSearch"
+"ctrl-t" = "theme_selector::Toggle"
+"ctrl-shift-n" = "carrot::NewWindow"
+"ctrl-shift-w" = "carrot::CloseWindow"
+"ctrl-+" = "carrot::IncreaseFontSize"
+"ctrl-=" = "carrot::IncreaseFontSize"
+"ctrl--" = "carrot::DecreaseFontSize"
+"ctrl-0" = "carrot::ResetFontSize"
+
+# === Workspace context ===
+[[section]]
+context = "Workspace"
+
+[section.bindings]
+"ctrl-shift-t" = "workspace::NewTerminal"
+"ctrl-d" = "pane::SplitAndMoveRight"
+"ctrl-shift-d" = "pane::SplitAndMoveDown"
+"ctrl-tab" = "pane::ActivateNextItem"
+"ctrl-shift-tab" = "pane::ActivatePreviousItem"
+
+"ctrl-f" = "buffer_search::Deploy"
+
+# === Editor context (search bar, future code editor) ===
+[[section]]
+context = "Editor"
+
+[section.bindings]
+"escape" = "editor::Cancel"
+"backspace" = "editor::Backspace"
+"shift-backspace" = "editor::Backspace"
+"delete" = "editor::Delete"
+"left" = "editor::MoveLeft"
+"right" = "editor::MoveRight"
+"up" = "editor::MoveUp"
+"down" = "editor::MoveDown"
+"shift-left" = "editor::SelectLeft"
+"shift-right" = "editor::SelectRight"
+"shift-up" = "editor::SelectUp"
+"shift-down" = "editor::SelectDown"
+"home" = { action = "editor::MoveToBeginningOfLine", data = { stop_at_soft_wraps = true, stop_at_indent = true } }
+"end" = { action = "editor::MoveToEndOfLine", data = { stop_at_soft_wraps = true } }
+"shift-home" = { action = "editor::SelectToBeginningOfLine", data = { stop_at_soft_wraps = true, stop_at_indent = true } }
+"shift-end" = { action = "editor::SelectToEndOfLine", data = { stop_at_soft_wraps = true } }
+"ctrl-left" = "editor::MoveToPreviousWordStart"
+"ctrl-right" = "editor::MoveToNextWordEnd"
+"ctrl-shift-left" = "editor::SelectToPreviousWordStart"
+"ctrl-shift-right" = "editor::SelectToNextWordEnd"
+"ctrl-backspace" = { action = "editor::DeleteToPreviousWordStart", data = { ignore_newlines = false, ignore_brackets = false } }
+"ctrl-delete" = { action = "editor::DeleteToNextWordEnd", data = { ignore_newlines = false, ignore_brackets = false } }
+"ctrl-a" = "editor::SelectAll"
+"ctrl-x" = "editor::Cut"
+"ctrl-c" = "editor::Copy"
+"ctrl-v" = "editor::Paste"
+"ctrl-z" = "editor::Undo"
+"ctrl-shift-z" = "editor::Redo"
+"ctrl-home" = "editor::MoveToBeginning"
+"ctrl-end" = "editor::MoveToEnd"
+"enter" = "editor::Newline"
+"tab" = "editor::Tab"
+"shift-tab" = "editor::Backtab"
+
+# === Terminal context ===
+[[section]]
+context = "Terminal"
+
+[section.bindings]
+"ctrl-shift-c" = "terminal::Copy"
+"ctrl-shift-v" = "terminal::Paste"
+"ctrl-shift-k" = "terminal::Clear"
+"shift-pageup" = "terminal::ScrollPageUp"
+"shift-pagedown" = "terminal::ScrollPageDown"
+"shift-home" = "terminal::ScrollToTop"
+"shift-end" = "terminal::ScrollToBottom"
+"ctrl-shift-f" = "terminal::Find"
+
+# === Input context (Carrot Mode) ===
+[[section]]
+context = "CarrotInput"
+
+[section.bindings]
+"enter" = "input::Submit"
+"tab" = "input::AcceptCompletion"
+"up" = "input::HistoryPrev"
+"down" = "input::HistoryNext"
+"escape" = "input::Cancel"
+"ctrl-c" = "terminal::SendInterrupt"
+"ctrl-l" = "terminal::Clear"
+
+# === Input context (carrot-ui text fields: search, modal inputs, etc.) ===
+[[section]]
+context = "Input"
+
+[section.bindings]
+"backspace" = "input::Backspace"
+"shift-backspace" = "input::Backspace"
+"ctrl-backspace" = "input::DeleteToPreviousWordStart"
+"delete" = "input::Delete"
+"shift-delete" = "input::Delete"
+"ctrl-delete" = "input::DeleteToNextWordEnd"
+"enter" = ["input::Enter", { secondary = false }]
+"shift-enter" = ["input::Enter", { secondary = true }]
+"secondary-enter" = ["input::Enter", { secondary = true }]
+"escape" = "input::Escape"
+"up" = "input::MoveUp"
+"down" = "input::MoveDown"
+"left" = "input::MoveLeft"
+"right" = "input::MoveRight"
+"pageup" = "input::MovePageUp"
+"pagedown" = "input::MovePageDown"
+"tab" = "input::IndentInline"
+"shift-tab" = "input::OutdentInline"
+"ctrl-]" = "input::Indent"
+"ctrl-[" = "input::Outdent"
+"shift-left" = "ui::SelectLeft"
+"shift-right" = "ui::SelectRight"
+"shift-up" = "ui::SelectUp"
+"shift-down" = "ui::SelectDown"
+"home" = "input::MoveHome"
+"end" = "input::MoveEnd"
+"shift-home" = "input::SelectToStartOfLine"
+"shift-end" = "input::SelectToEndOfLine"
+"ctrl-shift-left" = "input::SelectToPreviousWordStart"
+"ctrl-shift-right" = "input::SelectToNextWordEnd"
+"ctrl-a" = "input::SelectAll"
+"ctrl-c" = "input::Copy"
+"ctrl-x" = "input::Cut"
+"ctrl-v" = "input::Paste"
+"ctrl-left" = "input::MoveToPreviousWord"
+"ctrl-right" = "input::MoveToNextWord"
+"ctrl-z" = "input::Undo"
+"ctrl-y" = "input::Redo"
