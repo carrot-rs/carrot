@@ -1,0 +1,6 @@
+# Server-specific settings
+#
+# For a full list of overridable settings, and general information on settings,
+# see the documentation: https://carrot.dev/docs/configuring-carrot#settings-files
+
+[lsp]
