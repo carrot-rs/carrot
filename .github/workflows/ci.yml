@@ -1,0 +1,253 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  MACOSX_DEPLOYMENT_TARGET: "10.15.7"
+
+jobs:
+  check:
+    name: Check (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-14
+          - name: macos-x86_64
+            os: macos-13
+          - name: windows-x86_64
+            os: windows-2022
+          - name: linux-x86_64
+            os: ubuntu-22.04
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rustfmt
+
+      - name: Install Linux dev libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (workspace lints)
+        run: cargo clippy --workspace --all-targets
+
+      - name: Test (workspace)
+        run: cargo test --workspace
+
+  dead_code:
+    name: Dead-code gate (udeps + machete)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install Linux dev libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev
+
+      - name: Install cargo-udeps
+        run: cargo install cargo-udeps --locked
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked
+
+      - name: Run cargo-machete
+        run: cargo machete
+
+      - name: Run cargo-udeps (new crates only, soft-fail)
+        run: |
+          for crate in carrot-grid carrot-block-render carrot-cmdline; do
+            cargo +nightly udeps -p "$crate" || true
+          done
+
+  criterion_smoke:
+    name: Criterion smoke (benches compile + run --test)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install Linux dev libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: criterion-smoke-${{ hashFiles('**/Cargo.lock') }}
+
+      # `cargo bench --no-run` compiles benches without timing them.
+      # Then `--test` runs each bench once as a smoke test to catch
+      # regressions where a bench no longer parses its input.
+      - name: Compile benches
+        run: |
+          cargo bench --no-run -p carrot-grid
+          cargo bench --no-run -p carrot-block-render
+          cargo bench --no-run -p carrot-cmdline
+          cargo bench --no-run -p carrot-term
+
+      - name: Smoke-run benches
+        run: |
+          cargo bench -p carrot-cmdline --bench pipeline -- --test
+          cargo bench -p carrot-grid --bench grid -- --test
+
+  golden_image:
+    name: Golden image (visual regression placeholder)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder
+        run: |
+          echo "Golden-image suite lives at tests/golden/*.png."
+          echo "When TCSS / emoji / box-drawing renders land, this job"
+          echo "runs `cargo test golden_` against recorded fixtures."
+          # Exit zero so the job passes until the fixtures exist.
+          exit 0
+
+  rustdoc_strict:
+    name: Rustdoc strict (missing-docs report)
+    runs-on: ubuntu-22.04
+    # Informative only — does not block the merge today. Every public
+    # type/trait/fn should eventually be documented; this job produces
+    # the inventory that follow-up PRs close.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install Linux dev libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rustdoc-strict-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Strict rustdoc on new crates
+        env:
+          RUSTDOCFLAGS: "-D missing-docs"
+        run: |
+          set +e
+          cargo doc --no-deps -p carrot-grid
+          cargo doc --no-deps -p carrot-block-render
+          cargo doc --no-deps -p carrot-cmdline
+          # Always exit 0 — this job is an inventory report.
+          exit 0
+
+  build:
+    name: Build release (${{ matrix.name }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-14
+          - name: windows-x86_64
+            os: windows-2022
+          - name: linux-x86_64
+            os: ubuntu-22.04
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install Linux dev libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig-dev \
+            libfreetype6-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libvulkan-dev
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.name }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-build-
+
+      - name: Build release
+        run: cargo build --release -p carrot-app

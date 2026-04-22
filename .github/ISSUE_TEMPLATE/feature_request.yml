@@ -1,0 +1,64 @@
+name: Feature Request
+description: Propose a concrete feature or improvement.
+title: "feat: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **concrete, scoped feature proposals**. For
+        open-ended ideas or "wouldn't it be cool if…" threads, please
+        start a [Discussion](https://github.com/carrot-rs/carrot/discussions)
+        instead.
+
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues and discussions for similar proposals.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-facing problem does this solve? What does the user struggle with today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the feature. Mention scope, UI surface (terminal? panel? cmdline?), keybindings, settings.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other approaches and why this one is preferred.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Primary Surface
+      options:
+        - Terminal / Block UX
+        - Cmdline (semantic AST, completions, ghost-text)
+        - Agent / AI integration
+        - Editor
+        - Panels (file tree, git, debug, outline, …)
+        - Theme / rendering
+        - CLI / installer / packaging
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional Context
+      description: Mockups, links, related projects, anything else.
