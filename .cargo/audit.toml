@@ -1,0 +1,34 @@
+# cargo-audit configuration.
+#
+# Each ignored advisory MUST carry a reason and a follow-up trigger.
+# Re-evaluate every entry on every dependency bump and every quarter.
+
+[advisories]
+ignore = [
+    # rsa 0.9.x — Marvin timing-side-channel attack on RSA key recovery.
+    # No upstream fix available (RustSec is tracking the rewrite). Pulled
+    # in transitively via `carrot-rpc` -> `prost`/SSH chain. Real-world
+    # impact in Carrot is low: we never decrypt attacker-controlled
+    # ciphertexts on a network-reachable surface. Re-check on every
+    # rsa-crate release.
+    "RUSTSEC-2023-0071",
+
+    # rustls-webpki 0.101.x — three distinct CVE-class issues (URI name
+    # constraints, wildcard name constraints, panic in CRL parsing).
+    # Pinned to 0.101 by the transitive chain
+    #   aws-smithy-http-client 1.1.12 -> rustls 0.21.12 -> rustls-webpki 0.101.7
+    # The AWS smithy stack has not yet released a build that consumes
+    # rustls 0.23 + rustls-webpki 0.103. Carrot only uses this surface for
+    # outbound HTTPS to AWS Bedrock; the attack surface is server-trust
+    # parsing on responses we initiated, not server-side validation.
+    # Re-check on every aws-smithy-http-client release; remove ignores
+    # once the chain pulls rustls-webpki >= 0.103.13.
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+]
+
+# Warnings are surface-level (unmaintained, yanked) — we want them as
+# advisory output but they should not break CI. Each one is tracked in
+# the issue board for follow-up.
+informational_warnings = ["unmaintained", "unsound", "notice", "yanked"]
