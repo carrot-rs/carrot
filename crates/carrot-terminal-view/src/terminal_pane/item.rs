@@ -72,6 +72,12 @@ impl Item for TerminalPane {
         Some(self.terminal.handle())
     }
 
+    // Parked: breadcrumbs are computed but intentionally not rendered in
+    // Terminal-Pane toolbars. Terminal-first UX surfaces the CWD in the shell
+    // prompt and block headers; a fourth bar above the pane is redundant.
+    // Kept so shared Workspace code (window title, nav history) keeps working.
+    // Revisit when the Editor-Pane Foundation (Plan 25, Station 0.5) lands and
+    // a single breadcrumb bar sits above a mixed Terminal+Editor split.
     fn breadcrumbs(&self, _cx: &App) -> Option<(Vec<HighlightedText>, Option<inazuma::Font>)> {
         let cwd = self.shell_context.cwd_short.clone();
         let mut segments: Vec<HighlightedText> = cwd
