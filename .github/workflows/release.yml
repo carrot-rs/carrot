@@ -27,7 +27,7 @@ jobs:
     name: macOS Universal + DMG
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly (arm64 + x86_64)
         uses: dtolnay/rust-toolchain@nightly
@@ -107,7 +107,7 @@ jobs:
     name: Windows MSI + ZIP
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -179,7 +179,7 @@ jobs:
             rpm_arch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -246,7 +246,7 @@ jobs:
     name: Linux frame-pacing smoke
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly

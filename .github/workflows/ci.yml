@@ -30,7 +30,7 @@ jobs:
           - name: linux-aarch64
             os: ubuntu-22.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -73,7 +73,7 @@ jobs:
     name: Dead-code gate (udeps + machete)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -107,7 +107,7 @@ jobs:
     name: Criterion smoke (benches compile + run --test)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -151,7 +151,7 @@ jobs:
     name: Golden image (visual regression placeholder)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Placeholder
         run: |
           echo "Golden-image suite lives at tests/golden/*.png."
@@ -168,7 +168,7 @@ jobs:
     # the inventory that follow-up PRs close.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -221,7 +221,7 @@ jobs:
           - name: linux-aarch64
             os: ubuntu-22.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
