@@ -50,12 +50,6 @@ jobs:
         run: cargo build --release --target x86_64-apple-darwin -p carrot-app
 
       - name: Lipo universal + package DMG
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ENTITLEMENTS_PATH: ""
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           VERSION="${{ github.ref_name }}"
           [ -z "$VERSION" ] && VERSION="${{ github.event.inputs.version }}"
