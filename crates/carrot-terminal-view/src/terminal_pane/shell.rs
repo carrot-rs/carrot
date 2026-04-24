@@ -21,6 +21,9 @@ use crate::terminal_pane::{
     detect_available_shells, general_to_tui_awareness,
 };
 
+/// Marker type for deduplicating `ProjectDetected` toasts per worktree root.
+pub(crate) struct ProjectDetectedMarker;
+
 impl TerminalPane {
     pub(crate) fn handle_terminal_event(
         &mut self,
@@ -120,9 +123,10 @@ impl TerminalPane {
                             };
                             if notify {
                                 cx.emit(TerminalPaneEvent::ProjectDetected {
-                                    root: worktree_path,
+                                    root: worktree_path.clone(),
                                     kind,
                                 });
+                                self.show_project_detected_toast(worktree_path, kind, cx);
                             }
                         }
                     }
@@ -391,6 +395,65 @@ impl TerminalPane {
 
         cx.emit(TerminalPaneEvent::TitleChanged);
         cx.notify();
+    }
+
+    /// Show a workspace-level notification offering the user to promote
+    /// a freshly-detected scope to Tracked. Deduplicated per root via
+    /// `NotificationId::composite` so re-entering the same directory
+    /// doesn't stack toasts.
+    fn show_project_detected_toast(
+        &self,
+        root: std::path::PathBuf,
+        kind: carrot_shell::scope_policy::ProjectKind,
+        cx: &mut Context<Self>,
+    ) {
+        use carrot_shell::scope_policy::ProjectKind;
+        use carrot_workspace::notifications::NotificationId;
+        use carrot_workspace::notifications::simple_message_notification::MessageNotification;
+        use inazuma::{Action as _, AppContext as _};
+
+        let Some(workspace) = self.workspace.as_ref().and_then(|w| w.upgrade()) else {
+            return;
+        };
+        let root_display = root.display().to_string();
+        let kind_label = match kind {
+            ProjectKind::Git => "Git project",
+            ProjectKind::AgentRules => "Project rules",
+            ProjectKind::Manifest(_) => "Project manifest",
+        };
+        let message = format!("{kind_label} detected at {root_display}. Track it?");
+        let offer_never = matches!(kind, ProjectKind::Git);
+        workspace.update(cx, move |ws, cx| {
+            ws.show_notification(
+                NotificationId::composite::<ProjectDetectedMarker>(
+                    inazuma::ElementId::from(inazuma::SharedString::from(root_display)),
+                ),
+                cx,
+                move |cx| {
+                    cx.new(|cx| {
+                        let mut notif = MessageNotification::new(message.clone(), cx)
+                            .primary_message("Track")
+                            .primary_on_click(|window, _cx| {
+                                window.dispatch_action(
+                                    carrot_actions::TrackActiveScope.boxed_clone(),
+                                    _cx,
+                                );
+                            });
+                        if offer_never {
+                            notif = notif
+                                .secondary_message("Never")
+                                .secondary_on_click(|window, _cx| {
+                                    window.dispatch_action(
+                                        carrot_actions::NeverTrackScope.boxed_clone(),
+                                        _cx,
+                                    );
+                                });
+                        }
+                        notif
+                    })
+                },
+            );
+        });
     }
 }
 

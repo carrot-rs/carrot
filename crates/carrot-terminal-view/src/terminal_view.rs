@@ -165,13 +165,17 @@ pub fn init(cx: &mut App) {
                     let Some(git_root) = pane.current_git_root.clone() else {
                         return;
                     };
-                    log::info!(
-                        "NeverTrackScope requested for {}: persisting to \
-                         settings is not yet implemented; add the path to \
-                         `worktree_scope.never_track_paths` in settings.toml \
-                         to persist.",
-                        git_root.display()
-                    );
+                    let fs = workspace.project().read(cx).fs().clone();
+                    inazuma_settings_framework::update_settings_file(fs, cx, move |content, _| {
+                        let mut scope = content.worktree_scope.clone().unwrap_or_default();
+                        let mut paths = scope.never_track_paths.unwrap_or_default();
+                        let new_entry = git_root.display().to_string();
+                        if !paths.iter().any(|p| p == &new_entry) {
+                            paths.push(new_entry);
+                        }
+                        scope.never_track_paths = Some(paths);
+                        content.worktree_scope = Some(scope);
+                    });
                 },
             );
             workspace.register_action(
