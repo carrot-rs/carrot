@@ -10,7 +10,7 @@
 context = "Workspace"
 
 [section.bindings]
-# "shift shift" = "file_finder::Toggle"
+# "shift shift" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Files" } }
 
 [[section]]
 context = "Editor && vim_mode == insert"

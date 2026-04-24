@@ -343,8 +343,7 @@ impl TitleBar {
                     .child("Search sessions, agents, files…"),
             )
             .on_click(|_, window, cx| {
-                log::info!("[command-search] trigger clicked → dispatching ToggleCommandSearch");
-                window.dispatch_action(Box::new(carrot_command_search::ToggleCommandSearch), cx);
+                window.dispatch_action(Box::new(carrot_command_palette::Toggle), cx);
             })
             .into_any_element()
     }

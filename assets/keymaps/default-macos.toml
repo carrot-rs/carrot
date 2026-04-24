@@ -10,8 +10,9 @@ context = ""
 [section.bindings]
 "cmd-q" = "carrot::Quit"
 "cmd-," = "carrot::OpenSettings"
-"cmd-shift-p" = "carrot::ToggleCommandPalette"
-"cmd-p" = "command_search::ToggleCommandSearch"
+"cmd-p" = "command_palette::Toggle"
+"cmd-shift-p" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Sessions" } }
+"cmd-r" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "History" } }
 "cmd-n" = "carrot::NewWindow"
 "cmd-+" = "carrot::IncreaseFontSize"
 "cmd-=" = "carrot::IncreaseFontSize"
@@ -23,7 +24,7 @@ context = ""
 context = "Workspace"
 
 [section.bindings]
-"cmd-o" = "file_finder::Toggle"
+"cmd-o" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Files" } }
 "cmd-t" = "session::NewSession"
 "cmd-w" = "session::CloseActiveSession"
 "cmd-shift-]" = "session::ActivateNextSession"

@@ -142,7 +142,7 @@ pub struct TerminalPane {
     // Input system
     pub(crate) input_state: Entity<InputState>,
     pub(crate) shell_completion: Rc<ShellCompletionProvider>,
-    pub(crate) command_history: Arc<RwLock<CommandHistory>>,
+    pub command_history: Arc<RwLock<CommandHistory>>,
     pub(crate) history_panel: HistoryPanel,
     pub(crate) correction_suggestion: Option<command_correction::CorrectionResult>,
 
@@ -303,6 +303,15 @@ impl TerminalPane {
             this.input_state.update(cx, |state, cx| {
                 state.focus(window, cx);
             });
+            // Tell the command palette's History source which shell
+            // history belongs to the pane the user is actively in.
+            // Last-focused wins; this is exactly the semantics the
+            // palette wants since Cmd+R recalls *this* terminal's
+            // history, not whatever was focused before.
+            carrot_session::command_history::ActiveCommandHistory::set_global(
+                this.command_history.clone(),
+                cx,
+            );
             // Notify the cli-agents session manager that this
             // pane received focus so it can clear the Vertical-
             // Tabs unread dot. `registered_pane_id` is populated
@@ -461,6 +470,7 @@ impl Render for TerminalPane {
             .bg(bg_color)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_send_interrupt))
+            .on_action(cx.listener(Self::on_insert_into_input))
             .on_key_down(cx.listener(Self::on_key_down_interactive));
 
         // NO title bar here — the Workspace renders it above us

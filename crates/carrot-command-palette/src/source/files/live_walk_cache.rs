@@ -1,10 +1,10 @@
 //! TTL-bounded cache of live-walk results per scope-root. Lets the
-//! file-finder re-open the same scope within `ttl` and return results
+//! files source re-open the same scope within `ttl` and return results
 //! instantly without re-walking the filesystem.
 //!
-//! Registered as an `inazuma::Global` by `crate::init` so every picker
-//! shares the same cache — opening Cmd+P in `~/projects/foo`, dismissing,
-//! and reopening within TTL returns the cached result list instantly.
+//! Registered as an `inazuma::Global` via [`init`] so every modal shares
+//! the same cache — opening `Cmd+O` in `~/projects/foo`, dismissing, and
+//! reopening within TTL returns the cached result list instantly.
 
 use inazuma::{App, Global};
 use std::collections::HashMap;
@@ -35,10 +35,6 @@ pub fn init(cx: &mut App) {
 }
 
 impl LiveWalkCache {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn get_fresh(&self, scope: &Path, ttl: Duration) -> Option<&CacheEntry> {
         let entry = self.entries.get(scope)?;
         if entry.cached_at.elapsed() < ttl {
@@ -59,10 +55,6 @@ impl LiveWalkCache {
             },
         );
     }
-
-    pub fn invalidate(&mut self, scope: &Path) {
-        self.entries.remove(scope);
-    }
 }
 
 #[cfg(test)]
@@ -72,7 +64,7 @@ mod tests {
 
     #[test]
     fn put_then_fresh_hit() {
-        let mut cache = LiveWalkCache::new();
+        let mut cache = LiveWalkCache::default();
         let scope = PathBuf::from("/tmp/scope");
         cache.put(
             scope.clone(),
@@ -87,19 +79,10 @@ mod tests {
 
     #[test]
     fn stale_entry_returns_none() {
-        let mut cache = LiveWalkCache::new();
+        let mut cache = LiveWalkCache::default();
         let scope = PathBuf::from("/tmp/scope");
         cache.put(scope.clone(), vec![], 0, false);
         sleep(Duration::from_millis(20));
         assert!(cache.get_fresh(&scope, Duration::from_millis(10)).is_none());
-    }
-
-    #[test]
-    fn invalidate_removes_entry() {
-        let mut cache = LiveWalkCache::new();
-        let scope = PathBuf::from("/tmp/scope");
-        cache.put(scope.clone(), vec![], 0, false);
-        cache.invalidate(&scope);
-        assert!(cache.get_fresh(&scope, Duration::from_secs(30)).is_none());
     }
 }

@@ -21,7 +21,6 @@ use inazuma_settings_framework::watch_config_file;
 actions!(
     carrot,
     [
-        ToggleCommandPalette,
         ToggleThemeSelector,
         NewWindow,
         CloseWindow,
@@ -235,13 +234,11 @@ fn main() {
 
             carrot_terminal_view::init(cx);
             carrot_breadcrumbs::init(cx);
-            carrot_file_finder::init(cx);
             carrot_project_panel::init(cx);
             carrot_cli_agents::init(cx);
             carrot_vertical_tabs::init(cx);
             carrot_title_bar::init(cx);
             carrot_command_palette::init(cx);
-            carrot_command_search::init(cx);
             carrot_tab_switcher::init(cx);
             carrot_search::init(cx);
             carrot_settings_ui::init(cx);

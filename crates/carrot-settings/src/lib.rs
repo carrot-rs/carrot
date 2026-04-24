@@ -295,17 +295,12 @@ pub struct PackageChipConfig {
 // Worktree scope / auto-track policy
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AutoTrackPolicy {
     Never,
+    #[default]
     Ask,
     Always,
-}
-
-impl Default for AutoTrackPolicy {
-    fn default() -> Self {
-        AutoTrackPolicy::Ask
-    }
 }
 
 impl From<inazuma_settings_content::AutoTrackPolicyContent> for AutoTrackPolicy {
@@ -485,19 +480,14 @@ impl Settings for FileFinderSettings {
 
 /// What `Workspace::add_item_to_active_pane` does when the active pane is a
 /// Terminal and no editor pane exists yet in the current session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WhenTerminalActive {
+    #[default]
     SplitRight,
     SplitLeft,
     SplitDown,
     SplitUp,
     NewSession,
-}
-
-impl Default for WhenTerminalActive {
-    fn default() -> Self {
-        WhenTerminalActive::SplitRight
-    }
 }
 
 impl From<inazuma_settings_content::WhenTerminalActiveContent> for WhenTerminalActive {
@@ -523,20 +513,12 @@ impl From<inazuma_settings_content::WhenTerminalActiveContent> for WhenTerminalA
 
 /// What `Workspace::add_item_to_active_pane` does when at least one editor
 /// pane already exists in the current session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WhenEditorOpen {
     ReuseLast,
+    #[default]
     NewSplit,
     NewSession,
-}
-
-impl Default for WhenEditorOpen {
-    fn default() -> Self {
-        // Warp-flavour default: every opened file gets its own pane next
-        // to the Terminal and any previously-opened files. User can flip
-        // to `ReuseLast` for Zed / VSCode-style single-slot behaviour.
-        WhenEditorOpen::NewSplit
-    }
 }
 
 impl From<inazuma_settings_content::WhenEditorOpenContent> for WhenEditorOpen {

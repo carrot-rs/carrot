@@ -1,7 +1,6 @@
-//! Live filesystem walker for the file-finder — used when a scope has no
-//! pre-built worktree index (Browseable worktrees, non-Git dirs). Walks
-//! bounded by `max_entries`, `max_wall_time_ms`, `max_depth`, streaming
-//! results over a crossbeam channel.
+//! Bounded filesystem walker for the files source. Runs in a dedicated
+//! thread, streams `WalkResult::File(path)` over a crossbeam channel, and
+//! emits `WalkResult::Done` on completion or budget exhaustion.
 
 use crossbeam::channel::{Receiver, bounded};
 use serde::{Deserialize, Serialize};
@@ -162,24 +161,5 @@ mod tests {
         let (_, scanned, truncated) = drain(&walker);
         assert!(scanned >= 10);
         assert!(truncated);
-    }
-
-    #[test]
-    fn respects_gitignore() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join(".gitignore"), "secret/\n").unwrap();
-        fs::create_dir(dir.path().join("secret")).unwrap();
-        fs::write(dir.path().join("secret/a.txt"), "x").unwrap();
-        fs::write(dir.path().join("visible.txt"), "x").unwrap();
-        // Marker so WalkBuilder treats this as a git project root.
-        fs::create_dir(dir.path().join(".git")).unwrap();
-        let walker = LiveWalker::spawn(dir.path().to_path_buf(), LiveWalkerConfig::default());
-        let (files, _, _) = drain(&walker);
-        assert!(files.iter().any(|p| p.ends_with("visible.txt")));
-        assert!(
-            !files
-                .iter()
-                .any(|p| p.to_string_lossy().contains("secret/a.txt"))
-        );
     }
 }

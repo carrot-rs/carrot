@@ -17,36 +17,29 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
+carrot-actions.workspace = true
 carrot-client.workspace = true
-inazuma-collections.workspace = true
 carrot-command-palette-hooks.workspace = true
 carrot-db.workspace = true
-inazuma-fuzzy.workspace = true
-inazuma.workspace = true
-inazuma-menu.workspace = true
-log.workspace = true
-inazuma-picker.workspace = true
-postage.workspace = true
-serde.workspace = true
-inazuma-settings-framework.workspace = true
+carrot-session.workspace = true
 carrot-theme.workspace = true
-time.workspace = true
 carrot-ui.workspace = true
-inazuma-util.workspace = true
-carrot-telemetry.workspace = true
 carrot-workspace.workspace = true
-carrot-actions.workspace = true
+crossbeam.workspace = true
+dirs.workspace = true
+ignore.workspace = true
+inazuma.workspace = true
+inazuma-fuzzy.workspace = true
+inazuma-settings-framework.workspace = true
+inazuma-util.workspace = true
+log.workspace = true
+num_cpus.workspace = true
+postage.workspace = true
+schemars.workspace = true
+serde.workspace = true
+time.workspace = true
 
 [dev-dependencies]
-
 carrot-db = { workspace = true, features = ["test-support"] }
-carrot-editor = { workspace = true, features = ["test-support"] }
-
-carrot-go-to-line.workspace = true
 inazuma = { workspace = true, features = ["test-support"] }
-carrot-language = { workspace = true, features = ["test-support"] }
-inazuma-menu.workspace = true
-carrot-project = { workspace = true, features = ["test-support"] }
-
-carrot-workspace = { workspace = true, features = ["test-support"] }
-carrot-theme-settings.workspace = true
+tempfile.workspace = true

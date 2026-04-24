@@ -1,13 +1,18 @@
-//! Search categories — the ten buckets the command search can filter by.
+//! Search categories — the buckets the command palette can filter by.
 //!
 //! Each category maps 1:1 to a chip in the modal header and to a `prefix:`
 //! the user can type directly into the search field (e.g. `sessions: foo`,
 //! `env: HOME`).
+//!
+//! `SearchCategory` is `Serialize`/`Deserialize` because it travels as the
+//! `category_filter` field of the `ToggleWithFilter` keymap action.
 
 use carrot_ui::{ColorName, IconName};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Categories of items the panel can search over.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum SearchCategory {
     Workflows,
     Prompts,
@@ -19,6 +24,7 @@ pub enum SearchCategory {
     Sessions,
     LaunchConfigurations,
     Conversations,
+    History,
 }
 
 impl SearchCategory {
@@ -34,6 +40,7 @@ impl SearchCategory {
             Self::Sessions => "sessions",
             Self::LaunchConfigurations => "launch configurations",
             Self::Conversations => "conversations",
+            Self::History => "history",
         }
     }
 
@@ -49,6 +56,7 @@ impl SearchCategory {
             Self::Sessions => IconName::Terminal,
             Self::LaunchConfigurations => IconName::Settings,
             Self::Conversations => IconName::Chat,
+            Self::History => IconName::HistoryRerun,
         }
     }
 
@@ -62,6 +70,7 @@ impl SearchCategory {
             Self::Actions => Some(ColorName::Amber),
             Self::Sessions => Some(ColorName::Cyan),
             Self::Conversations => Some(ColorName::Sky),
+            Self::History => Some(ColorName::Green),
             Self::Prompts | Self::Files | Self::Drive | Self::LaunchConfigurations => None,
         }
     }
@@ -81,6 +90,7 @@ impl SearchCategory {
             Self::Sessions => "sessions:",
             Self::LaunchConfigurations => "launch:",
             Self::Conversations => "conversations:",
+            Self::History => "history:",
         }
     }
 
@@ -96,18 +106,42 @@ impl SearchCategory {
             Self::Sessions,
             Self::LaunchConfigurations,
             Self::Conversations,
+            Self::History,
         ]
     }
 }
 
+/// Short-form aliases — single-character prefixes that expand to their
+/// full category when the user types them followed by `:`. Mirrors the
+/// single-letter convention power-users already know from shell aliases.
+const SHORT_FORMS: &[(&str, SearchCategory)] = &[
+    ("h:", SearchCategory::History),
+    ("f:", SearchCategory::Files),
+    ("a:", SearchCategory::Actions),
+    ("s:", SearchCategory::Sessions),
+    ("p:", SearchCategory::Prompts),
+    ("n:", SearchCategory::Notebooks),
+    ("w:", SearchCategory::Workflows),
+    ("e:", SearchCategory::EnvironmentVariables),
+    ("d:", SearchCategory::Drive),
+    ("l:", SearchCategory::LaunchConfigurations),
+    ("c:", SearchCategory::Conversations),
+];
+
 /// Splits a typed filter prefix off the front of `raw` and returns the
 /// remaining query text. `(Some(cat), rest)` means the user explicitly
-/// filtered via e.g. `sessions: `. `(None, rest)` means the query is free
-/// text and the currently selected chip (if any) decides the scope.
+/// filtered via e.g. `sessions: ` or the short form `s: `. `(None, rest)`
+/// means the query is free text and the currently selected chip (if any)
+/// decides the scope.
 pub fn parse_filter_prefix(raw: &str) -> (Option<SearchCategory>, &str) {
     let trimmed = raw.trim_start();
     for &cat in SearchCategory::all() {
         if let Some(rest) = trimmed.strip_prefix(cat.prefix()) {
+            return (Some(cat), rest.trim_start());
+        }
+    }
+    for &(short, cat) in SHORT_FORMS {
+        if let Some(rest) = trimmed.strip_prefix(short) {
             return (Some(cat), rest.trim_start());
         }
     }
@@ -130,6 +164,27 @@ mod tests {
         let (cat, rest) = parse_filter_prefix("sessions:foo");
         assert_eq!(cat, Some(SearchCategory::Sessions));
         assert_eq!(rest, "foo");
+    }
+
+    #[test]
+    fn parses_history_prefix() {
+        let (cat, rest) = parse_filter_prefix("history: git");
+        assert_eq!(cat, Some(SearchCategory::History));
+        assert_eq!(rest, "git");
+    }
+
+    #[test]
+    fn parses_short_form_history() {
+        let (cat, rest) = parse_filter_prefix("h: git");
+        assert_eq!(cat, Some(SearchCategory::History));
+        assert_eq!(rest, "git");
+    }
+
+    #[test]
+    fn parses_short_form_files() {
+        let (cat, rest) = parse_filter_prefix("f:readme");
+        assert_eq!(cat, Some(SearchCategory::Files));
+        assert_eq!(rest, "readme");
     }
 
     #[test]

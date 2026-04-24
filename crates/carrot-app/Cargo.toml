@@ -34,7 +34,6 @@ carrot-cli-agents = { workspace = true }
 carrot-client = { workspace = true }
 carrot-collab-ui = { workspace = true }
 carrot-command-palette = { workspace = true }
-carrot-command-search = { workspace = true }
 carrot-completions = { path = "../carrot-completions" }
 carrot-crashes = { workspace = true }
 carrot-credentials-provider = { workspace = true }
@@ -48,7 +47,6 @@ carrot-encoding-selector = { workspace = true }
 carrot-extension-host = { workspace = true }
 carrot-feature-flags = { workspace = true }
 carrot-feedback = { workspace = true }
-carrot-file-finder = { workspace = true }
 carrot-fs = { workspace = true }
 carrot-git-ui = { workspace = true }
 carrot-go-to-line = { workspace = true }

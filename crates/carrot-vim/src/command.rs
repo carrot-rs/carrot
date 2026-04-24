@@ -326,7 +326,7 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>", window, cx);
+            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>", None, window, cx);
         })
     });
 
@@ -335,7 +335,7 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", window, cx);
+            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", None, window, cx);
         })
     });
 
@@ -354,7 +354,7 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", window, cx);
+            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", None, window, cx);
         })
     });
 
@@ -870,7 +870,7 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             ".".to_string()
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, &n, window, cx);
+            carrot_command_palette::CommandPalette::toggle(workspace, &n, None, window, cx);
         })
     });
 
@@ -2392,7 +2392,9 @@ impl Vim {
         });
         if let Some(command) = command {
             workspace.update(cx, |workspace, cx| {
-                carrot_command_palette::CommandPalette::toggle(workspace, &command, window, cx);
+                carrot_command_palette::CommandPalette::toggle(
+                    workspace, &command, None, window, cx,
+                );
             });
         }
     }
@@ -2431,7 +2433,9 @@ impl Vim {
         });
         if let Some(command) = command {
             workspace.update(cx, |workspace, cx| {
-                carrot_command_palette::CommandPalette::toggle(workspace, &command, window, cx);
+                carrot_command_palette::CommandPalette::toggle(
+                    workspace, &command, None, window, cx,
+                );
             });
         }
     }

@@ -133,7 +133,6 @@ members = [
     # "crates/carrot-sidebar",
     "crates/carrot-command-palette",
     "crates/carrot-command-palette-hooks",
-    "crates/carrot-command-search",
     "crates/carrot-ui-prompt",
     "crates/carrot-platform-title-bar",
     "crates/carrot-title-bar",
@@ -171,7 +170,6 @@ members = [
     "crates/carrot-outline-panel",
     "crates/carrot-diagnostics",
     "crates/carrot-search",
-    "crates/carrot-file-finder",
     "crates/carrot-project-panel",
     "crates/carrot-project-symbols",
     "crates/carrot-vim",
@@ -412,7 +410,6 @@ carrot-panel = { path = "crates/carrot-panel" }
 # TODO: Requires carrot-agent-ui rebuild
 # carrot-sidebar = { path = "crates/carrot-sidebar" }
 carrot-command-palette = { path = "crates/carrot-command-palette" }
-carrot-command-search = { path = "crates/carrot-command-search" }
 carrot-command-palette-hooks = { path = "crates/carrot-command-palette-hooks" }
 carrot-ui-prompt = { path = "crates/carrot-ui-prompt" }
 carrot-platform-title-bar = { path = "crates/carrot-platform-title-bar" }
@@ -451,7 +448,6 @@ carrot-outline = { path = "crates/carrot-outline" }
 carrot-outline-panel = { path = "crates/carrot-outline-panel" }
 carrot-diagnostics = { path = "crates/carrot-diagnostics" }
 carrot-search = { path = "crates/carrot-search" }
-carrot-file-finder = { path = "crates/carrot-file-finder" }
 carrot-project-panel = { path = "crates/carrot-project-panel" }
 carrot-project-symbols = { path = "crates/carrot-project-symbols" }
 carrot-vim = { path = "crates/carrot-vim" }

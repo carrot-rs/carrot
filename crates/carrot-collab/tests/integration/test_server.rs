@@ -351,7 +351,7 @@ impl TestServer {
             carrot_channel::init(&client, user_store.clone(), cx);
             carrot_notifications::init(client.clone(), user_store, cx);
             carrot_collab_ui::init(&app_state, cx);
-            carrot_file_finder::init(cx);
+            carrot_command_palette::init(cx);
             inazuma_menu::init();
             cx.bind_keys(
                 inazuma_settings_framework::KeymapFile::load_asset_allow_partial_failure(

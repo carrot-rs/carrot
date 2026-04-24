@@ -38,6 +38,22 @@ impl TerminalPane {
         cx.notify();
     }
 
+    /// Paste a command line into the input editor without executing. Used
+    /// by the command palette's History source (`Cmd+R`) so recalling a
+    /// past command gives the user a chance to edit before hitting enter.
+    pub(crate) fn on_insert_into_input(
+        &mut self,
+        action: &carrot_actions::command_palette::InsertIntoInput,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let text = action.text.clone();
+        self.input_state.update(cx, |state, cx| {
+            state.set_value(text, window, cx);
+        });
+        cx.notify();
+    }
+
     /// KeyDown handler used while the pane is in interactive mode
     /// (alt-screen TUI active or a shell command running). Routes
     /// Cmd-shortcuts first, then feeds remaining keys to the PTY.

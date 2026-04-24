@@ -6,9 +6,11 @@
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
+use inazuma::{App, Global};
 
 /// A single history entry with metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -562,6 +564,27 @@ pub fn relative_time(timestamp: u64) -> String {
         format!("{}w ago", age / 604800)
     } else {
         format!("{}mo ago", age / 2592000)
+    }
+}
+
+/// App-level pointer to the shell [`CommandHistory`] backing the
+/// currently-focused terminal pane.
+///
+/// Set by `TerminalPane` on focus-in so the command palette's History
+/// source can show commands from the pane the user is actively working
+/// in — not just whatever the shell flushed to disk.
+#[derive(Clone)]
+pub struct ActiveCommandHistory(pub Arc<RwLock<CommandHistory>>);
+
+impl Global for ActiveCommandHistory {}
+
+impl ActiveCommandHistory {
+    pub fn try_global(cx: &App) -> Option<Self> {
+        cx.try_global::<Self>().cloned()
+    }
+
+    pub fn set_global(history: Arc<RwLock<CommandHistory>>, cx: &mut App) {
+        cx.set_global(Self(history));
     }
 }
 
