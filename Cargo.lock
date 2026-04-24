@@ -2489,6 +2489,7 @@ dependencies = [
  "carrot-language-tools",
  "carrot-line-ending-selector",
  "carrot-markdown",
+ "carrot-markdown-preview",
  "carrot-node-runtime",
  "carrot-notifications",
  "carrot-onboarding",
@@ -2497,7 +2498,6 @@ dependencies = [
  "carrot-platform-title-bar",
  "carrot-project",
  "carrot-project-panel",
- "carrot-project-registry",
  "carrot-prompt-store",
  "carrot-proto",
  "carrot-recent-projects",
@@ -4315,8 +4315,10 @@ dependencies = [
  "carrot-theme-settings",
  "carrot-ui",
  "carrot-workspace",
+ "crossbeam",
  "ctor",
  "futures 0.3.32",
+ "ignore",
  "inazuma",
  "inazuma-collections",
  "inazuma-fuzzy",
@@ -4324,9 +4326,11 @@ dependencies = [
  "inazuma-picker",
  "inazuma-settings-framework",
  "inazuma-util",
+ "num_cpus",
  "pretty_assertions",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -5827,21 +5831,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "carrot-project-registry"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "carrot-client",
- "carrot-fs",
- "carrot-language",
- "carrot-node-runtime",
- "carrot-project",
- "inazuma",
- "inazuma-collections",
- "log",
-]
-
-[[package]]
 name = "carrot-project-symbols"
 version = "0.1.0"
 dependencies = [
@@ -6246,6 +6235,7 @@ dependencies = [
  "inazuma-settings-macros",
  "indexmap",
  "log",
+ "num_cpus",
  "rust-embed",
  "serde",
  "serde_json",
@@ -6342,6 +6332,7 @@ dependencies = [
  "inazuma-settings-framework",
  "inazuma-util",
  "log",
+ "tempfile",
 ]
 
 [[package]]
@@ -6708,13 +6699,13 @@ name = "carrot-terminal-view"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "carrot-actions",
  "carrot-block-render",
  "carrot-chips",
  "carrot-cli-agents",
  "carrot-completions",
  "carrot-grid",
  "carrot-project",
- "carrot-project-registry",
  "carrot-session",
  "carrot-settings",
  "carrot-shell",

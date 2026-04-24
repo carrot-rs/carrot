@@ -17,12 +17,13 @@ use carrot_ui::{
     Icon, IconName,
     input::{AutoPairConfig, InputState},
 };
+use carrot_project::{ProjectEntryId, ProjectItem, ProjectPath};
 use carrot_workspace::{
     Item, PaneRole, ToolbarItemLocation, Workspace, WorkspaceId,
     item::{HighlightedText, ItemEvent},
     searchable::SearchableItemHandle,
 };
-use inazuma::{App, Context, Entity, Window, prelude::*};
+use inazuma::{App, Context, Entity, EntityId, Window, prelude::*};
 
 use inazuma::SharedString;
 
@@ -135,6 +136,7 @@ impl Item for TerminalPane {
             TerminalPaneEvent::TitleChanged => f(ItemEvent::UpdateTab),
             TerminalPaneEvent::CloseRequested => f(ItemEvent::CloseItem),
             TerminalPaneEvent::BellRang => {}
+            TerminalPaneEvent::ProjectDetected { .. } => {}
         }
     }
 
@@ -276,6 +278,7 @@ impl Item for TerminalPane {
             workspace: ws,
             registered_pty_pid: None,
             registered_pane_id: None,
+            project: None,
             _subscriptions: Vec::new(),
         });
 
@@ -309,6 +312,37 @@ impl Item for TerminalPane {
         Some(Box::new(handle.clone()))
     }
 
+    fn for_each_project_item(
+        &self,
+        cx: &App,
+        f: &mut dyn FnMut(EntityId, &dyn ProjectItem),
+    ) {
+        // Surface the Terminal's CWD as a synthetic ProjectItem so workspace
+        // code (window title, project-panel reveal, nav history, file-finder
+        // ranking) treats a Terminal like any other project-backed item.
+        //
+        // Must use the cached Project weak-ref directly — reading the Workspace
+        // here panics, because Workspace calls `for_each_project_item` from
+        // inside its own `update(cx, ...)` (active_item_path_changed loop).
+        // Editor follows the same pattern: iterate your own entities, never
+        // re-enter Workspace.
+        let Some(pane_id) = self.registered_pane_id else {
+            return;
+        };
+        let Some(project) = self.project.as_ref().and_then(|p| p.upgrade()) else {
+            return;
+        };
+        let cwd_path = std::path::Path::new(&self.shell_context.cwd);
+        let Some(project_path) = project
+            .read(cx)
+            .project_path_for_absolute_path(cwd_path, cx)
+        else {
+            return;
+        };
+        let item = TerminalProjectItem { project_path };
+        f(pane_id, &item);
+    }
+
     fn added_to_workspace(
         &mut self,
         workspace: &mut Workspace,
@@ -316,6 +350,7 @@ impl Item for TerminalPane {
         _cx: &mut Context<Self>,
     ) {
         self.workspace = Some(workspace.weak_handle());
+        self.project = Some(workspace.project().downgrade());
     }
 
     fn pane_changed(&mut self, new_pane_id: inazuma::EntityId, cx: &mut Context<Self>) {
@@ -337,5 +372,39 @@ impl Item for TerminalPane {
         if let Some(pty) = self.registered_pty_pid {
             carrot_cli_agents::unregister_terminal(pty, cx);
         }
+    }
+}
+
+/// Synthetic ProjectItem that exposes a TerminalPane's CWD as a project path.
+/// Lets `ItemHandle::project_path()` and downstream Workspace code
+/// (window title, nav history, project-panel reveal) treat a Terminal
+/// pane like any other project-backed item. Never constructible from
+/// `try_open` — Terminals are created by the shell-launch flow only.
+struct TerminalProjectItem {
+    project_path: ProjectPath,
+}
+
+impl ProjectItem for TerminalProjectItem {
+    fn try_open(
+        _project: &Entity<carrot_project::Project>,
+        _path: &ProjectPath,
+        _cx: &mut App,
+    ) -> Option<inazuma::Task<anyhow::Result<Entity<Self>>>>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    fn entry_id(&self, _cx: &App) -> Option<ProjectEntryId> {
+        None
+    }
+
+    fn project_path(&self, _cx: &App) -> Option<ProjectPath> {
+        Some(self.project_path.clone())
+    }
+
+    fn is_dirty(&self) -> bool {
+        false
     }
 }

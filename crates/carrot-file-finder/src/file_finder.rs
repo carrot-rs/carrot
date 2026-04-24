@@ -1,7 +1,12 @@
 #[cfg(test)]
 mod file_finder_tests;
 
+pub mod live_walk_cache;
+pub mod live_walker;
+
 pub use carrot_open_path_prompt::OpenPathDelegate;
+pub use live_walk_cache::{CacheEntry, LiveWalkCache};
+pub use live_walker::{LiveWalker, LiveWalkerConfig, WalkResult};
 use futures::future::join_all;
 
 use carrot_actions::search::ToggleIncludeIgnored;

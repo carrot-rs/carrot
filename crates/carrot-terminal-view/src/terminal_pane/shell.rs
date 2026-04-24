@@ -63,6 +63,7 @@ impl TerminalPane {
         if let carrot_terminal::ShellMarker::Metadata(ref json) = marker {
             match serde_json::from_str::<carrot_shell_integration::ShellMetadataPayload>(json) {
                 Ok(payload) => {
+                    let cwd_changed = self.shell_context.cwd != payload.cwd;
                     let new_cwd = std::path::PathBuf::from(&payload.cwd);
                     self.shell_context.update_from_metadata(&payload);
                     self.shell_completion.update_cwd(new_cwd.clone());
@@ -71,22 +72,61 @@ impl TerminalPane {
                     self.last_duration_ms = payload.last_duration_ms;
 
                     let new_git_root = payload.git_root.as_ref().map(std::path::PathBuf::from);
-                    if new_git_root != self.current_git_root
-                        && let Some(registry) =
-                            carrot_project_registry::ProjectRegistry::try_global(cx)
-                    {
-                        registry.update(cx, |reg, cx| {
-                            if let Some(ref old) = self.current_git_root {
-                                reg.release(old, cx);
-                            }
-                            if let Some(ref root) = new_git_root {
-                                let (_ctx, task) = reg.acquire(root, cx);
-                                task.detach_and_log_err(cx);
-                            }
-                        });
+                    if new_git_root != self.current_git_root {
                         self.current_git_root = new_git_root;
                     }
-                    let _ = payload.last_duration_ms;
+
+                    if cwd_changed
+                        && let Some(project) =
+                            self.project.as_ref().and_then(|p| p.upgrade())
+                    {
+                        use carrot_shell::scope_policy::{
+                            ProjectKind, WorktreeRoot, classify,
+                        };
+                        use inazuma_settings_framework::Settings as _;
+                        let classification = classify(&new_cwd);
+                        let (worktree_path, detected_kind) = match &classification {
+                            WorktreeRoot::ProjectLike { root, kind, .. } => {
+                                (root.clone(), Some(*kind))
+                            }
+                            WorktreeRoot::AdHoc { cwd } => (cwd.clone(), None),
+                        };
+                        let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
+                            let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
+                            scope
+                                .git_track_decision(&worktree_path)
+                                .should_track_immediately()
+                        };
+                        project.update(cx, |project, cx| {
+                            if should_track {
+                                project
+                                    .ensure_tracked_worktree(&worktree_path, cx)
+                                    .detach_and_log_err(cx);
+                            } else {
+                                project
+                                    .ensure_browseable_worktree(&worktree_path, cx)
+                                    .detach_and_log_err(cx);
+                            }
+                        });
+                        if let Some(kind) = detected_kind
+                            && !should_track
+                        {
+                            let notify = match kind {
+                                ProjectKind::Git => carrot_settings::WorktreeScopeSettings::get_global(cx)
+                                    .git_track_decision(&worktree_path)
+                                    .is_ask(),
+                                ProjectKind::AgentRules => true,
+                                ProjectKind::Manifest(_) => false,
+                            };
+                            if notify {
+                                cx.emit(TerminalPaneEvent::ProjectDetected {
+                                    root: worktree_path,
+                                    kind,
+                                });
+                            }
+                        }
+                    }
+
                     cx.emit(TerminalPaneEvent::TitleChanged);
                     cx.notify();
                 }

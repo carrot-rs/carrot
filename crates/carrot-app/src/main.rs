@@ -143,16 +143,6 @@ fn main() {
             );
             carrot::handle_keymap_file_changes(user_keymap_rx, user_keymap_watcher, cx);
 
-            // 5. Initialize ProjectRegistry (reactive git-root-based project detection)
-            carrot_project_registry::ProjectRegistry::init(
-                app_state.client.clone(),
-                app_state.user_store.clone(),
-                app_state.languages.clone(),
-                app_state.fs.clone(),
-                carrot_node_runtime::NodeRuntime::unavailable(),
-                cx,
-            );
-
             // 5. Initialize theme system (ThemeSettings via SettingsStore + Provider registration)
             //    MUST happen after SettingsStore init — registers ThemeSettingsProvider for carrot-ui
             carrot_theme_settings::init(
@@ -198,6 +188,8 @@ fn main() {
             carrot_client::init(&app_state.client, cx);
             carrot_project::Project::init(&app_state.client, cx);
             carrot_workspace::init(app_state.clone(), cx);
+            carrot_editor::init(cx);
+            carrot_markdown_preview::init(cx);
             carrot_call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
             carrot_channel::init(&app_state.client.clone(), app_state.user_store.clone(), cx);
             carrot_notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);

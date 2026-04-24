@@ -605,6 +605,27 @@ pub struct OpenRemote {
 #[serde(deny_unknown_fields)]
 pub struct OpenDevContainer;
 
+/// Promote the worktree for the currently focused pane's CWD from Browseable
+/// to Tracked. Enables the background scanner, file-watcher, and GitStore for
+/// that worktree.
+#[derive(PartialEq, Clone, Deserialize, Default, JsonSchema, Action)]
+#[action(namespace = projects)]
+#[serde(deny_unknown_fields)]
+pub struct TrackActiveScope;
+
+/// Dismiss the "project detected" notification without tracking.
+#[derive(PartialEq, Clone, Deserialize, Default, JsonSchema, Action)]
+#[action(namespace = projects)]
+#[serde(deny_unknown_fields)]
+pub struct TrackAskLater;
+
+/// Add the currently focused pane's CWD to `never_track_paths` so it won't be
+/// prompted again.
+#[derive(PartialEq, Clone, Deserialize, Default, JsonSchema, Action)]
+#[action(namespace = projects)]
+#[serde(deny_unknown_fields)]
+pub struct NeverTrackScope;
+
 /// Where to spawn the task in the UI.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

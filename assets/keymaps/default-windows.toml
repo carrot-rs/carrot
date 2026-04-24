@@ -25,6 +25,7 @@ context = ""
 context = "Workspace"
 
 [section.bindings]
+"ctrl-o" = "file_finder::Toggle"
 "ctrl-shift-t" = "workspace::NewTerminal"
 "ctrl-d" = "pane::SplitAndMoveRight"
 "ctrl-shift-d" = "pane::SplitAndMoveDown"

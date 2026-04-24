@@ -2,6 +2,7 @@ mod dialog_layer;
 mod focus_navigation;
 mod notification_layer;
 pub mod open;
+pub mod scope_policy;
 mod sheet_layer;
 mod shell;
 

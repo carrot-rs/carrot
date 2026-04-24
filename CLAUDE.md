@@ -106,6 +106,12 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **`inazuma-*` crates never depend on `carrot-*` crates.**
 - **No circular dependencies.** Extract shared parts into a third crate.
 
+### Project Scope (see "Project Scope Architecture" in ARCHITECTURE.md)
+- **One `Entity<Project>` per Workspace.** Never introduce parallel project systems (e.g. the deleted `carrot-project-registry` pattern).
+- **Create worktrees via `Project::ensure_browseable_worktree` / `ensure_tracked_worktree` / `ensure_ephemeral_worktree`.** Do not call `find_or_create_worktree(path, visible, cx)` directly in new code — that signature is retained only for backward compatibility and always maps to Tracked.
+- **Reactive worktree creation lives in `terminal_pane/shell.rs`.** Scope classification happens in `carrot_shell::scope_policy::classify`; auto-tracking applies only to `ProjectKind::Git`.
+- **No synchronous reads of `Workspace` from inside a `Context<TerminalPane>` that runs mid-Workspace-update** — use the cached `WeakEntity<Project>` on `TerminalPane` (`self.project`) instead of `self.workspace.read(cx).project()`, otherwise the re-entrance guard panics.
+
 ### Workflow & Process
 - **Never commit without explicit user approval** — and never before the user has tested and confirmed.
 - **Verify before claiming** — never assert anything about code without actually reading it first.

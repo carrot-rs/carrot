@@ -290,3 +290,186 @@ pub struct PythonChipConfig {
 pub struct PackageChipConfig {
     pub display_private: bool,
 }
+
+// ---------------------------------------------------------------------------
+// Worktree scope / auto-track policy
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoTrackPolicy {
+    Never,
+    Ask,
+    Always,
+}
+
+impl Default for AutoTrackPolicy {
+    fn default() -> Self {
+        AutoTrackPolicy::Ask
+    }
+}
+
+impl From<inazuma_settings_content::AutoTrackPolicyContent> for AutoTrackPolicy {
+    fn from(content: inazuma_settings_content::AutoTrackPolicyContent) -> Self {
+        match content {
+            inazuma_settings_content::AutoTrackPolicyContent::Never => AutoTrackPolicy::Never,
+            inazuma_settings_content::AutoTrackPolicyContent::Ask => AutoTrackPolicy::Ask,
+            inazuma_settings_content::AutoTrackPolicyContent::Always => AutoTrackPolicy::Always,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitTrackDecision {
+    NeverTrack,
+    Ask,
+    TrackImmediately,
+}
+
+impl GitTrackDecision {
+    pub fn should_track_immediately(self) -> bool {
+        matches!(self, Self::TrackImmediately)
+    }
+
+    pub fn is_ask(self) -> bool {
+        matches!(self, Self::Ask)
+    }
+}
+
+#[derive(Debug, Clone, RegisterSetting)]
+pub struct WorktreeScopeSettings {
+    pub auto_track_git: AutoTrackPolicy,
+    pub never_track_paths: Vec<PathBuf>,
+    pub always_track_paths: Vec<PathBuf>,
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs_home() {
+            return home.join(rest);
+        }
+    } else if path == "~" {
+        if let Some(home) = dirs_home() {
+            return home;
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn dirs_home() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+fn default_never_track_paths() -> Vec<PathBuf> {
+    ["~", "/tmp", "/", "/etc", "/var", "/usr"]
+        .into_iter()
+        .map(expand_tilde)
+        .collect()
+}
+
+impl Settings for WorktreeScopeSettings {
+    fn from_settings(content: &inazuma_settings_content::SettingsContent) -> Self {
+        let scope = content.worktree_scope.clone().unwrap_or_default();
+        let auto_track_git = scope
+            .auto_track_git
+            .map(AutoTrackPolicy::from)
+            .unwrap_or_default();
+        let never_track_paths = scope
+            .never_track_paths
+            .map(|v| v.into_iter().map(|s| expand_tilde(&s)).collect())
+            .unwrap_or_else(default_never_track_paths);
+        let always_track_paths = scope
+            .always_track_paths
+            .map(|v| v.into_iter().map(|s| expand_tilde(&s)).collect())
+            .unwrap_or_default();
+        WorktreeScopeSettings {
+            auto_track_git,
+            never_track_paths,
+            always_track_paths,
+        }
+    }
+}
+
+impl WorktreeScopeSettings {
+    /// Decide how to auto-track a just-entered Git repository. Only callers
+    /// that handle `ProjectKind::Git` should invoke this — other scope kinds
+    /// (AgentRules, Manifest, AdHoc) never auto-track and should not consult
+    /// this decision.
+    pub fn git_track_decision(&self, git_root: &std::path::Path) -> GitTrackDecision {
+        if self.never_track_paths.iter().any(|p| git_root.starts_with(p)) {
+            return GitTrackDecision::NeverTrack;
+        }
+        if self
+            .always_track_paths
+            .iter()
+            .any(|p| git_root.starts_with(p))
+        {
+            return GitTrackDecision::TrackImmediately;
+        }
+        match self.auto_track_git {
+            AutoTrackPolicy::Never => GitTrackDecision::NeverTrack,
+            AutoTrackPolicy::Ask => GitTrackDecision::Ask,
+            AutoTrackPolicy::Always => GitTrackDecision::TrackImmediately,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// File-Finder LiveWalker settings
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, RegisterSetting)]
+pub struct FileFinderSettings {
+    pub live: LiveFinderConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct LiveFinderConfig {
+    pub max_entries: usize,
+    pub max_wall_time_ms: u64,
+    pub max_depth: usize,
+    pub parallel_walkers: usize,
+    pub respect_gitignore: bool,
+    pub respect_carrotignore: bool,
+    pub respect_hidden: bool,
+    pub ttl_cache_seconds: u64,
+}
+
+impl Default for LiveFinderConfig {
+    fn default() -> Self {
+        Self {
+            max_entries: 100_000,
+            max_wall_time_ms: 5_000,
+            max_depth: 25,
+            parallel_walkers: num_cpus::get().max(1),
+            respect_gitignore: true,
+            respect_carrotignore: true,
+            respect_hidden: true,
+            ttl_cache_seconds: 30,
+        }
+    }
+}
+
+impl Settings for FileFinderSettings {
+    fn from_settings(content: &inazuma_settings_content::SettingsContent) -> Self {
+        let raw = content
+            .file_finder
+            .clone()
+            .and_then(|f| f.live)
+            .unwrap_or_default();
+        let defaults = LiveFinderConfig::default();
+        FileFinderSettings {
+            live: LiveFinderConfig {
+                max_entries: raw.max_entries.unwrap_or(defaults.max_entries),
+                max_wall_time_ms: raw.max_wall_time_ms.unwrap_or(defaults.max_wall_time_ms),
+                max_depth: raw.max_depth.unwrap_or(defaults.max_depth),
+                parallel_walkers: raw.parallel_walkers.unwrap_or(defaults.parallel_walkers),
+                respect_gitignore: raw.respect_gitignore.unwrap_or(defaults.respect_gitignore),
+                respect_carrotignore: raw
+                    .respect_carrotignore
+                    .unwrap_or(defaults.respect_carrotignore),
+                respect_hidden: raw.respect_hidden.unwrap_or(defaults.respect_hidden),
+                ttl_cache_seconds: raw.ttl_cache_seconds.unwrap_or(defaults.ttl_cache_seconds),
+            },
+        }
+    }
+}

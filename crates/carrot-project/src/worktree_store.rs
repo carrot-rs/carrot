@@ -66,6 +66,32 @@ impl WorktreeIdCounter {
 
 impl Global for WorktreeIdCounter {}
 
+/// A worktree's lifecycle mode. Controls visibility in the Project-Panel,
+/// whether a `BackgroundScanner` runs, and (future) whether the worktree is
+/// semantically indexed for agents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorktreeMode {
+    /// Path anchor only. Hidden from UI, no scanner, no watcher. Used to resolve
+    /// buffers for files outside any visible worktree.
+    Ephemeral,
+    /// Visible in the UI, lazy-expanded on click. No scanner, no watcher. The
+    /// default for cwd-driven worktree creation.
+    Browseable,
+    /// Scanner and file-watcher active. GitStore attaches. Use when the user
+    /// opts in or an auto-track policy promotes a Browseable.
+    Tracked,
+}
+
+impl WorktreeMode {
+    pub fn visible(self) -> bool {
+        !matches!(self, WorktreeMode::Ephemeral)
+    }
+
+    pub fn scanning_enabled(self) -> bool {
+        matches!(self, WorktreeMode::Tracked)
+    }
+}
+
 pub struct WorktreeStore {
     next_entry_id: Arc<AtomicUsize>,
     next_worktree_id: WorktreeIdCounter,
@@ -318,6 +344,21 @@ impl WorktreeStore {
             Task::ready(Ok((tree, relative_path)))
         } else {
             let worktree = self.create_worktree(abs_path, visible, cx);
+            cx.background_spawn(async move { Ok((worktree.await?, RelPath::empty().into())) })
+        }
+    }
+
+    pub fn find_or_create_worktree_with_mode(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        mode: WorktreeMode,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
+        let abs_path = abs_path.as_ref();
+        if let Some((tree, relative_path)) = self.find_worktree(abs_path, cx) {
+            Task::ready(Ok((tree, relative_path)))
+        } else {
+            let worktree = self.create_worktree_with_mode(abs_path, mode, cx);
             cx.background_spawn(async move { Ok((worktree.await?, RelPath::empty().into())) })
         }
     }
@@ -586,6 +627,26 @@ impl WorktreeStore {
         visible: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Worktree>>> {
+        let scanning_enabled = visible && self.scanning_enabled;
+        self.create_worktree_internal(abs_path, visible, scanning_enabled, cx)
+    }
+
+    pub fn create_worktree_with_mode(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        mode: WorktreeMode,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<Worktree>>> {
+        self.create_worktree_internal(abs_path, mode.visible(), mode.scanning_enabled(), cx)
+    }
+
+    fn create_worktree_internal(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        visible: bool,
+        scanning_enabled: bool,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<Worktree>>> {
         let abs_path: Arc<SanitizedPath> = SanitizedPath::new_arc(&abs_path);
         let is_via_collab = matches!(&self.state, WorktreeStoreState::Remote { upstream_client, .. } if upstream_client.is_via_collab());
         if !self.loading_worktrees.contains_key(&abs_path) {
@@ -602,15 +663,19 @@ impl WorktreeStore {
                         self.create_remote_worktree(upstream_client.clone(), abs_path, visible, cx)
                     }
                 }
-                WorktreeStoreState::Local { fs } => {
-                    self.create_local_worktree(fs.clone(), abs_path.clone(), visible, cx)
-                }
+                WorktreeStoreState::Local { fs } => self.create_local_worktree(
+                    fs.clone(),
+                    abs_path.clone(),
+                    visible,
+                    scanning_enabled,
+                    cx,
+                ),
             };
 
             self.loading_worktrees
                 .insert(abs_path.clone(), task.shared());
 
-            if visible && self.scanning_enabled {
+            if visible && scanning_enabled {
                 *self.initial_scan_complete.0.borrow_mut() = false;
             }
         }
@@ -619,7 +684,7 @@ impl WorktreeStore {
             let result = task.await;
             this.update(cx, |this, cx| {
                 this.loading_worktrees.remove(&abs_path);
-                if !visible || !this.scanning_enabled || result.is_err() {
+                if !visible || !scanning_enabled || result.is_err() {
                     this.update_initial_scan_state(cx);
                 }
             })
@@ -645,7 +710,7 @@ impl WorktreeStore {
                         }
 
                         this.update(cx, |this, cx| {
-                            if this.scanning_enabled && visible {
+                            if scanning_enabled && visible {
                                 this.observe_worktree_scan_completion(&worktree, cx);
                             }
                         })
@@ -730,10 +795,10 @@ impl WorktreeStore {
         fs: Arc<dyn Fs>,
         abs_path: Arc<SanitizedPath>,
         visible: bool,
+        scanning_enabled: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Worktree>, Arc<anyhow::Error>>> {
         let next_entry_id = self.next_entry_id.clone();
-        let scanning_enabled = self.scanning_enabled;
 
         let next_worktree_id = self.next_worktree_id();
 

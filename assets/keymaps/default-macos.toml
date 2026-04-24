@@ -23,6 +23,7 @@ context = ""
 context = "Workspace"
 
 [section.bindings]
+"cmd-o" = "file_finder::Toggle"
 "cmd-t" = "session::NewSession"
 "cmd-w" = "session::CloseActiveSession"
 "cmd-shift-]" = "session::ActivateNextSession"
