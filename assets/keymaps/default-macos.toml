@@ -168,3 +168,16 @@ context = "Input"
 "cmd-shift-up" = "input::SelectToStart"
 "cmd-shift-down" = "input::SelectToEnd"
 "cmd-." = "input::ToggleCodeActions"
+
+# === Picker context (file-finder, command-palette, any modal picker) ===
+# The picker's query input is an Editor, whose `enter` binding inserts a
+# newline. Picker > Editor overrides that so enter confirms the selection.
+# up/down/ctrl-n/ctrl-p aren't rebound here — the picker intercepts
+# `editor::MoveDown` / `MoveUp` directly (picker.rs:1080-81).
+[[section]]
+context = "Picker > Editor"
+
+[section.bindings]
+"enter" = "menu::Confirm"
+"shift-enter" = "menu::SecondaryConfirm"
+"escape" = "menu::Cancel"
