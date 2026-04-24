@@ -155,6 +155,134 @@ fn build_icon_slot(
 }
 
 impl VerticalTabsPanel {
+    /// Build the floating `⋮ ×` hover chip for a session row.
+    ///
+    /// Shared between Tabs-mode card overlays, single-pane Panes-mode
+    /// rows, and Panes-mode session-container headers — every place
+    /// the chip can appear goes through here, so the styling + menu
+    /// behaviour stays in lockstep.
+    ///
+    /// `pane_id` controls the close action:
+    /// - `None` → close the whole session (used for Tabs-mode rows
+    ///   and the Panes-mode session-container chip).
+    /// - `Some(pane)` → close just that pane (currently unused by
+    ///   callers because Panes-mode suppresses per-row chips; kept
+    ///   here so a future per-pane chip doesn't need another
+    ///   code path).
+    ///
+    /// Returns `(chip, menu_is_open)` so callers can mirror the
+    /// open-menu state onto their own hover suppression / pinning.
+    pub(crate) fn build_hover_chip(
+        &mut self,
+        session_index: usize,
+        label: SharedString,
+        pane_id: Option<inazuma::EntityId>,
+        cx: &mut Context<Self>,
+    ) -> (AnyElement, bool) {
+        let index = session_index;
+        let ws_menu = self.workspace.clone();
+        let on_rename_cb: Rc<dyn Fn(usize, &mut Window, &mut App)> = {
+            let handle = cx.entity().downgrade();
+            let rename_label = label.clone();
+            Rc::new(move |ix, window, cx| {
+                let Some(panel) = handle.upgrade() else {
+                    return;
+                };
+                let label = rename_label.clone();
+                panel.update(cx, |this, cx| {
+                    this.start_rename(ix, label.clone(), window, cx);
+                });
+            })
+        };
+
+        let colors = cx.theme().colors();
+        // Chip-internal hover rectangle. The chip bg is
+        // `elevated_surface`; the per-icon hover rectangle uses
+        // `element_active` — the next lightness rung up so it stays
+        // perceptible on any theme.
+        let chip_icon_hover = colors.element_active;
+        let chip_transparent = colors.ghost_element_background;
+        let chip_button_style = ButtonStyle::Custom(
+            ButtonCustomVariant::new(cx)
+                .color(chip_transparent)
+                .hover(chip_icon_hover)
+                .active(chip_icon_hover),
+        );
+        // Keep the chip_icon_hover bg pinned while the popover menu
+        // is open so the ⋮ reads as "still active" even after the
+        // cursor moves away.
+        let chip_selected_style = ButtonStyle::Custom(
+            ButtonCustomVariant::new(cx)
+                .color(chip_icon_hover)
+                .hover(chip_icon_hover)
+                .active(chip_icon_hover),
+        );
+        let more_button = IconButton::new(("vertical-tab-more", index), IconName::EllipsisVertical)
+            .icon_size(IconSize::XSmall)
+            .size(ButtonSize::Compact)
+            .style(chip_button_style)
+            .selected_icon_color(Color::Default)
+            .selected_style(chip_selected_style);
+        let menu_handle = self
+            .menu_handles
+            .entry(index)
+            .or_insert_with(PopoverMenuHandle::default)
+            .clone();
+        let menu_is_open = menu_handle.is_deployed();
+        let more_menu = PopoverMenu::new(("vertical-tab-more-menu", index))
+            .trigger(more_button)
+            .with_handle(menu_handle)
+            .anchor(Corner::TopLeft)
+            .offset(point(px(0.), px(3.)))
+            .menu({
+                let ws_menu = ws_menu.clone();
+                let on_rename = on_rename_cb.clone();
+                move |window, cx| {
+                    let workspace = ws_menu.upgrade()?;
+                    Some(build_session_context_menu(
+                        index,
+                        workspace,
+                        SessionMenuVariant::Vertical,
+                        Some(on_rename.clone()),
+                        window,
+                        cx,
+                    ))
+                }
+            });
+
+        let close_button = div().id(("vertical-tab-close", index)).child(
+            IconButton::new(("vertical-tab-close-btn", index), IconName::Close)
+                .icon_size(IconSize::XSmall)
+                .size(ButtonSize::Compact)
+                .style(chip_button_style)
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    match pane_id {
+                        Some(pid) => this.close_pane(index, pid, cx),
+                        None => this.close_session(index, window, cx),
+                    }
+                })),
+        );
+
+        let chip = h_flex()
+            .id(("vertical-tab-chip", index))
+            .gap_0p5()
+            .items_center()
+            .on_hover(cx.listener(move |this, hovered: &bool, _window, cx| {
+                if *hovered {
+                    this.hovering_chip_index = Some(index);
+                } else if this.hovering_chip_index == Some(index) {
+                    this.hovering_chip_index = None;
+                }
+                cx.notify();
+            }))
+            .child(more_menu)
+            .child(close_button)
+            .into_any_element();
+
+        (chip, menu_is_open)
+    }
+
     /// Render one row from resolved `TabRowData`. Returns the final
     /// `AnyElement` to slot into the `tab_list` v_flex.
     ///
@@ -247,8 +375,25 @@ impl VerticalTabsPanel {
 
         // Branch 3: normal card. Wire up the ⋮/× chip, hover actions,
         // drag-and-drop, and the Panes-mode outer pane wrapper.
-        let ws_menu = self.workspace.clone();
-        let on_rename_cb: Rc<dyn Fn(usize, &mut Window, &mut App)> = {
+        //
+        // `in_session_container` rows are rendered inside a Panes-mode
+        // session strip and therefore share one chip at the container
+        // level (built by the render loop). No per-row chip here.
+        let hover_actions_and_menu = if in_session_container {
+            None
+        } else {
+            Some(self.build_hover_chip(index, title.clone(), pane_id, cx))
+        };
+        let menu_is_open = hover_actions_and_menu
+            .as_ref()
+            .map(|(_, open)| *open)
+            .unwrap_or(false);
+        let hover_actions = hover_actions_and_menu.map(|(el, _)| el);
+
+        // Double-click rename handler — independent of the chip,
+        // needs its own closure so pane-row double-clicks still work
+        // even when the chip is suppressed.
+        let on_rename_for_dblclick: Rc<dyn Fn(usize, &mut Window, &mut App)> = {
             let handle = cx.entity().downgrade();
             let rename_label = title.clone();
             Rc::new(move |ix, window, cx| {
@@ -261,103 +406,8 @@ impl VerticalTabsPanel {
                 });
             })
         };
-
-        // Chip-internal hover rectangle. The chip bg uses
-        // `elevated_surface`. For the hover rectangle around each icon
-        // to stay visible *on top of* that chip bg, we pair it with
-        // `element_active` — the next step in every theme's lightness
-        // ladder, guaranteed to be distinct from elevated_surface and
-        // therefore always perceptible regardless of theme.
-        let colors = cx.theme().colors();
-        let chip_icon_hover = colors.element_active;
-        let chip_transparent = colors.ghost_element_background;
-        let chip_button_style = ButtonStyle::Custom(
-            ButtonCustomVariant::new(cx)
-                .color(chip_transparent)
-                .hover(chip_icon_hover)
-                .active(chip_icon_hover),
-        );
-        // While the popover menu is open, PopoverMenu flips the trigger
-        // to `toggle_state(true)`. Keep the chip_icon_hover bg pinned
-        // in the selected state too, so the ⋮ button visually stays in
-        // the hover state while the menu is open.
-        let chip_selected_style = ButtonStyle::Custom(
-            ButtonCustomVariant::new(cx)
-                .color(chip_icon_hover)
-                .hover(chip_icon_hover)
-                .active(chip_icon_hover),
-        );
-        let more_button = IconButton::new(("vertical-tab-more", index), IconName::EllipsisVertical)
-            .icon_size(IconSize::XSmall)
-            .size(ButtonSize::Compact)
-            .style(chip_button_style)
-            .selected_icon_color(Color::Default)
-            .selected_style(chip_selected_style);
-        let menu_handle = self
-            .menu_handles
-            .entry(index)
-            .or_insert_with(PopoverMenuHandle::default)
-            .clone();
-        let menu_is_open = menu_handle.is_deployed();
-        let more_menu = PopoverMenu::new(("vertical-tab-more-menu", index))
-            .trigger(more_button)
-            .with_handle(menu_handle)
-            .anchor(Corner::TopLeft)
-            .offset(point(px(0.), px(3.)))
-            .menu({
-                let ws_menu = ws_menu.clone();
-                let on_rename = on_rename_cb.clone();
-                move |window, cx| {
-                    let workspace = ws_menu.upgrade()?;
-                    Some(build_session_context_menu(
-                        index,
-                        workspace,
-                        SessionMenuVariant::Vertical,
-                        Some(on_rename.clone()),
-                        window,
-                        cx,
-                    ))
-                }
-            });
-
-        let close_button = div().id(("vertical-tab-close", index)).child(
-            IconButton::new(("vertical-tab-close-btn", index), IconName::Close)
-                .icon_size(IconSize::XSmall)
-                .size(ButtonSize::Compact)
-                .style(chip_button_style)
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    cx.stop_propagation();
-                    // Pane rows close the single pane; session rows
-                    // close the whole session. remove_pane emits
-                    // `Empty` if it was the last pane, which the
-                    // workspace handles by dropping the session.
-                    match pane_id {
-                        Some(pid) => this.close_pane(index, pid, cx),
-                        None => this.close_session(index, window, cx),
-                    }
-                })),
-        );
-
-        // Hover actions floating chip. The ⋮ session menu only shows
-        // on session rows — pane rows (Panes mode) skip it.
-        let hover_actions = h_flex()
-            .id(("vertical-tab-chip", index))
-            .gap_0p5()
-            .items_center()
-            .on_hover(cx.listener(move |this, hovered: &bool, _window, cx| {
-                if *hovered {
-                    this.hovering_chip_index = Some(index);
-                } else if this.hovering_chip_index == Some(index) {
-                    this.hovering_chip_index = None;
-                }
-                cx.notify();
-            }))
-            .when(pane_id.is_none(), |el| el.child(more_menu))
-            .child(close_button);
-
         let rename_label = title.clone();
         let drag_label = title.clone();
-        let on_rename_for_dblclick = on_rename_cb.clone();
         let chip_hovered = self.hovering_chip_index == Some(index);
         let icon_slot = build_icon_slot(icon, agent.as_ref(), is_active, cx);
         let mut card = Card::new(("vertical-tab", index))
@@ -388,15 +438,18 @@ impl VerticalTabsPanel {
         //
         // - **Tabs mode**: the chip sits on the card itself (`Card::overlay`
         //   anchors it to the card's top-right corner).
-        // - **Panes mode**: the chip is lifted out of the card and pinned
-        //   to the pane wrapper's top-right instead, so it floats at the
-        //   top edge of the pane strip rather than the top edge of the
-        //   card. Gives the chip the same vertical position the reference
-        //   UX uses for panes.
+        // - **Panes mode, single-pane row**: the chip is lifted out of
+        //   the card and pinned to the pane wrapper's top-right so it
+        //   sits at the top edge of the strip.
+        // - **Panes mode, row inside a session container**:
+        //   `hover_actions` is `None` — the container renders one
+        //   shared chip at the session level.
         let panes_chip = if is_panes_mode_render {
-            Some(hover_actions)
+            hover_actions
         } else {
-            card = card.overlay(hover_actions);
+            if let Some(chip) = hover_actions {
+                card = card.overlay(chip);
+            }
             None
         };
 

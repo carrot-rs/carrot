@@ -318,7 +318,9 @@ impl Render for VerticalTabsPanel {
                 .any(|r| r.is_active);
             let wrap_into_container = is_panes_mode_render && pane_count > 1;
 
-            if previous_session_rendered {
+            // Session dividers only apply in Panes mode — Tabs mode
+            // keeps sessions visually separated through the card gap.
+            if previous_session_rendered && is_panes_mode_render {
                 tab_list = tab_list.child(
                     div()
                         .w_full()
@@ -344,12 +346,42 @@ impl Render for VerticalTabsPanel {
             if wrap_into_container {
                 let active_bg = cx.theme().colors().element_background;
                 let hover_bg = cx.theme().colors().element_background;
+                let chip_bg = cx.theme().colors().elevated_surface;
+                // One shared `⋮ ×` chip for the whole session, built
+                // via the same method the per-row chips use. Close
+                // action targets the session (pane_id = None). The
+                // session label is used as the rename initial value.
+                let session_label = self.cached_sessions[session_index]
+                    .read(cx)
+                    .display_label(cx);
+                let (session_chip, session_menu_open) =
+                    self.build_hover_chip(session_index, session_label, None, cx);
+                let session_chip_wrapper = div()
+                    .absolute()
+                    .top_0()
+                    .right_1()
+                    .flex()
+                    .items_center()
+                    .p_0p5()
+                    .rounded(px(4.))
+                    .bg(chip_bg)
+                    .map(|el| {
+                        if session_menu_open {
+                            el
+                        } else {
+                            el.invisible()
+                                .group_hover("carrot-session-strip", |s| s.visible())
+                        }
+                    })
+                    .child(session_chip);
                 let mut container = div()
                     .id(("session-pane-strip", session_index))
-                    .group("carrot-pane-row")
+                    .group("carrot-session-strip")
+                    .relative()
                     .w_full()
                     .when(group_has_active, move |el| el.bg(active_bg))
-                    .hover(move |el| el.bg(hover_bg));
+                    .hover(move |el| el.bg(hover_bg))
+                    .child(session_chip_wrapper);
                 let mut previous_seen = false;
                 for r in rows[pane_start..group_end].iter().cloned() {
                     container = container.child(self.build_row(
