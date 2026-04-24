@@ -509,6 +509,20 @@ impl SettingsStore {
                                     format!("Failed to write settings to file {:?}", resolved_path)
                                 })?;
                         } else {
+                            // Ensure the parent directory exists on the
+                            // first write after a fresh install —
+                            // `atomic_write` writes a sibling temp file
+                            // first, which bombs with `No such file or
+                            // directory` if the config dir itself is
+                            // missing.
+                            if let Some(parent) = settings_path.parent() {
+                                fs.create_dir(parent).await.with_context(|| {
+                                    format!(
+                                        "Failed to create settings parent dir {:?}",
+                                        parent
+                                    )
+                                })?;
+                            }
                             fs.atomic_write(settings_path.to_path_buf(), new_text)
                                 .await
                                 .with_context(|| {
