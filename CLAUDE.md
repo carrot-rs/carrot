@@ -86,12 +86,16 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **Split = new pane in the same session** (file-drop, Cmd+D, etc.).
 - **Last pane closed → session closed.** Last session closed → window closed.
 - **Terminal pane is never replaced by file-open** — file-open lands in an editor pane (via `last_active_editor_pane`) or a new split.
-- **Editor-in-Terminal-Session-Pattern (Warp-parity, verified 2026-04-24):** Die Logik "Editor-Item landet neben Terminal-Pane" ist im `Workspace::add_item_to_active_pane`-Entry-Point **zentral verdrahtet** — nicht in jedem Caller dupliziert. Mechanismus: anhand der `PaneRole`-Kombination (active pane role × new item role) entscheidet das Framework:
-  - `(Terminal, Editor)` → wenn `last_active_editor_pane` existiert, reuse/split danach (Setting `file_finder.open_target.when_editor_open` = `reuse_last | new_split | new_session`). Sonst Split im Terminal-Pane-Group (Setting `file_finder.open_target.when_terminal_active`, Default `split_right`).
-  - `(Editor, Editor)` → Replace oder konfiguriertes Verhalten.
-  - Alle anderen Kombinationen → plain add (Terminal→Terminal, Editor→Terminal etc.).
+- **Editor-in-Terminal-Session-Pattern (Warp-parity, verified 2026-04-24):** Die Pane-Wahl-Policy für "wo landet ein neues Item bei welchem aktiven Pane" lebt in **einem einzigen Helper** — nicht in jedem Caller dupliziert. Zwei Achsen sauber getrennt:
+  1. **Pane-Wahl (Policy)** — Helper `Workspace::target_pane_for_role(new_role, window, cx) -> Entity<Pane>`. Entscheidet via `PaneRole`-Match, splittet/erzeugt ggf. neue Panes oder Sessions, gibt den Ziel-Pane zurück. **Einzige Stelle der Policy.**
+  2. **Item-Insertion (Caller-Semantik)** — jeder Entry-Point fügt das Item nach seiner eigenen Semantik ein, nachdem er den Ziel-Pane vom Helper bekommen hat. `Workspace::add_item_to_active_pane` nutzt `target_pane.add_item(...)` (plain insert). `Pane::open_path_preview` nutzt `target_pane.open_item(...)` und behält damit Dedup (gleiche Datei 2× öffnen fokussiert existing item) + Preview-Slot-Handling (`allow_preview` ersetzt den Preview-Tab). Diese Insertion-Features sind nicht verzichtbar und leben deshalb in ihrem jeweiligen Entry-Point, nicht im Helper.
   
-  Ergebnis: jeder Editor-Item-Open-Flow (File-Finder, Drag-Drop, Command-Palette, Diagnostics-Click, Search-Result-Click, Debugger-Source-Open, Agent-Panel-File-Open) folgt demselben Pattern ohne eigene Logic. Neue Callsites kriegen's automatisch richtig. **Escape-Hatch:** `Workspace::add_to_active_pane_raw` umgeht die Role-Policy für Sonderfälle (Tests, interne Workspace-Operationen).
+  PaneRole-Match-Table im Helper:
+  - `(Terminal, Editor)` → wenn `last_active_editor_pane` existiert, reuse/split danach (Setting `file_finder.open_target.when_editor_open` = `reuse_last | new_split | new_session`). Sonst Split im Terminal-Pane-Group (Setting `file_finder.open_target.when_terminal_active`, Default `split_right`).
+  - `(Editor, Editor)` → Default `new_split` (Warp-parity, weil Carrot per Hard-Rule keine Tabbed-File-Viewer pro Pane hat und `reuse_last` hier destruktives Replace wäre). Konfigurierbar.
+  - Alle anderen Kombinationen → aktiver Pane (Terminal→Terminal, Editor→Terminal etc.), kein Routing.
+  
+  Ergebnis: jeder Editor-Item-Open-Flow (File-Finder, Drag-Drop, Command-Palette, Diagnostics-Click, Search-Result-Click, Debugger-Source-Open, Agent-Panel-File-Open) ruft den Helper und behält seine Insertion-Semantik. Neue Callsites kriegen die Policy gratis — sie müssen nur zwischen `add_item` (kein Dedup/Preview) und `open_item` (mit Dedup/Preview) wählen. **Escape-Hatch:** `Workspace::add_to_active_pane_raw` umgeht den Helper für Sonderfälle (Tests, interne Workspace-Operationen).
   
   **Sidebar-Rendering läuft gratis:** `carrot-vertical-tabs` aktualisiert sich automatisch — im Tabs-Mode zeigt die Session-Row den aktiven Pane via `tab_content_text()`, im Panes-Mode werden alle Panes als Rows unter einem Group-Header gerendert. Kein neuer UI-Code nötig. `same_pane`-Setting-Option triggert `log::warn!` + fallback zu `split_right` weil es die "Terminal never replaced by file-open"-Regel brechen würde.
 - **`PaneRole` has no default** — every Item must explicitly declare `PaneRole::Terminal` or `PaneRole::Editor`.

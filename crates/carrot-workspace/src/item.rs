@@ -1432,6 +1432,7 @@ pub mod test {
         pub nav_history: Option<ItemNavHistory>,
         pub tab_descriptions: Option<Vec<&'static str>>,
         pub tab_detail: Cell<Option<usize>>,
+        pub pane_role: PaneRole,
         serialize: Option<Box<dyn Fn() -> Option<Task<anyhow::Result<()>>>>>,
         focus_handle: inazuma::FocusHandle,
         pub child_focus_handles: Vec<inazuma::FocusHandle>,
@@ -1515,6 +1516,7 @@ pub mod test {
                 tab_descriptions: None,
                 tab_detail: Default::default(),
                 workspace_id: Default::default(),
+                pane_role: PaneRole::Editor,
                 focus_handle: cx.focus_handle(),
                 serialize: None,
                 child_focus_handles: Vec::new(),
@@ -1570,6 +1572,11 @@ pub mod test {
             self
         }
 
+        pub fn with_pane_role(mut self, role: PaneRole) -> Self {
+            self.pane_role = role;
+            self
+        }
+
         pub fn set_state(&mut self, state: String, cx: &mut Context<Self>) {
             self.push_to_nav_history(cx);
             self.state = state;
@@ -1620,7 +1627,7 @@ pub mod test {
         }
 
         fn pane_role(&self, _cx: &App) -> PaneRole {
-            PaneRole::Editor
+            self.pane_role
         }
 
         fn telemetry_event_text(&self) -> Option<&'static str> {
@@ -1707,6 +1714,7 @@ pub mod test {
                     tab_descriptions: None,
                     tab_detail: Default::default(),
                     workspace_id: self.workspace_id,
+                    pane_role: self.pane_role,
                     focus_handle: cx.focus_handle(),
                     serialize: None,
                     child_focus_handles: self

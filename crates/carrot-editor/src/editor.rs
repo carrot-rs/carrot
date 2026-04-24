@@ -18482,7 +18482,11 @@ impl Editor {
                                     let pane = if split {
                                         workspace.adjacent_pane(window, cx)
                                     } else {
-                                        workspace.active_pane().clone()
+                                        workspace.target_pane_for_role(
+                                            carrot_workspace::PaneRole::Editor,
+                                            window,
+                                            cx,
+                                        )
                                     };
 
                                     let preview_tabs_settings = PreviewTabsSettings::get_global(cx);
@@ -18937,7 +18941,11 @@ impl Editor {
                         window.defer(cx, move |window, cx| {
                             let target_editor: Entity<Self> =
                                 workspace.update(cx, |workspace, cx| {
-                                    let pane = workspace.active_pane().clone();
+                                    let pane = workspace.target_pane_for_role(
+                                        carrot_workspace::PaneRole::Editor,
+                                        window,
+                                        cx,
+                                    );
 
                                     let preview_tabs_settings = PreviewTabsSettings::get_global(cx);
                                     let keep_old_preview = preview_tabs_settings
@@ -24915,7 +24923,11 @@ impl Editor {
                     let pane = if split {
                         workspace.adjacent_pane(window, cx)
                     } else {
-                        workspace.active_pane().clone()
+                        workspace.target_pane_for_role(
+                            carrot_workspace::PaneRole::Editor,
+                            window,
+                            cx,
+                        )
                     };
 
                     for (buffer, (ranges, scroll_offset)) in new_selections_by_buffer {
