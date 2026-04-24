@@ -3,11 +3,13 @@
 //! history-priority biasing. The `PickerDelegate` trait impl (render +
 //! confirm) lives in `picker.rs`.
 
-use inazuma::{App, Context, Entity, FocusHandle, KeyContext, Task, WeakEntity, Window, px};
+use inazuma::{
+    App, BorrowAppContext, Context, Entity, FocusHandle, KeyContext, Task, WeakEntity, Window, px,
+};
 use inazuma_fuzzy::{PathMatch, StringMatch, StringMatchCandidate};
 use inazuma_picker::Picker;
 use inazuma_settings_framework::Settings;
-use inazuma_util::{ResultExt, paths::PathStyle, rel_path::RelPath};
+use inazuma_util::{ResultExt, paths::PathStyle, post_inc, rel_path::RelPath};
 use std::{
     borrow::Cow,
     path::Path,
@@ -15,18 +17,22 @@ use std::{
         Arc,
         atomic::{self, AtomicBool},
     },
+    time::Duration,
 };
 
 use carrot_channel::ChannelStore;
 use carrot_open_path_prompt::file_finder_settings::FileFinderSettings;
 use carrot_project::{PathMatchCandidateSet, Project, ProjectPath};
+use carrot_settings::FileFinderSettings as CarrotFileFinderSettings;
 use carrot_ui::{
     Color, ContextMenu, HighlightedLabel, LabelCommon as _, LabelSize, PopoverMenuHandle, TextSize,
 };
 use carrot_workspace::Workspace;
 
 use crate::FileFinder;
+use crate::finder_mode::{FinderMode, determine_mode};
 use crate::history::{FoundPath, should_hide_root_in_entry_path};
+use crate::live_walker::LiveWalkerConfig;
 use crate::matches::{Match, Matches, ProjectPanelOrdMatch};
 use crate::path_render::{PathComponentSlice, full_path_budget};
 use crate::search_query::FileSearchQuery;
@@ -53,6 +59,10 @@ pub struct FileFinderDelegate {
     pub(crate) focus_handle: FocusHandle,
     pub(crate) include_ignored: Option<bool>,
     pub(crate) include_ignored_refresh: Task<()>,
+    /// Candidate-source selector. `Indexed` uses worktree snapshots,
+    /// `Live` streams from a walker. Chosen by `determine_mode` at
+    /// picker-open time based on the active scope.
+    pub(crate) finder_mode: FinderMode,
 }
 
 impl FileFinderDelegate {
@@ -72,6 +82,21 @@ impl FileFinderDelegate {
         } else {
             None
         };
+        let cwd_hint = currently_opened_path
+            .as_ref()
+            .map(|p| p.absolute.clone())
+            .or_else(|| {
+                // Fall back to the first visible worktree's root so the
+                // picker still finds a sensible scope when no file is
+                // currently open.
+                project
+                    .read(cx)
+                    .visible_worktrees(cx)
+                    .next()
+                    .map(|wt| wt.read(cx).abs_path().to_path_buf())
+            });
+        let live_config = carrot_walker_config(cx);
+        let finder_mode = determine_mode(&project, cwd_hint.as_deref(), live_config, cx);
         Self {
             file_finder,
             workspace,
@@ -94,6 +119,7 @@ impl FileFinderDelegate {
             focus_handle: cx.focus_handle(),
             include_ignored: FileFinderSettings::get_global(cx).include_ignored,
             include_ignored_refresh: Task::ready(()),
+            finder_mode,
         }
     }
 
@@ -116,6 +142,18 @@ impl FileFinderDelegate {
     }
 
     pub(crate) fn spawn_search(
+        &mut self,
+        query: FileSearchQuery,
+        window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Task<()> {
+        if self.finder_mode.is_live() {
+            return self.spawn_live_search(query, window, cx);
+        }
+        self.spawn_indexed_search(query, window, cx)
+    }
+
+    fn spawn_indexed_search(
         &mut self,
         query: FileSearchQuery,
         window: &mut Window,
@@ -146,7 +184,7 @@ impl FileFinderDelegate {
             })
             .collect::<Vec<_>>();
 
-        let search_id = inazuma_util::post_inc(&mut self.search_count);
+        let search_id = post_inc(&mut self.search_count);
         self.cancel_flag.store(true, atomic::Ordering::Release);
         self.cancel_flag = Arc::new(AtomicBool::new(false));
         let cancel_flag = self.cancel_flag.clone();
@@ -172,6 +210,97 @@ impl FileFinderDelegate {
                 })
                 .log_err();
         })
+    }
+
+    /// Live-mode search: drain the pool, fuzzy-match synchronously, and
+    /// schedule the next refresh tick while the walker is still running.
+    fn spawn_live_search(
+        &mut self,
+        query: FileSearchQuery,
+        window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Task<()> {
+        let path_style = self.project.read(cx).path_style(cx);
+        let (matches, pool_done) = {
+            let Some(pool) = self.finder_mode.as_live_mut() else {
+                return Task::ready(());
+            };
+            pool.drain_nonblocking();
+            let matches = pool
+                .fuzzy_match(query.path_query(), path_style, 100)
+                .into_iter()
+                .map(ProjectPanelOrdMatch)
+                .collect::<Vec<_>>();
+            (matches, pool.is_done())
+        };
+        let search_id = post_inc(&mut self.search_count);
+        self.set_search_matches(search_id, false, query, matches, cx);
+        if pool_done {
+            self.stash_live_cache(cx);
+            Task::ready(())
+        } else {
+            cx.spawn_in(window, async move |picker, cx| {
+                cx.background_executor()
+                    .timer(Duration::from_millis(50))
+                    .await;
+                picker
+                    .update_in(cx, |picker, window, cx| {
+                        picker.refresh(window, cx);
+                    })
+                    .ok();
+            })
+        }
+    }
+
+    /// Persist finished Live-mode results to the shared cache so a
+    /// subsequent open within TTL lands instantly. No-op if the pool
+    /// isn't worth caching (still walking, empty, or seeded from cache)
+    /// or if the cache global isn't registered.
+    fn stash_live_cache(&self, cx: &mut Context<Picker<Self>>) {
+        let Some(pool) = self.finder_mode.as_live() else {
+            return;
+        };
+        if !pool.worth_caching() {
+            return;
+        }
+        if cx.try_global::<crate::live_walk_cache::LiveWalkCache>().is_none() {
+            return;
+        }
+        let (scope, results, scanned, truncated) = pool.cache_entry();
+        cx.update_global::<crate::live_walk_cache::LiveWalkCache, _>(|cache, _| {
+            cache.put(scope, results, scanned, truncated);
+        });
+    }
+
+    /// Cancel any running live walker. Called from `PickerDelegate::dismissed`.
+    pub(crate) fn cancel_live_walker(&self) {
+        if let Some(pool) = self.finder_mode.as_live() {
+            pool.cancel();
+        }
+    }
+
+    /// Picker footer status line for Live-mode walks. Returns `None` in
+    /// Indexed mode (no status) or when the pool is empty-and-done with
+    /// no truncation (nothing meaningful to show).
+    ///
+    /// Format:
+    /// - running:        "12,453 scanned…"
+    /// - done:           "142,453 scanned"
+    /// - done + trunc.:  "100,000 scanned — limit reached"
+    pub(crate) fn live_scan_status(&self) -> Option<String> {
+        let pool = self.finder_mode.as_live()?;
+        let scanned = pool.scanned();
+        if scanned == 0 && pool.is_done() {
+            return None;
+        }
+        let scanned_formatted = format_thousands(scanned);
+        if !pool.is_done() {
+            Some(format!("{scanned_formatted} scanned…"))
+        } else if pool.truncated() {
+            Some(format!("{scanned_formatted} scanned — limit reached"))
+        } else {
+            Some(format!("{scanned_formatted} scanned"))
+        }
     }
 
     pub(crate) fn set_search_matches(
@@ -606,5 +735,45 @@ impl FileFinderDelegate {
             key_context.add("split_menu_open");
         }
         key_context
+    }
+}
+
+/// Insert thousands separators into a number for the scan-status label.
+/// "12345" -> "12,345", "100000" -> "100,000".
+fn format_thousands(n: usize) -> String {
+    let raw = n.to_string();
+    let bytes = raw.as_bytes();
+    let mut out = String::with_capacity(raw.len() + raw.len() / 3);
+    for (i, b) in bytes.iter().enumerate() {
+        if i > 0 && (bytes.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(*b as char);
+    }
+    out
+}
+
+/// Pull the file-finder's LiveWalker config from the resolved
+/// `FileFinderSettings` global. Falls back to `LiveWalkerConfig::default`
+/// only in the headless path where the settings store hasn't been
+/// initialised (e.g. tests that don't go through `carrot_app::main`).
+fn carrot_walker_config(cx: &App) -> LiveWalkerConfig {
+    if cx
+        .try_global::<inazuma_settings_framework::SettingsStore>()
+        .is_none()
+    {
+        return LiveWalkerConfig::default();
+    }
+    let resolved = CarrotFileFinderSettings::get_global(cx);
+    let live = &resolved.live;
+    LiveWalkerConfig {
+        max_entries: live.max_entries,
+        max_wall_time_ms: live.max_wall_time_ms,
+        max_depth: live.max_depth,
+        parallel_walkers: live.parallel_walkers,
+        respect_gitignore: live.respect_gitignore,
+        respect_carrotignore: live.respect_carrotignore,
+        respect_hidden: live.respect_hidden,
+        ttl_cache_seconds: live.ttl_cache_seconds,
     }
 }

@@ -29,6 +29,7 @@ inazuma-menu.workspace = true
 carrot-open-path-prompt.workspace = true
 inazuma-picker.workspace = true
 carrot-project.workspace = true
+carrot-settings.workspace = true
 inazuma-settings-framework.workspace = true
 serde.workspace = true
 carrot-theme.workspace = true

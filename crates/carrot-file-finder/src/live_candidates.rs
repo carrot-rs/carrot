@@ -9,11 +9,11 @@
 //! itself for scopes outside any worktree).
 
 use crossbeam::channel::TryRecvError;
-use inazuma::{App, BorrowAppContext};
+use inazuma::App;
 use inazuma_fuzzy::{CharBag, PathMatch, PathMatchCandidate};
 use inazuma_util::paths::PathStyle;
 use inazuma_util::rel_path::RelPath;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,7 +34,6 @@ pub(crate) struct LiveCandidatePool {
     scanned: usize,
     truncated: bool,
     done: bool,
-    ttl: Duration,
 }
 
 impl LiveCandidatePool {
@@ -60,7 +59,6 @@ impl LiveCandidatePool {
                 scanned: hit.scanned,
                 truncated: hit.truncated,
                 done: true,
-                ttl,
             };
         }
         let walker = LiveWalker::spawn(scope_root.clone(), config);
@@ -72,7 +70,6 @@ impl LiveCandidatePool {
             scanned: 0,
             truncated: false,
             done: false,
-            ttl,
         }
     }
 
@@ -138,32 +135,24 @@ impl LiveCandidatePool {
         self.truncated
     }
 
-    pub(crate) fn scope_root(&self) -> &Path {
-        &self.scope_root
+    /// Snapshot the pool's current results in cache-entry shape. Callers
+    /// decide when to persist this into the `LiveWalkCache` global — we
+    /// don't do the `cx.update_global` here because the caller already
+    /// holds the right context flavour.
+    pub(crate) fn cache_entry(&self) -> (PathBuf, Vec<PathBuf>, usize, bool) {
+        (
+            self.scope_root.clone(),
+            self.results.clone(),
+            self.scanned.max(self.results.len()),
+            self.truncated,
+        )
     }
 
-    pub(crate) fn worktree_id(&self) -> WorktreeId {
-        self.worktree_id
-    }
-
-    /// Persist the pool's final results to the global cache. No-op if the
-    /// walker hasn't completed, if the cache global isn't registered, or
-    /// if the pool was itself seeded from the cache (`walker` is `None`
-    /// from construction).
-    pub(crate) fn stash_to_cache(&self, cx: &mut App) {
-        if !self.done {
-            return;
-        }
-        if cx.try_global::<LiveWalkCache>().is_none() {
-            return;
-        }
-        let scope_root = self.scope_root.clone();
-        let results = self.results.clone();
-        let scanned = self.scanned.max(results.len());
-        let truncated = self.truncated;
-        cx.update_global::<LiveWalkCache, _>(|cache, _| {
-            cache.put(scope_root, results, scanned, truncated);
-        });
+    /// Whether stashing to the cache is worthwhile. True only for
+    /// completed walks — in-progress pools would cache a partial set and
+    /// poison the next open.
+    pub(crate) fn worth_caching(&self) -> bool {
+        self.done && self.walker.is_none() && !self.results.is_empty()
     }
 
     /// Fuzzy-match the current candidate set against `query`. Synthesises
@@ -240,7 +229,6 @@ mod tests {
             scanned: 0,
             truncated: false,
             done: true,
-            ttl: Duration::from_secs(30),
         };
         let matches = pool.fuzzy_match("foo", PathStyle::local(), 100);
         assert!(matches.is_empty());
@@ -259,7 +247,6 @@ mod tests {
             scanned: 2,
             truncated: false,
             done: true,
-            ttl: Duration::from_secs(30),
         };
         let matches = pool.fuzzy_match("main", PathStyle::local(), 100);
         assert!(matches.iter().any(|m| m.path.as_unix_str().ends_with("main.rs")));

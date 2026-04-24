@@ -8,8 +8,8 @@ use carrot_open_path_prompt::file_finder_settings::FileFinderSettings;
 use carrot_project::{ProjectPath, WorktreeId};
 use carrot_ui::{
     Button, ButtonLike, ButtonStyle, Color, ContextMenu, Icon, IconButton, IconName, IconSize,
-    Indicator, KeyBinding, Label, ListItem, ListItemSpacing, PopoverMenu, TintColor, Tooltip,
-    h_flex, prelude::*, rems_from_px, v_flex,
+    Indicator, KeyBinding, Label, LabelCommon as _, LabelSize, ListItem, ListItemSpacing,
+    PopoverMenu, TintColor, Tooltip, h_flex, prelude::*, rems_from_px, v_flex,
 };
 use carrot_workspace::{
     OpenChannelNotesById, OpenOptions, OpenVisible, Workspace, item::PreviewTabsSettings,
@@ -339,6 +339,7 @@ impl PickerDelegate for FileFinderDelegate {
     }
 
     fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<FileFinderDelegate>>) {
+        self.cancel_live_walker();
         self.file_finder
             .update(cx, |_, cx| cx.emit(DismissEvent))
             .log_err();
@@ -407,6 +408,7 @@ impl PickerDelegate for FileFinderDelegate {
 
     fn render_footer(&self, _: &mut Window, cx: &mut Context<Picker<Self>>) -> Option<AnyElement> {
         let focus_handle = self.focus_handle.clone();
+        let live_status = self.live_scan_status();
 
         Some(
             h_flex()
@@ -471,6 +473,16 @@ impl PickerDelegate for FileFinderDelegate {
                                 }))
                             }
                         }),
+                )
+                .child(
+                    live_status
+                        .map(|text| {
+                            Label::new(text)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        })
+                        .unwrap_or_else(|| h_flex().into_any_element()),
                 )
                 .child(
                     h_flex()
