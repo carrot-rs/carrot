@@ -1410,6 +1410,14 @@ type PromptForOpenPath = Box<
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>>,
 >;
 
+/// Factory that produces the default item for a freshly-created session
+/// (the item the initial pane is populated with). Registered once during
+/// app bootstrap in `carrot-app::main` — lets `carrot-workspace` stay free
+/// of concrete feature types like `TerminalPane` while still producing a
+/// terminal item synchronously when a new session is created.
+pub type SessionItemFactory =
+    Arc<dyn Fn(&mut Window, &mut App) -> Box<dyn ItemHandle> + Send + Sync + 'static>;
+
 #[derive(Default)]
 struct DispatchingKeystrokes {
     dispatched: HashSet<Vec<Keystroke>>,
@@ -1486,6 +1494,11 @@ pub struct Workspace {
     removing: bool,
     _panels_task: Option<Task<Result<()>>>,
     sidebar_focus_handle: Option<FocusHandle>,
+    /// Produces the default item for a freshly-created session. Registered
+    /// once during bootstrap so `new_session` can populate the new pane
+    /// synchronously without taking a layer-breaking dependency on concrete
+    /// feature crates (e.g. `carrot-terminal-view`).
+    default_session_item_factory: Option<SessionItemFactory>,
 }
 
 impl EventEmitter<Event> for Workspace {}
@@ -1874,6 +1887,7 @@ impl Workspace {
             last_open_dock_positions: Vec::new(),
             removing: false,
             sidebar_focus_handle: None,
+            default_session_item_factory: None,
         }
     }
 
@@ -2567,6 +2581,16 @@ impl Workspace {
 
     pub fn debugger_provider(&self) -> Option<Arc<dyn DebuggerProvider>> {
         self.debugger_provider.clone()
+    }
+
+    /// Register the factory used to populate a freshly-created session's
+    /// initial pane. Called once during app bootstrap.
+    pub fn set_default_session_item_factory(&mut self, factory: SessionItemFactory) {
+        self.default_session_item_factory = Some(factory);
+    }
+
+    pub fn default_session_item_factory(&self) -> Option<SessionItemFactory> {
+        self.default_session_item_factory.clone()
     }
 
     pub fn prompt_for_open_path(
@@ -4051,6 +4075,11 @@ impl Workspace {
             .unwrap_or(PaneRole::Editor);
 
         if !matches!((active_role, new_role), (PaneRole::Terminal, PaneRole::Editor)) {
+            log::debug!(
+                target: "carrot::routing",
+                "target_pane_for_role: passthrough (active={:?}, new={:?}) -> pane {:?}",
+                active_role, new_role, active_pane.entity_id()
+            );
             return active_pane;
         }
 
@@ -4060,36 +4089,58 @@ impl Workspace {
             .last_active_editor_pane()
             .and_then(|w| w.upgrade());
         let cfg = FileOpenConfig::get_global(cx).clone();
-        match existing_editor {
+        log::debug!(
+            target: "carrot::routing",
+            "target_pane_for_role: active=Terminal new=Editor session_idx={} existing_editor={:?} when_terminal_active={:?} when_editor_open={:?}",
+            self.active_session_index,
+            existing_editor.as_ref().map(|p| p.entity_id()),
+            cfg.when_terminal_active,
+            cfg.when_editor_open
+        );
+        let result = match existing_editor {
             Some(editor_pane) => match cfg.when_editor_open {
-                WhenEditorOpen::ReuseLast => editor_pane,
-                WhenEditorOpen::NewSplit => {
-                    self.split_pane(editor_pane, SplitDirection::Right, window, cx)
-                }
+                WhenEditorOpen::ReuseLast => ("ReuseLast", editor_pane),
+                WhenEditorOpen::NewSplit => (
+                    "NewSplit(editor→right)",
+                    self.split_pane(editor_pane, SplitDirection::Right, window, cx),
+                ),
                 WhenEditorOpen::NewSession => {
                     let (_, new_pane) = self.new_empty_session(window, cx);
-                    new_pane
+                    ("NewSession", new_pane)
                 }
             },
             None => match cfg.when_terminal_active {
-                WhenTerminalActive::SplitRight => {
-                    self.split_pane(active_pane, SplitDirection::Right, window, cx)
-                }
-                WhenTerminalActive::SplitLeft => {
-                    self.split_pane(active_pane, SplitDirection::Left, window, cx)
-                }
-                WhenTerminalActive::SplitDown => {
-                    self.split_pane(active_pane, SplitDirection::Down, window, cx)
-                }
-                WhenTerminalActive::SplitUp => {
-                    self.split_pane(active_pane, SplitDirection::Up, window, cx)
-                }
+                WhenTerminalActive::SplitRight => (
+                    "SplitRight(terminal→right)",
+                    self.split_pane(active_pane, SplitDirection::Right, window, cx),
+                ),
+                WhenTerminalActive::SplitLeft => (
+                    "SplitLeft",
+                    self.split_pane(active_pane, SplitDirection::Left, window, cx),
+                ),
+                WhenTerminalActive::SplitDown => (
+                    "SplitDown",
+                    self.split_pane(active_pane, SplitDirection::Down, window, cx),
+                ),
+                WhenTerminalActive::SplitUp => (
+                    "SplitUp",
+                    self.split_pane(active_pane, SplitDirection::Up, window, cx),
+                ),
                 WhenTerminalActive::NewSession => {
                     let (_, new_pane) = self.new_empty_session(window, cx);
-                    new_pane
+                    ("NewSession", new_pane)
                 }
             },
-        }
+        };
+        log::debug!(
+            target: "carrot::routing",
+            "target_pane_for_role: branch={} -> pane {:?}  panes_now={} sessions_now={}",
+            result.0,
+            result.1.entity_id(),
+            self.panes.len(),
+            self.sessions.len()
+        );
+        result.1
     }
 
     /// Plain "add the item to whichever pane is currently active, no role
@@ -4225,6 +4276,10 @@ impl Workspace {
         // Pattern: resolve the target pane via `target_pane_for_role` so a
         // file-open never silently replaces a Terminal.
         if pane.is_none() {
+            log::debug!(
+                target: "carrot::routing",
+                "open_path_preview: pane=None -> routing through target_pane_for_role"
+            );
             return self.open_path_at_target_pane_for_role(
                 path,
                 allow_preview,
@@ -4236,6 +4291,11 @@ impl Workspace {
         }
 
         let pane = pane.expect("pane.is_none() branch returned above");
+        log::debug!(
+            target: "carrot::routing",
+            "open_path_preview: pane=Some({:?}) -> bypassing policy (caller pinned)",
+            pane.upgrade().map(|p| p.entity_id())
+        );
         let project_path = path.into();
         let task = self.load_path(project_path.clone(), window, cx);
         window.spawn(cx, async move |cx| {
@@ -5209,15 +5269,9 @@ impl Workspace {
         &self.sessions[self.active_session_index]
     }
 
-    /// Create a new session with a fresh pane and immediately activate it.
-    /// The new session becomes the rightmost tab in the title bar. After
-    /// activation a `NewTerminal` action is dispatched so the registered
-    /// handler in carrot-terminal-view adds a terminal item to the new
-    /// pane (Workspace itself doesn't know about terminals — feature
-    /// crates plug in via action handlers).
     /// Spawn a fresh session whose single pane holds `item`. Unlike
-    /// `new_session` (which dispatches `NewTerminal` so the new pane fills
-    /// with a Terminal), this is the "open-file-as-new-session" path used
+    /// `new_session` (which populates the new pane with the registered
+    /// default item), this is the "open-file-as-new-session" path used
     /// by the `when_*.NewSession` setting values.
     pub fn new_session_with_item(
         &mut self,
@@ -5262,47 +5316,28 @@ impl Workspace {
         (new_session, new_pane)
     }
 
+    /// Create a new session with a fresh pane, activate it, and populate
+    /// the new pane with the default item from
+    /// `default_session_item_factory`. The new session becomes the
+    /// rightmost tab in the title bar. Workspace stays agnostic of
+    /// concrete feature types (e.g. `TerminalPane`) — the factory is
+    /// registered once during bootstrap in `carrot-app::main`.
     pub fn new_session(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<WorkspaceSession> {
-        // Snapshot the current session before switching away from it, so
-        // when the user activates it again the pane state is restored.
-        self.sync_active_session(cx);
+        let (new_session, _) = self.new_empty_session(window, cx);
 
-        // Build a fresh pane (mirrors Workspace::add_pane but standalone —
-        // the new pane belongs to the new session, not to self.panes yet).
-        let new_pane = cx.new(|cx| {
-            let mut pane = Pane::new(
-                self.weak_handle(),
-                self.project.clone(),
-                self.pane_history_timestamp.clone(),
-                None,
-                NewFile.boxed_clone(),
-                window,
-                cx,
+        if let Some(factory) = self.default_session_item_factory.clone() {
+            let item = factory(window, cx);
+            self.add_item_to_active_pane(item, None, true, window, cx);
+        } else {
+            log::warn!(
+                "new_session: no default_session_item_factory registered — \
+                 session will be empty. This indicates missing bootstrap in carrot-app."
             );
-            pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
-            pane
-        });
-        cx.subscribe_in(&new_pane, window, Self::handle_pane_event)
-            .detach();
-
-        let new_session = cx.new(|cx| WorkspaceSession::new(new_pane.clone(), cx));
-        self.sessions.push(new_session.clone());
-        let new_index = self.sessions.len() - 1;
-        self.activate_session(new_index, window, cx);
-
-        // Defer the NewTerminal dispatch until after the current render
-        // tick: dispatch_action routes through the focused element tree,
-        // and the freshly-activated empty pane isn't in that tree yet
-        // when new_session returns. Deferring lets focus settle and the
-        // handler in `carrot-terminal-view::terminal_view::init` actually
-        // fire against the new session's pane.
-        cx.defer_in(window, |_ws, window, cx| {
-            window.dispatch_action(Box::new(NewTerminal::default()), cx);
-        });
+        }
 
         new_session
     }

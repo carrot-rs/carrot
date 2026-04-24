@@ -6997,6 +6997,7 @@ dependencies = [
  "carrot-workspace",
  "inazuma",
  "inazuma-settings-framework",
+ "log",
  "schemars",
  "serde",
 ]

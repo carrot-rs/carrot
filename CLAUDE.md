@@ -101,6 +101,12 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **`PaneRole` has no default** — every Item must explicitly declare `PaneRole::Terminal` or `PaneRole::Editor`.
 - **Session name = override or fallback** — `session.name` if set, else `item.tab_content_text()`.
 
+### Command Palette / Discoverability
+- **Eine Palette, keine Doppel-Modals.** `carrot-command-palette` ist der einzige Quick-Open-Entry-Point für Files, Actions, Sessions, History, Prompts, Workflows, Notebooks, Env-Vars, Drive, Launch-Configs, Conversations. Keine separaten `*-finder`- oder `*-picker`-Modals neben der Palette. Wenn ein Feature einen Modal-artigen Picker braucht der nicht offensichtlich in diese Struktur passt, im Zweifel Palette um eine neue `SearchCategory` erweitern statt einen zweiten Modal zu bauen.
+- **Keybinds sind Pre-Filter, keine separaten Panels.** `Cmd+P` / `Cmd+O` / `Cmd+Shift+P` / `Cmd+R` öffnen alle denselben Palette-Modal mit unterschiedlicher vor-ausgewählter Category. Neue Shortcuts folgen demselben Pattern: `command_palette::ToggleWithFilter { category_filter: Some(X) }`, kein Custom-Modal.
+- **Jedes neue User-facing Feature registriert in der Palette** — entweder als Action (via `workspace.register_action(...)` + `CommandPaletteFilter`-Hook, erscheint automatisch in `ActionsSource`) oder als eigene Source (wenn die Discovery Domain-Logik braucht, z.B. Workflows mit Parametern). Pull-Request-Checklist vor Merge: *Ist das Feature aus der Command Palette heraus aufrufbar? Wenn nein, warum?* Ausnahmen nur mit dokumentierter Begründung (z.B. „rein intern, kein User-Flow").
+- **Ausnahmen sind `Cmd+Shift+F` (Content-Search) und `Cmd+F` (Buffer-Find).** Beide sind fundamental andere UX (Match-Navigation vs. Item-Select) und bleiben eigene Modals. Alles andere geht durch die Palette.
+
 ### Glass UI / Rendering (see "Design System: Glass UI Pattern")
 - **The background image lives at the workspace render root** — not in a pane or panel. Edits to image rendering happen at the workspace root.
 - **Image layer is the LAST child of the workspace root** — it must be painted on top of everything else.
