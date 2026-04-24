@@ -7,8 +7,8 @@ use carrot_fs::{
     Fs, MTime, PathEvent, PathEventKind, RemoveOptions, Watcher, copy_recursive, read_dir_items,
 };
 use carrot_git::{
-    COMMIT_MESSAGE, DOT_GIT, FSMONITOR_DAEMON, GITIGNORE, INDEX_LOCK, LFS_DIR, REPO_EXCLUDE,
-    status::GitSummary,
+    CARROTIGNORE, COMMIT_MESSAGE, DOT_GIT, FSMONITOR_DAEMON, GITIGNORE, INDEX_LOCK, LFS_DIR,
+    REPO_EXCLUDE, status::GitSummary,
 };
 use carrot_language::DiskState;
 use chardetng::EncodingDetector;
@@ -255,6 +255,11 @@ pub struct LocalSnapshot {
     /// All of the gitignore files in the worktree, indexed by their absolute path.
     /// The boolean indicates whether the gitignore needs to be updated.
     ignores_by_parent_abs_path: HashMap<Arc<Path>, (Arc<Gitignore>, bool)>,
+    /// `.carrotignore` files keyed by their parent directory. Layered on
+    /// top of `ignores_by_parent_abs_path` during stack resolution so a
+    /// Carrot-only ignore works side-by-side with a regular `.gitignore`
+    /// (user can have both; patterns compose).
+    carrotignores_by_parent_abs_path: HashMap<Arc<Path>, Arc<Gitignore>>,
     /// All of the git repositories in the worktree, indexed by the project entry
     /// id of their parent directory.
     git_repositories: TreeMap<ProjectEntryId, LocalRepositoryEntry>,
@@ -415,6 +420,7 @@ impl Worktree {
         Ok(cx.new(move |cx: &mut Context<Worktree>| {
             let mut snapshot = LocalSnapshot {
                 ignores_by_parent_abs_path: Default::default(),
+                carrotignores_by_parent_abs_path: Default::default(),
                 global_gitignore: Default::default(),
                 repo_exclude_by_work_dir_abs_path: Default::default(),
                 git_repositories: Default::default(),
@@ -2685,6 +2691,22 @@ impl LocalSnapshot {
                 }
             }
         }
+        if entry.is_file() && entry.path.file_name() == Some(&CARROTIGNORE) {
+            let abs_path = self.absolutize(&entry.path);
+            match build_gitignore(&abs_path, fs).await {
+                Ok(ignore) => {
+                    self.carrotignores_by_parent_abs_path
+                        .insert(abs_path.parent().unwrap().into(), Arc::new(ignore));
+                }
+                Err(error) => {
+                    log::error!(
+                        "error loading .carrotignore file {:?} - {:?}",
+                        &entry.path,
+                        error
+                    );
+                }
+            }
+        }
 
         if entry.kind == EntryKind::PendingDir
             && let Some(existing_entry) = self.entries_by_path.get(&PathKey(entry.path.clone()), ())
@@ -2763,9 +2785,19 @@ impl LocalSnapshot {
             if ignore_stack.is_abs_path_ignored(parent_abs_path, true) {
                 ignore_stack = IgnoreStack::all();
                 break;
-            } else if let Some(ignore) = ignore {
-                ignore_stack =
-                    ignore_stack.append(IgnoreKind::Gitignore(parent_abs_path.into()), ignore);
+            } else {
+                if let Some(ignore) = ignore {
+                    ignore_stack =
+                        ignore_stack.append(IgnoreKind::Gitignore(parent_abs_path.into()), ignore);
+                }
+                if let Some(carrotignore) =
+                    self.carrotignores_by_parent_abs_path.get(parent_abs_path)
+                {
+                    ignore_stack = ignore_stack.append(
+                        IgnoreKind::Gitignore(parent_abs_path.into()),
+                        carrotignore.clone(),
+                    );
+                }
             }
         }
 

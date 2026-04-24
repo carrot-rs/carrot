@@ -19,6 +19,10 @@ use std::str::FromStr;
 
 pub const DOT_GIT: &str = ".git";
 pub const GITIGNORE: &str = ".gitignore";
+/// Carrot's project-local ignore file. Shares `.gitignore` syntax and is
+/// respected by both the live filesystem walker (file-finder) and the
+/// BackgroundScanner that drives Tracked worktree snapshots.
+pub const CARROTIGNORE: &str = ".carrotignore";
 pub const FSMONITOR_DAEMON: &str = "fsmonitor--daemon";
 pub const LFS_DIR: &str = "lfs";
 pub const COMMIT_MESSAGE: &str = "COMMIT_EDITMSG";
