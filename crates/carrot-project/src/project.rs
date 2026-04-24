@@ -4593,49 +4593,35 @@ impl Project {
         })
     }
 
-    /// Promote an existing worktree from Browseable to Tracked. The dynamic
-    /// scanner restart is not yet implemented; this call currently logs a
-    /// warning and returns `Ok(())`. A future change replaces the field-level
-    /// `scanning_enabled: bool` with an `Arc<AtomicBool>` + watch channel so
-    /// the background scanner can pick up the switch live.
+    /// Promote an existing worktree from Browseable to Tracked. Flips the
+    /// shared `scanning_enabled` atomic and restarts the background
+    /// scanner so the filesystem watcher and initial scan start up.
     pub fn promote_to_tracked(
         &mut self,
         worktree_id: WorktreeId,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        let path = self
-            .worktree_for_id(worktree_id, cx)
-            .map(|wt| wt.read(cx).abs_path().to_path_buf());
-        match path {
-            Some(path) => {
-                log::warn!(
-                    "promote_to_tracked({}): dynamic promotion not yet implemented; \
-                     worktree remains browseable until app restart",
-                    path.display()
-                );
+        match self.worktree_for_id(worktree_id, cx) {
+            Some(worktree) => {
+                worktree.update(cx, |wt, cx| wt.set_scanning_enabled(true, cx));
                 Task::ready(Ok(()))
             }
             None => Task::ready(Err(anyhow!("worktree {worktree_id:?} not found"))),
         }
     }
 
-    /// Demote a Tracked worktree back to Browseable. Same dynamic-scanner
-    /// limitation as `promote_to_tracked`: currently a no-op with warning.
+    /// Demote a Tracked worktree back to Browseable. Flips the shared
+    /// `scanning_enabled` atomic; the scanner loop observes it on its
+    /// next poll and exits. The worktree keeps its root entry and
+    /// remains in the project — only the scanner winds down.
     pub fn demote_to_browseable(
         &mut self,
         worktree_id: WorktreeId,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        let path = self
-            .worktree_for_id(worktree_id, cx)
-            .map(|wt| wt.read(cx).abs_path().to_path_buf());
-        match path {
-            Some(path) => {
-                log::warn!(
-                    "demote_to_browseable({}): dynamic demotion not yet implemented; \
-                     worktree keeps its current scanning mode until app restart",
-                    path.display()
-                );
+        match self.worktree_for_id(worktree_id, cx) {
+            Some(worktree) => {
+                worktree.update(cx, |wt, cx| wt.set_scanning_enabled(false, cx));
                 Task::ready(Ok(()))
             }
             None => Task::ready(Err(anyhow!("worktree {worktree_id:?} not found"))),

@@ -70,7 +70,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering::SeqCst},
+        atomic::{self, AtomicBool, AtomicUsize},
     },
     time::{Duration, Instant},
 };
@@ -141,7 +141,13 @@ pub struct LocalWorktree {
     next_entry_id: Arc<AtomicUsize>,
     settings: WorktreeSettings,
     share_private_files: bool,
-    scanning_enabled: bool,
+    /// Dynamic scanner-enabled flag. Shared with the active
+    /// `BackgroundScannerState` via `Arc` so `set_scanning_enabled`
+    /// flips are seen by the running scanner on its next poll. Promote
+    /// (`false -> true`) additionally triggers `restart_background_scanners`
+    /// so the filesystem watcher and initial scan kick off; demote
+    /// (`true -> false`) is soft — the loop observes the flag and exits.
+    scanning_enabled: Arc<AtomicBool>,
 }
 
 pub struct PathPrefixScanRequest {
@@ -269,7 +275,9 @@ struct BackgroundScannerState {
     removed_entries: HashMap<u64, Entry>,
     changed_paths: Vec<Arc<RelPath>>,
     prev_snapshot: Snapshot,
-    scanning_enabled: bool,
+    /// Same `Arc<AtomicBool>` as on the owning `LocalWorktree`, so a
+    /// `set_scanning_enabled` flip is visible to the scanner immediately.
+    scanning_enabled: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -484,7 +492,7 @@ impl Worktree {
                 fs_case_sensitive,
                 visible,
                 settings,
-                scanning_enabled,
+                scanning_enabled: Arc::new(AtomicBool::new(scanning_enabled)),
             };
             worktree.start_background_scanner(scan_requests_rx, path_prefixes_to_scan_rx, cx);
             Worktree::Local(worktree)
@@ -643,8 +651,28 @@ impl Worktree {
     /// they mirror a scanner driven by the upstream peer.
     pub fn scanning_enabled(&self) -> bool {
         match self {
-            Worktree::Local(local) => local.scanning_enabled,
+            Worktree::Local(local) => local.scanning_enabled.load(atomic::Ordering::Relaxed),
             Worktree::Remote(_) => true,
+        }
+    }
+
+    /// Flip the scanning-enabled flag for the active worktree.
+    ///
+    /// - `true` → allocates watchers / triggers `restart_background_scanners`
+    ///   so the scanner runs a fresh pass.
+    /// - `false` → atomic flip only; the scanner loop checks the flag and
+    ///   exits on the next iteration.
+    ///
+    /// No-op on remote worktrees (upstream peer drives the scanner).
+    pub fn set_scanning_enabled(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        if let Worktree::Local(local) = self {
+            let prev = local.scanning_enabled.swap(enabled, atomic::Ordering::AcqRel);
+            if prev == enabled {
+                return;
+            }
+            if enabled {
+                local.restart_background_scanners(cx);
+            }
         }
     }
 
@@ -1105,14 +1133,15 @@ impl LocalWorktree {
         let share_private_files = self.share_private_files;
         let next_entry_id = self.next_entry_id.clone();
         let fs = self.fs.clone();
-        let scanning_enabled = self.scanning_enabled;
+        let scanning_enabled = self.scanning_enabled.clone();
         let settings = self.settings.clone();
         let (scan_states_tx, mut scan_states_rx) = mpsc::unbounded();
         let background_scanner = cx.background_spawn({
             let abs_path = snapshot.abs_path.as_path().to_path_buf();
             let background = cx.background_executor().clone();
+            let scanning_enabled = scanning_enabled.clone();
             async move {
-                let (events, watcher) = if scanning_enabled {
+                let (events, watcher) = if scanning_enabled.load(atomic::Ordering::Relaxed) {
                     fs.watch(&abs_path, FS_WATCH_LATENCY).await
                 } else {
                     (Box::pin(stream::pending()) as _, Arc::new(NullWatcher) as _)
@@ -2849,7 +2878,9 @@ impl LocalSnapshot {
 
 impl BackgroundScannerState {
     fn should_scan_directory(&self, entry: &Entry) -> bool {
-        (self.scanning_enabled && !entry.is_external && (!entry.is_ignored || entry.is_always_included))
+        (self.scanning_enabled.load(atomic::Ordering::Relaxed)
+            && !entry.is_external
+            && (!entry.is_ignored || entry.is_always_included))
             || entry.path.file_name() == Some(DOT_GIT)
             || entry.path.file_name() == Some(local_settings_folder_name())
             || self.scanned_dirs.contains(&entry.id) // If we've ever scanned it, keep scanning
@@ -3830,7 +3861,7 @@ impl BackgroundScanner {
         {
             let state = self.state.lock().await;
             root_abs_path = state.snapshot.abs_path.clone();
-            scanning_enabled = state.scanning_enabled;
+            scanning_enabled = state.scanning_enabled.load(atomic::Ordering::Relaxed);
         }
 
         // If the worktree root does not contain a git repository, then find
@@ -3927,7 +3958,7 @@ impl BackgroundScanner {
                         .insert_entry(root_entry, self.fs.as_ref(), self.watcher.as_ref())
                         .await;
                 }
-                if root_entry.is_dir() && state.scanning_enabled {
+                if root_entry.is_dir() && state.scanning_enabled.load(atomic::Ordering::Relaxed) {
                     state
                         .enqueue_scan_dir(
                             root_abs_path.as_path().into(),
@@ -4455,8 +4486,8 @@ impl BackgroundScanner {
                                     match progress_update_count.compare_exchange(
                                         last_progress_update_count,
                                         last_progress_update_count + 1,
-                                        SeqCst,
-                                        SeqCst
+                                        atomic::Ordering::SeqCst,
+                                        atomic::Ordering::SeqCst
                                     ) {
                                         Ok(_) => {
                                             last_progress_update_count += 1;
@@ -6024,7 +6055,7 @@ impl ProjectEntryId {
     pub const MIN: Self = Self(usize::MIN);
 
     pub fn new(counter: &AtomicUsize) -> Self {
-        Self(counter.fetch_add(1, SeqCst))
+        Self(counter.fetch_add(1, atomic::Ordering::SeqCst))
     }
 
     pub fn from_proto(id: u64) -> Self {
