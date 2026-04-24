@@ -267,6 +267,14 @@ impl FileFinder {
                 Some(false) => Some(true),
                 None => Some(true),
             };
+            // In Live mode the walker has already been spawned with a
+            // fixed respect_gitignore/respect_hidden config. Flipping
+            // `include_ignored` must respawn it so newly scanned entries
+            // actually reflect the toggle.
+            if picker.delegate.finder_mode.is_live() {
+                let include = picker.delegate.include_ignored.unwrap_or(false);
+                picker.delegate.rebuild_live_pool_with_ignored(include, cx);
+            }
             picker.delegate.include_ignored_refresh =
                 picker.delegate.update_matches(picker.query(cx), window, cx);
         });

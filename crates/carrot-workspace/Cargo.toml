@@ -38,6 +38,7 @@ inazuma-component-registry.workspace = true
 carrot-db.workspace = true
 carrot-feature-flags.workspace = true
 carrot-fs.workspace = true
+carrot-settings.workspace = true
 futures.workspace = true
 carrot-git.workspace = true
 inazuma.workspace = true

@@ -86,6 +86,14 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **Split = new pane in the same session** (file-drop, Cmd+D, etc.).
 - **Last pane closed → session closed.** Last session closed → window closed.
 - **Terminal pane is never replaced by file-open** — file-open lands in an editor pane (via `last_active_editor_pane`) or a new split.
+- **Editor-in-Terminal-Session-Pattern (Warp-parity, verified 2026-04-24):** Die Logik "Editor-Item landet neben Terminal-Pane" ist im `Workspace::add_item_to_active_pane`-Entry-Point **zentral verdrahtet** — nicht in jedem Caller dupliziert. Mechanismus: anhand der `PaneRole`-Kombination (active pane role × new item role) entscheidet das Framework:
+  - `(Terminal, Editor)` → wenn `last_active_editor_pane` existiert, reuse/split danach (Setting `file_finder.open_target.when_editor_open` = `reuse_last | new_split | new_session`). Sonst Split im Terminal-Pane-Group (Setting `file_finder.open_target.when_terminal_active`, Default `split_right`).
+  - `(Editor, Editor)` → Replace oder konfiguriertes Verhalten.
+  - Alle anderen Kombinationen → plain add (Terminal→Terminal, Editor→Terminal etc.).
+  
+  Ergebnis: jeder Editor-Item-Open-Flow (File-Finder, Drag-Drop, Command-Palette, Diagnostics-Click, Search-Result-Click, Debugger-Source-Open, Agent-Panel-File-Open) folgt demselben Pattern ohne eigene Logic. Neue Callsites kriegen's automatisch richtig. **Escape-Hatch:** `Workspace::add_to_active_pane_raw` umgeht die Role-Policy für Sonderfälle (Tests, interne Workspace-Operationen).
+  
+  **Sidebar-Rendering läuft gratis:** `carrot-vertical-tabs` aktualisiert sich automatisch — im Tabs-Mode zeigt die Session-Row den aktiven Pane via `tab_content_text()`, im Panes-Mode werden alle Panes als Rows unter einem Group-Header gerendert. Kein neuer UI-Code nötig. `same_pane`-Setting-Option triggert `log::warn!` + fallback zu `split_right` weil es die "Terminal never replaced by file-open"-Regel brechen würde.
 - **`PaneRole` has no default** — every Item must explicitly declare `PaneRole::Terminal` or `PaneRole::Editor`.
 - **Session name = override or fallback** — `session.name` if set, else `item.tab_content_text()`.
 

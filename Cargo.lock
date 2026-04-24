@@ -7138,6 +7138,7 @@ dependencies = [
  "carrot-project",
  "carrot-remote",
  "carrot-session",
+ "carrot-settings",
  "carrot-shell-integration",
  "carrot-sqlez",
  "carrot-task",

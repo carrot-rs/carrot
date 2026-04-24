@@ -473,3 +473,98 @@ impl Settings for FileFinderSettings {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// File-Open target policy — where a newly-opened file lands when the active
+// pane is a Terminal and/or editor panes already exist.
+// ---------------------------------------------------------------------------
+
+/// What `Workspace::add_item_to_active_pane` does when the active pane is a
+/// Terminal and no editor pane exists yet in the current session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhenTerminalActive {
+    SplitRight,
+    SplitLeft,
+    SplitDown,
+    SplitUp,
+    NewSession,
+}
+
+impl Default for WhenTerminalActive {
+    fn default() -> Self {
+        WhenTerminalActive::SplitRight
+    }
+}
+
+impl From<inazuma_settings_content::WhenTerminalActiveContent> for WhenTerminalActive {
+    fn from(raw: inazuma_settings_content::WhenTerminalActiveContent) -> Self {
+        use inazuma_settings_content::WhenTerminalActiveContent as Raw;
+        match raw {
+            Raw::SplitRight => WhenTerminalActive::SplitRight,
+            Raw::SplitLeft => WhenTerminalActive::SplitLeft,
+            Raw::SplitDown => WhenTerminalActive::SplitDown,
+            Raw::SplitUp => WhenTerminalActive::SplitUp,
+            Raw::NewSession => WhenTerminalActive::NewSession,
+            Raw::SamePane => {
+                log::warn!(
+                    "file_finder.open_target.when_terminal_active = \"same_pane\" \
+                     breaks the \"Terminal pane is never replaced by file-open\" \
+                     Hard Rule; falling back to split_right"
+                );
+                WhenTerminalActive::SplitRight
+            }
+        }
+    }
+}
+
+/// What `Workspace::add_item_to_active_pane` does when at least one editor
+/// pane already exists in the current session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhenEditorOpen {
+    ReuseLast,
+    NewSplit,
+    NewSession,
+}
+
+impl Default for WhenEditorOpen {
+    fn default() -> Self {
+        WhenEditorOpen::ReuseLast
+    }
+}
+
+impl From<inazuma_settings_content::WhenEditorOpenContent> for WhenEditorOpen {
+    fn from(raw: inazuma_settings_content::WhenEditorOpenContent) -> Self {
+        use inazuma_settings_content::WhenEditorOpenContent as Raw;
+        match raw {
+            Raw::ReuseLast => WhenEditorOpen::ReuseLast,
+            Raw::NewSplit => WhenEditorOpen::NewSplit,
+            Raw::NewSession => WhenEditorOpen::NewSession,
+        }
+    }
+}
+
+#[derive(Debug, Clone, RegisterSetting)]
+pub struct FileOpenConfig {
+    pub when_terminal_active: WhenTerminalActive,
+    pub when_editor_open: WhenEditorOpen,
+}
+
+impl Settings for FileOpenConfig {
+    fn from_settings(content: &inazuma_settings_content::SettingsContent) -> Self {
+        let raw = content
+            .file_finder
+            .clone()
+            .and_then(|f| f.open_target)
+            .unwrap_or_default();
+        FileOpenConfig {
+            when_terminal_active: raw
+                .when_terminal_active
+                .map(WhenTerminalActive::from)
+                .unwrap_or_default(),
+            when_editor_open: raw
+                .when_editor_open
+                .map(WhenEditorOpen::from)
+                .unwrap_or_default(),
+        }
+    }
+}

@@ -727,6 +727,82 @@ pub struct FileFinderSettingsContent {
     /// Live filesystem walker configuration. Used when the active scope has no
     /// pre-built worktree index (Browseable worktrees, non-Git dirs).
     pub live: Option<LiveFinderSettingsContent>,
+    /// Where newly-opened files land when the active pane is a Terminal
+    /// and/or editor panes already exist.
+    pub open_target: Option<FileOpenTargetContent>,
+}
+
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
+pub struct FileOpenTargetContent {
+    /// What to do when the active pane is a Terminal and no editor pane
+    /// exists yet in the current session.
+    ///
+    /// Default: split_right
+    pub when_terminal_active: Option<WhenTerminalActiveContent>,
+    /// What to do when at least one editor pane already exists in the
+    /// current session.
+    ///
+    /// Default: reuse_last
+    pub when_editor_open: Option<WhenEditorOpenContent>,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum WhenTerminalActiveContent {
+    /// Split the Terminal pane to the right, land the file there.
+    #[default]
+    SplitRight,
+    /// Split the Terminal pane to the left.
+    SplitLeft,
+    /// Split the Terminal pane downward.
+    SplitDown,
+    /// Split the Terminal pane upward.
+    SplitUp,
+    /// Spawn the file in a brand-new session (new tab in the session bar).
+    NewSession,
+    /// Replace the Terminal item in the active pane. Breaks the
+    /// "Terminal pane is never replaced by file-open" Hard Rule; at load
+    /// time the loader logs a warning and falls back to `split_right`.
+    SamePane,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum WhenEditorOpenContent {
+    /// Reuse the last active editor pane (replaces its current item).
+    #[default]
+    ReuseLast,
+    /// Split the last active editor pane to the right for the new file.
+    NewSplit,
+    /// Spawn the file in a brand-new session.
+    NewSession,
 }
 
 #[with_fallible_options]

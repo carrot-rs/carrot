@@ -135,6 +135,14 @@ impl LiveCandidatePool {
         self.truncated
     }
 
+    pub(crate) fn scope_root(&self) -> &std::path::Path {
+        &self.scope_root
+    }
+
+    pub(crate) fn worktree_id(&self) -> WorktreeId {
+        self.worktree_id
+    }
+
     /// Snapshot the pool's current results in cache-entry shape. Callers
     /// decide when to persist this into the `LiveWalkCache` global — we
     /// don't do the `cx.update_global` here because the caller already

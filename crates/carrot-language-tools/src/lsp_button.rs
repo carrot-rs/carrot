@@ -394,8 +394,13 @@ impl LanguageServerState {
                                         );
                                     });
 
-                                    workspace.update(cx, |workspace, cx| {
-                                        window_handle.update(cx, |_, window, cx| {
+                                    // Re-order the contexts: outer `window_handle.update`
+                                    // gives us `&mut App`, inner `workspace.update` then
+                                    // produces `&mut Context<Workspace>` which
+                                    // `add_item_to_active_pane` requires for its
+                                    // role-policy match (CLAUDE.md Hard Rule).
+                                    window_handle.update(cx, |_, window, cx| {
+                                        workspace.update(cx, |workspace, cx| {
                                             workspace.add_item_to_active_pane(
                                                 Box::new(cx.new(|cx| {
                                                     let mut editor = Editor::for_buffer(

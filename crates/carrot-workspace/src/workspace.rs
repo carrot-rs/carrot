@@ -3991,7 +3991,122 @@ impl Workspace {
     /// - If active pane is an Editor → replace its item
     /// - If active pane is a Terminal → find last_active_editor_pane in the
     ///   session and open there; if none exists, split right with a new pane
+    /// Route a freshly-minted item into the active session, obeying the
+    /// `(active_pane_role, new_item_role)` policy matrix (Hard Rule:
+    /// Editor-in-Terminal-Session-Pattern, CLAUDE.md).
+    ///
+    /// This is the single entry point for almost every new pane-item — File-
+    /// Finder confirm, Drag-Drop, Command-Palette, Diagnostics-Click, Search
+    /// Result, Debugger source-open, Agent-Panel file-open. The match below
+    /// is the one place that decides whether the Terminal stays side-by-side
+    /// with the new file, whether the file replaces an existing editor, or
+    /// whether it spawns a new session.
+    ///
+    /// For the rare case where a caller needs to bypass the role policy (tests
+    /// that construct deterministic pane layouts, internal Workspace logic),
+    /// use `add_to_active_pane_raw`.
     pub fn add_item_to_active_pane(
+        &mut self,
+        item: Box<dyn ItemHandle>,
+        destination_index: Option<usize>,
+        focus_item: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::item::PaneRole;
+        use carrot_settings::{FileOpenConfig, WhenEditorOpen, WhenTerminalActive};
+        use inazuma_settings_framework::Settings as _;
+
+        let active_pane = self.active_pane.clone();
+        let active_pane_role = active_pane
+            .read(cx)
+            .active_item()
+            .map(|i| i.pane_role(cx))
+            .unwrap_or(PaneRole::Editor);
+        let new_item_role = item.pane_role(cx);
+
+        match (active_pane_role, new_item_role) {
+            (PaneRole::Terminal, PaneRole::Editor) => {
+                let session = self.sessions[self.active_session_index].clone();
+                let existing_editor = session
+                    .read(cx)
+                    .last_active_editor_pane()
+                    .and_then(|w| w.upgrade());
+                let cfg = FileOpenConfig::get_global(cx).clone();
+                match existing_editor {
+                    Some(editor_pane) => match cfg.when_editor_open {
+                        WhenEditorOpen::ReuseLast => self.add_item(
+                            editor_pane,
+                            item,
+                            destination_index,
+                            true,
+                            focus_item,
+                            window,
+                            cx,
+                        ),
+                        WhenEditorOpen::NewSplit => {
+                            let new_pane = self.split_pane(
+                                editor_pane,
+                                SplitDirection::Right,
+                                window,
+                                cx,
+                            );
+                            self.add_item(
+                                new_pane,
+                                item,
+                                destination_index,
+                                true,
+                                focus_item,
+                                window,
+                                cx,
+                            );
+                        }
+                        WhenEditorOpen::NewSession => {
+                            self.new_session_with_item(item, window, cx);
+                        }
+                    },
+                    None => match cfg.when_terminal_active {
+                        WhenTerminalActive::SplitRight
+                        | WhenTerminalActive::SplitLeft
+                        | WhenTerminalActive::SplitDown
+                        | WhenTerminalActive::SplitUp => {
+                            let direction = match cfg.when_terminal_active {
+                                WhenTerminalActive::SplitRight => SplitDirection::Right,
+                                WhenTerminalActive::SplitLeft => SplitDirection::Left,
+                                WhenTerminalActive::SplitDown => SplitDirection::Down,
+                                WhenTerminalActive::SplitUp => SplitDirection::Up,
+                                _ => unreachable!(),
+                            };
+                            let new_pane = self.split_pane(active_pane, direction, window, cx);
+                            self.add_item(
+                                new_pane,
+                                item,
+                                destination_index,
+                                true,
+                                focus_item,
+                                window,
+                                cx,
+                            );
+                        }
+                        WhenTerminalActive::NewSession => {
+                            self.new_session_with_item(item, window, cx);
+                        }
+                    },
+                }
+            }
+            _ => self.add_to_active_pane_raw(item, destination_index, focus_item, window, cx),
+        }
+    }
+
+    /// Plain "add the item to whichever pane is currently active, no role
+    /// policy". Internal helper used by `add_item_to_active_pane`'s
+    /// `_` match-arm and exposed for tests / Workspace-internal flows that
+    /// need a deterministic target pane.
+    ///
+    /// Production code — File-Finder, Drag-Drop, Command-Palette, Agent
+    /// tool-calls etc. — should use `add_item_to_active_pane` so the
+    /// Editor-in-Terminal-Session-Pattern stays enforced at one spot.
+    pub fn add_to_active_pane_raw(
         &mut self,
         item: Box<dyn ItemHandle>,
         destination_index: Option<usize>,
@@ -3999,36 +4114,16 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) {
-        use crate::item::PaneRole;
-
         let active_pane = self.active_pane.clone();
-        let active_role = active_pane
-            .read(cx)
-            .active_item()
-            .map(|i| i.pane_role(cx))
-            .unwrap_or(PaneRole::Editor);
-
-        let target_pane = if active_role == PaneRole::Terminal {
-            // Terminal pane: never replace. Route to last editor pane instead.
-            let session = self.sessions[self.active_session_index].clone();
-            session
-                .read(cx)
-                .last_active_editor_pane()
-                .and_then(|w| w.upgrade())
-                .unwrap_or(active_pane)
-        } else {
-            active_pane
-        };
-
         self.add_item(
-            target_pane,
+            active_pane,
             item,
             destination_index,
             true,
             focus_item,
             window,
             cx,
-        )
+        );
     }
 
     pub fn add_item(
@@ -5068,6 +5163,40 @@ impl Workspace {
     /// handler in carrot-terminal-view adds a terminal item to the new
     /// pane (Workspace itself doesn't know about terminals — feature
     /// crates plug in via action handlers).
+    /// Spawn a fresh session whose single pane holds `item`. Unlike
+    /// `new_session` (which dispatches `NewTerminal` so the new pane fills
+    /// with a Terminal), this is the "open-file-as-new-session" path used
+    /// by the `when_*.NewSession` setting values.
+    pub fn new_session_with_item(
+        &mut self,
+        item: Box<dyn ItemHandle>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<WorkspaceSession> {
+        self.sync_active_session(cx);
+        let new_pane = cx.new(|cx| {
+            let mut pane = Pane::new(
+                self.weak_handle(),
+                self.project.clone(),
+                self.pane_history_timestamp.clone(),
+                None,
+                NewFile.boxed_clone(),
+                window,
+                cx,
+            );
+            pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
+            pane
+        });
+        cx.subscribe_in(&new_pane, window, Self::handle_pane_event)
+            .detach();
+        let new_session = cx.new(|cx| WorkspaceSession::new(new_pane.clone(), cx));
+        self.sessions.push(new_session.clone());
+        let new_index = self.sessions.len() - 1;
+        self.activate_session(new_index, window, cx);
+        self.add_item(new_pane, item, None, true, true, window, cx);
+        new_session
+    }
+
     pub fn new_session(
         &mut self,
         window: &mut Window,

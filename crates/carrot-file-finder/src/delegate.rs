@@ -284,23 +284,64 @@ impl FileFinderDelegate {
     /// no truncation (nothing meaningful to show).
     ///
     /// Format:
-    /// - running:        "12,453 scanned…"
-    /// - done:           "142,453 scanned"
-    /// - done + trunc.:  "100,000 scanned — limit reached"
+    /// - running:        "~/projects/foo · 12,453 scanned…"
+    /// - done:           "~/projects/foo · 142,453 scanned"
+    /// - done + trunc.:  "~/projects/foo · 100,000 scanned — limit reached"
     pub(crate) fn live_scan_status(&self) -> Option<String> {
         let pool = self.finder_mode.as_live()?;
         let scanned = pool.scanned();
         if scanned == 0 && pool.is_done() {
             return None;
         }
+        let scope_label = format_scope_breadcrumb(pool.scope_root());
         let scanned_formatted = format_thousands(scanned);
-        if !pool.is_done() {
-            Some(format!("{scanned_formatted} scanned…"))
+        let tail = if !pool.is_done() {
+            format!("{scanned_formatted} scanned…")
         } else if pool.truncated() {
-            Some(format!("{scanned_formatted} scanned — limit reached"))
+            format!("{scanned_formatted} scanned — limit reached")
         } else {
-            Some(format!("{scanned_formatted} scanned"))
+            format!("{scanned_formatted} scanned")
+        };
+        Some(format!("{scope_label} · {tail}"))
+    }
+
+    /// Rebuild the Live pool with flipped `respect_gitignore` / `respect_hidden`
+    /// / `respect_carrotignore` so the running walker reflects the user's new
+    /// `include_ignored` choice. Called from the `ToggleIncludeIgnored`
+    /// handler when the delegate is in Live mode.
+    pub(crate) fn rebuild_live_pool_with_ignored(
+        &mut self,
+        include_ignored: bool,
+        cx: &mut App,
+    ) {
+        let (scope_root, worktree_id) = match self.finder_mode.as_live() {
+            Some(pool) => (pool.scope_root().to_path_buf(), pool.worktree_id()),
+            None => return,
+        };
+        if let Some(pool) = self.finder_mode.as_live() {
+            pool.cancel();
         }
+        if cx
+            .try_global::<crate::live_walk_cache::LiveWalkCache>()
+            .is_some()
+        {
+            cx.update_global::<crate::live_walk_cache::LiveWalkCache, _>(|cache, _| {
+                cache.invalidate(&scope_root);
+            });
+        }
+        let mut config = carrot_walker_config(cx);
+        if include_ignored {
+            config.respect_gitignore = false;
+            config.respect_hidden = false;
+            config.respect_carrotignore = false;
+        }
+        let new_pool = crate::live_candidates::LiveCandidatePool::new_with_cache(
+            scope_root,
+            worktree_id,
+            config,
+            cx,
+        );
+        self.finder_mode = FinderMode::Live(new_pool);
     }
 
     pub(crate) fn set_search_matches(
@@ -736,6 +777,22 @@ impl FileFinderDelegate {
         }
         key_context
     }
+}
+
+/// Render an absolute path as a compact breadcrumb. Replaces `$HOME` with
+/// `~`, leaves non-home paths unchanged. Used by the Live-mode footer so
+/// the user sees which directory the picker is scanning.
+fn format_scope_breadcrumb(scope: &Path) -> String {
+    if let Some(home_raw) = std::env::var_os("HOME") {
+        let home = std::path::PathBuf::from(home_raw);
+        if let Ok(rel) = scope.strip_prefix(&home) {
+            if rel.as_os_str().is_empty() {
+                return "~".into();
+            }
+            return format!("~/{}", rel.display());
+        }
+    }
+    scope.display().to_string()
 }
 
 /// Insert thousands separators into a number for the scan-status label.
