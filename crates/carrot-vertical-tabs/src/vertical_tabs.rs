@@ -13,6 +13,8 @@ pub use vertical_tabs_settings::{
 
 use std::collections::HashMap;
 
+use crate::render::row_data::TabRowData;
+
 use carrot_ui::{ContextMenu, IconName, PopoverMenuHandle, input::InputState, prelude::*};
 use carrot_workspace::{
     Workspace, WorkspaceSession,
@@ -286,17 +288,96 @@ impl Render for VerticalTabsPanel {
         if !is_panes_mode_render {
             tab_list = tab_list.gap_0p5();
         }
-        let mut previous_pane_row_seen = false;
-        for row in rows {
-            let element = self.build_row(
-                row,
-                card_height,
-                is_expanded,
-                is_panes_mode_render,
-                &mut previous_pane_row_seen,
-                cx,
-            );
-            tab_list = tab_list.child(element);
+        // Chunk rows by session so every session renders as one visual
+        // unit. Panes-mode sessions with > 1 pane wrap all their pane
+        // rows into a single shared "pane strip" (bg only when hovered
+        // or when one of its panes is active). The optional group
+        // header sits above the strip. Sessions are separated from
+        // each other by an explicit 1px divider element — no divider
+        // between pane rows inside a session.
+        let divider_color = cx.theme().colors().text.alpha(0.06);
+        let mut previous_session_rendered = false;
+        let mut i = 0;
+        while i < rows.len() {
+            let session_index = rows[i].session_index;
+            let group_start = i;
+            while i < rows.len() && rows[i].session_index == session_index {
+                i += 1;
+            }
+            let group_end = i;
+
+            let mut pane_start = group_start;
+            let mut header_row: Option<TabRowData> = None;
+            if rows[group_start].header_text.is_some() {
+                header_row = Some(rows[group_start].clone());
+                pane_start += 1;
+            }
+            let pane_count = group_end - pane_start;
+            let group_has_active = rows[pane_start..group_end]
+                .iter()
+                .any(|r| r.is_active);
+            let wrap_into_container = is_panes_mode_render && pane_count > 1;
+
+            if previous_session_rendered {
+                tab_list = tab_list.child(
+                    div()
+                        .w_full()
+                        .h(px(1.))
+                        .bg(divider_color),
+                );
+            }
+
+            if let Some(header) = header_row {
+                let mut previous_seen = false;
+                let el = self.build_row(
+                    header,
+                    card_height,
+                    is_expanded,
+                    is_panes_mode_render,
+                    false,
+                    &mut previous_seen,
+                    cx,
+                );
+                tab_list = tab_list.child(el);
+            }
+
+            if wrap_into_container {
+                let active_bg = cx.theme().colors().element_background;
+                let hover_bg = cx.theme().colors().element_background;
+                let mut container = div()
+                    .id(("session-pane-strip", session_index))
+                    .group("carrot-pane-row")
+                    .w_full()
+                    .when(group_has_active, move |el| el.bg(active_bg))
+                    .hover(move |el| el.bg(hover_bg));
+                let mut previous_seen = false;
+                for r in rows[pane_start..group_end].iter().cloned() {
+                    container = container.child(self.build_row(
+                        r,
+                        card_height,
+                        is_expanded,
+                        is_panes_mode_render,
+                        true,
+                        &mut previous_seen,
+                        cx,
+                    ));
+                }
+                tab_list = tab_list.child(container);
+            } else {
+                let mut previous_seen = false;
+                for r in rows[pane_start..group_end].iter().cloned() {
+                    tab_list = tab_list.child(self.build_row(
+                        r,
+                        card_height,
+                        is_expanded,
+                        is_panes_mode_render,
+                        false,
+                        &mut previous_seen,
+                        cx,
+                    ));
+                }
+            }
+            previous_session_rendered = true;
         }
 
         div()

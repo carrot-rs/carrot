@@ -167,6 +167,13 @@ impl VerticalTabsPanel {
         card_height: Pixels,
         is_expanded: bool,
         is_panes_mode_render: bool,
+        // When true, the render loop has already wrapped the whole
+        // session into a shared pane-strip container. The row must not
+        // emit its own pane-wrapper bg/hover — it renders as a
+        // transparent card inside the container. Top divider + chip are
+        // still emitted so multi-pane rows remain visually separated
+        // and the hover chip stays reachable.
+        in_session_container: bool,
         previous_pane_row_seen: &mut bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -563,15 +570,24 @@ impl VerticalTabsPanel {
                     })
                     .child(chip)
             });
-            div()
+            // Session-level dividers live in the render loop as their
+            // own 1px spacer elements — they mark session boundaries,
+            // never pane boundaries inside a session. Ignore
+            // `needs_top_divider` here.
+            let _ = needs_top_divider;
+            let mut wrapper = div()
                 .id(("vertical-tab-pane-wrapper", index))
                 .group("carrot-pane-row")
                 .relative()
                 .w_full()
-                .py_1p5()
-                .when(needs_top_divider, |el| {
-                    el.border_t_1().border_color(colors.text.alpha(0.06))
-                })
+                .py_1p5();
+            // When the outer render loop has already wrapped this
+            // row's session into one shared pane-strip container, the
+            // per-row bg/hover must not fire — the container owns the
+            // strip. Single-pane sessions still get their own strip
+            // via this branch (container is skipped when pane_count
+            // <= 1 in the render loop).
+            if !in_session_container {
                 // Darker pane-strip bg so the cards inside (which keep
                 // the default `element_hover` / `element_selected`) stand
                 // out as distinctly lighter rectangles on the strip
@@ -580,8 +596,11 @@ impl VerticalTabsPanel {
                 // lightness ladder, so the strip reads as a distinct
                 // hover band above the panel base while still leaving
                 // headroom for the card to stand out.
-                .when(is_active, |el| el.bg(colors.element_background))
-                .hover(|el| el.bg(colors.element_background))
+                wrapper = wrapper
+                    .when(is_active, |el| el.bg(colors.element_background))
+                    .hover(|el| el.bg(colors.element_background));
+            }
+            wrapper
                 .child(drag_wrapper)
                 .when_some(pane_chip, |el, chip| el.child(chip))
                 .into_any_element()

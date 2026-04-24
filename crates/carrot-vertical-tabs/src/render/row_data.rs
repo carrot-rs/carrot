@@ -109,6 +109,7 @@ fn lookup_agent_for_pane(pane: &Entity<Pane>, cx: &App) -> Option<AgentRowInfo> 
 /// 4. **Panes mode, pane row inside a multi-pane group** —
 ///    `pane_id = Some(entity_id)`, `header_text = None`. Rendered as a
 ///    card scoped to one pane; clicking activates the session + pane.
+#[derive(Clone)]
 pub(crate) struct TabRowData {
     /// Session position in the workspace's session list. Stable across
     /// renders; used as the primary lookup key for session activation.
