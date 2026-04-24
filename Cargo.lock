@@ -4310,6 +4310,7 @@ dependencies = [
  "carrot-project",
  "carrot-project-panel",
  "carrot-remote-connection",
+ "carrot-settings",
  "carrot-shell",
  "carrot-theme",
  "carrot-theme-settings",
