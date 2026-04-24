@@ -635,6 +635,19 @@ impl Worktree {
         !self.is_local()
     }
 
+    /// Whether the background scanner is active for this worktree.
+    ///
+    /// Local worktrees created as `Browseable` return `false` — they own
+    /// only the root entry and expose no snapshot content. Local `Tracked`
+    /// worktrees return `true`. Remote worktrees always return `true`:
+    /// they mirror a scanner driven by the upstream peer.
+    pub fn scanning_enabled(&self) -> bool {
+        match self {
+            Worktree::Local(local) => local.scanning_enabled,
+            Worktree::Remote(_) => true,
+        }
+    }
+
     pub fn settings_location(&self, _: &Context<Self>) -> SettingsLocation<'static> {
         SettingsLocation {
             worktree_id: self.id(),
