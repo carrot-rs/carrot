@@ -528,7 +528,10 @@ pub enum WhenEditorOpen {
 
 impl Default for WhenEditorOpen {
     fn default() -> Self {
-        WhenEditorOpen::ReuseLast
+        // Warp-flavour default: every opened file gets its own pane next
+        // to the Terminal and any previously-opened files. User can flip
+        // to `ReuseLast` for Zed / VSCode-style single-slot behaviour.
+        WhenEditorOpen::NewSplit
     }
 }
 

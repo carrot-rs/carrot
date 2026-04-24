@@ -797,9 +797,12 @@ pub enum WhenTerminalActiveContent {
 #[serde(rename_all = "snake_case")]
 pub enum WhenEditorOpenContent {
     /// Reuse the last active editor pane (replaces its current item).
-    #[default]
+    /// Zed / VSCode-flavour: second file takes the first file's slot.
     ReuseLast,
     /// Split the last active editor pane to the right for the new file.
+    /// Warp-flavour default: each file gets its own pane, Terminal stays
+    /// on the left, Editor1 | Editor2 | … grow to the right.
+    #[default]
     NewSplit,
     /// Spawn the file in a brand-new session.
     NewSession,
