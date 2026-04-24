@@ -1,7 +1,12 @@
 //! TTL-bounded cache of live-walk results per scope-root. Lets the
 //! file-finder re-open the same scope within `ttl` and return results
 //! instantly without re-walking the filesystem.
+//!
+//! Registered as an `inazuma::Global` by `crate::init` so every picker
+//! shares the same cache — opening Cmd+P in `~/projects/foo`, dismissing,
+//! and reopening within TTL returns the cached result list instantly.
 
+use inazuma::{App, Global};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -17,6 +22,16 @@ pub struct CacheEntry {
 #[derive(Debug, Default)]
 pub struct LiveWalkCache {
     entries: HashMap<PathBuf, CacheEntry>,
+}
+
+impl Global for LiveWalkCache {}
+
+/// Install an empty `LiveWalkCache` as a global on the app if one is not
+/// already registered. Idempotent — safe to call multiple times.
+pub fn init(cx: &mut App) {
+    if cx.try_global::<LiveWalkCache>().is_none() {
+        cx.set_global(LiveWalkCache::default());
+    }
 }
 
 impl LiveWalkCache {

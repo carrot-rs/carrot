@@ -7,7 +7,9 @@
 mod file_finder_tests;
 
 pub mod delegate;
+pub(crate) mod finder_mode;
 pub mod history;
+pub(crate) mod live_candidates;
 pub mod live_walk_cache;
 pub mod live_walker;
 pub mod matches;
@@ -79,6 +81,7 @@ pub struct FileFinder {
 }
 
 pub fn init(cx: &mut App) {
+    live_walk_cache::init(cx);
     cx.observe_new(FileFinder::register).detach();
     cx.observe_new(OpenPathPrompt::register).detach();
     cx.observe_new(OpenPathPrompt::register_new_path).detach();
