@@ -672,7 +672,9 @@ impl Worktree {
     /// No-op on remote worktrees (upstream peer drives the scanner).
     pub fn set_scanning_enabled(&mut self, enabled: bool, cx: &mut Context<Self>) {
         if let Worktree::Local(local) = self {
-            let prev = local.scanning_enabled.swap(enabled, atomic::Ordering::AcqRel);
+            let prev = local
+                .scanning_enabled
+                .swap(enabled, atomic::Ordering::AcqRel);
             if prev == enabled {
                 return;
             }

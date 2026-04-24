@@ -80,12 +80,9 @@ impl TerminalPane {
                     }
 
                     if cwd_changed
-                        && let Some(project) =
-                            self.project.as_ref().and_then(|p| p.upgrade())
+                        && let Some(project) = self.project.as_ref().and_then(|p| p.upgrade())
                     {
-                        use carrot_shell::scope_policy::{
-                            ProjectKind, WorktreeRoot, classify,
-                        };
+                        use carrot_shell::scope_policy::{ProjectKind, WorktreeRoot, classify};
                         use inazuma_settings_framework::Settings as _;
                         let classification = classify(&new_cwd);
                         let (worktree_path, detected_kind) = match &classification {
@@ -115,9 +112,11 @@ impl TerminalPane {
                             && !should_track
                         {
                             let notify = match kind {
-                                ProjectKind::Git => carrot_settings::WorktreeScopeSettings::get_global(cx)
-                                    .git_track_decision(&worktree_path)
-                                    .is_ask(),
+                                ProjectKind::Git => {
+                                    carrot_settings::WorktreeScopeSettings::get_global(cx)
+                                        .git_track_decision(&worktree_path)
+                                        .is_ask()
+                                }
                                 ProjectKind::AgentRules => true,
                                 ProjectKind::Manifest(_) => false,
                             };
@@ -425,9 +424,9 @@ impl TerminalPane {
         let offer_never = matches!(kind, ProjectKind::Git);
         workspace.update(cx, move |ws, cx| {
             ws.show_notification(
-                NotificationId::composite::<ProjectDetectedMarker>(
-                    inazuma::ElementId::from(inazuma::SharedString::from(root_display)),
-                ),
+                NotificationId::composite::<ProjectDetectedMarker>(inazuma::ElementId::from(
+                    inazuma::SharedString::from(root_display),
+                )),
                 cx,
                 move |cx| {
                     cx.new(|cx| {
@@ -440,14 +439,14 @@ impl TerminalPane {
                                 );
                             });
                         if offer_never {
-                            notif = notif
-                                .secondary_message("Never")
-                                .secondary_on_click(|window, _cx| {
+                            notif = notif.secondary_message("Never").secondary_on_click(
+                                |window, _cx| {
                                     window.dispatch_action(
                                         carrot_actions::NeverTrackScope.boxed_clone(),
                                         _cx,
                                     );
-                                });
+                                },
+                            );
                         }
                         notif
                     })

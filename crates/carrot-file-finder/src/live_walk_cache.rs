@@ -48,13 +48,7 @@ impl LiveWalkCache {
         }
     }
 
-    pub fn put(
-        &mut self,
-        scope: PathBuf,
-        results: Vec<PathBuf>,
-        scanned: usize,
-        truncated: bool,
-    ) {
+    pub fn put(&mut self, scope: PathBuf, results: Vec<PathBuf>, scanned: usize, truncated: bool) {
         self.entries.insert(
             scope,
             CacheEntry {
@@ -80,7 +74,12 @@ mod tests {
     fn put_then_fresh_hit() {
         let mut cache = LiveWalkCache::new();
         let scope = PathBuf::from("/tmp/scope");
-        cache.put(scope.clone(), vec![PathBuf::from("/tmp/scope/a.txt")], 1, false);
+        cache.put(
+            scope.clone(),
+            vec![PathBuf::from("/tmp/scope/a.txt")],
+            1,
+            false,
+        );
         let entry = cache.get_fresh(&scope, Duration::from_secs(30));
         assert!(entry.is_some());
         assert_eq!(entry.unwrap().results.len(), 1);

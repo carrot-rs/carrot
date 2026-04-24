@@ -313,20 +313,13 @@ impl Render for VerticalTabsPanel {
                 pane_start += 1;
             }
             let pane_count = group_end - pane_start;
-            let group_has_active = rows[pane_start..group_end]
-                .iter()
-                .any(|r| r.is_active);
+            let group_has_active = rows[pane_start..group_end].iter().any(|r| r.is_active);
             let wrap_into_container = is_panes_mode_render && pane_count > 1;
 
             // Session dividers only apply in Panes mode — Tabs mode
             // keeps sessions visually separated through the card gap.
             if previous_session_rendered && is_panes_mode_render {
-                tab_list = tab_list.child(
-                    div()
-                        .w_full()
-                        .h(px(1.))
-                        .bg(divider_color),
-                );
+                tab_list = tab_list.child(div().w_full().h(px(1.)).bg(divider_color));
             }
 
             if let Some(header) = header_row {

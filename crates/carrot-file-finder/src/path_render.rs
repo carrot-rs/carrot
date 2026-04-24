@@ -49,11 +49,7 @@ impl<'a> PathComponentSlice<'a> {
         }
     }
 
-    pub(crate) fn elision_range(
-        &self,
-        budget: usize,
-        matches: &[usize],
-    ) -> Option<Range<usize>> {
+    pub(crate) fn elision_range(&self, budget: usize, matches: &[usize]) -> Option<Range<usize>> {
         let eligible_range = {
             assert!(matches.windows(2).all(|w| w[0] <= w[1]));
             let mut matches = matches.iter().copied().peekable();

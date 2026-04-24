@@ -95,9 +95,9 @@ fn resolve_scope(
         let wt = worktree.read(cx);
         return (wt.abs_path().to_path_buf(), wt.id());
     }
-    let root = cwd_hint.map(PathBuf::from).unwrap_or_else(|| {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
-    });
+    let root = cwd_hint
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")));
     // Synthetic id for scopes outside any worktree. Picks a value that
     // won't collide with real worktree ids (which are allocated from a
     // monotonic counter starting at a low usize).

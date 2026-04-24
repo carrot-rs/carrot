@@ -395,7 +395,11 @@ impl WorktreeScopeSettings {
     /// (AgentRules, Manifest, AdHoc) never auto-track and should not consult
     /// this decision.
     pub fn git_track_decision(&self, git_root: &std::path::Path) -> GitTrackDecision {
-        if self.never_track_paths.iter().any(|p| git_root.starts_with(p)) {
+        if self
+            .never_track_paths
+            .iter()
+            .any(|p| git_root.starts_with(p))
+        {
             return GitTrackDecision::NeverTrack;
         }
         if self

@@ -263,7 +263,10 @@ impl FileFinderDelegate {
         if !pool.worth_caching() {
             return;
         }
-        if cx.try_global::<crate::live_walk_cache::LiveWalkCache>().is_none() {
+        if cx
+            .try_global::<crate::live_walk_cache::LiveWalkCache>()
+            .is_none()
+        {
             return;
         }
         let (scope, results, scanned, truncated) = pool.cache_entry();
@@ -309,11 +312,7 @@ impl FileFinderDelegate {
     /// / `respect_carrotignore` so the running walker reflects the user's new
     /// `include_ignored` choice. Called from the `ToggleIncludeIgnored`
     /// handler when the delegate is in Live mode.
-    pub(crate) fn rebuild_live_pool_with_ignored(
-        &mut self,
-        include_ignored: bool,
-        cx: &mut App,
-    ) {
+    pub(crate) fn rebuild_live_pool_with_ignored(&mut self, include_ignored: bool, cx: &mut App) {
         let (scope_root, worktree_id) = match self.finder_mode.as_live() {
             Some(pool) => (pool.scope_root().to_path_buf(), pool.worktree_id()),
             None => return,

@@ -119,9 +119,7 @@ fn walk_up_collect_markers(cwd: &Path) -> ProjectMarkers {
             }
         }
 
-        if markers.git_root.is_some()
-            && markers.agent_rules.is_some()
-            && markers.manifest.is_some()
+        if markers.git_root.is_some() && markers.agent_rules.is_some() && markers.manifest.is_some()
         {
             break;
         }

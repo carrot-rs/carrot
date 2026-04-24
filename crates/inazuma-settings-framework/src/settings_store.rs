@@ -517,10 +517,7 @@ impl SettingsStore {
                             // missing.
                             if let Some(parent) = settings_path.parent() {
                                 fs.create_dir(parent).await.with_context(|| {
-                                    format!(
-                                        "Failed to create settings parent dir {:?}",
-                                        parent
-                                    )
+                                    format!("Failed to create settings parent dir {:?}", parent)
                                 })?;
                             }
                             fs.atomic_write(settings_path.to_path_buf(), new_text)

@@ -4045,7 +4045,15 @@ impl Workspace {
     ) {
         let new_item_role = item.pane_role(cx);
         let target = self.target_pane_for_role(new_item_role, window, cx);
-        self.add_item(target, item, destination_index, true, focus_item, window, cx);
+        self.add_item(
+            target,
+            item,
+            destination_index,
+            true,
+            focus_item,
+            window,
+            cx,
+        );
     }
 
     /// Single source-of-truth for the Editor-in-Terminal-Session-Pattern.
@@ -4074,7 +4082,10 @@ impl Workspace {
             .map(|i| i.pane_role(cx))
             .unwrap_or(PaneRole::Editor);
 
-        if !matches!((active_role, new_role), (PaneRole::Terminal, PaneRole::Editor)) {
+        if !matches!(
+            (active_role, new_role),
+            (PaneRole::Terminal, PaneRole::Editor)
+        ) {
             log::debug!(
                 target: "carrot::routing",
                 "target_pane_for_role: passthrough (active={:?}, new={:?}) -> pane {:?}",
@@ -12346,7 +12357,10 @@ mod tests {
             w.add_to_active_pane_raw(Box::new(editor_item), None, true, window, cx);
             let active = w.active_pane.clone();
             let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
-            assert_eq!(target, active, "Editor→Editor must return active pane unchanged");
+            assert_eq!(
+                target, active,
+                "Editor→Editor must return active pane unchanged"
+            );
             assert_eq!(w.panes.len(), 1, "no new pane must be created");
         });
     }
@@ -12363,7 +12377,10 @@ mod tests {
             w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
             let active = w.active_pane.clone();
             let target = w.target_pane_for_role(PaneRole::Terminal, window, cx);
-            assert_eq!(target, active, "Terminal→Terminal must return active pane unchanged");
+            assert_eq!(
+                target, active,
+                "Terminal→Terminal must return active pane unchanged"
+            );
             assert_eq!(w.panes.len(), 1);
         });
     }

@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 
 use carrot_chips::{ChipRegistry, DetectionCache};
 use carrot_completions::shell_completion::ShellCompletionProvider;
+use carrot_project::{ProjectEntryId, ProjectItem, ProjectPath};
 use carrot_session::command_history::CommandHistory;
 use carrot_shell_integration::ShellContext;
 use carrot_terminal::Terminal;
@@ -17,7 +18,6 @@ use carrot_ui::{
     Icon, IconName,
     input::{AutoPairConfig, InputState},
 };
-use carrot_project::{ProjectEntryId, ProjectItem, ProjectPath};
 use carrot_workspace::{
     Item, PaneRole, ToolbarItemLocation, Workspace, WorkspaceId,
     item::{HighlightedText, ItemEvent},
@@ -312,11 +312,7 @@ impl Item for TerminalPane {
         Some(Box::new(handle.clone()))
     }
 
-    fn for_each_project_item(
-        &self,
-        cx: &App,
-        f: &mut dyn FnMut(EntityId, &dyn ProjectItem),
-    ) {
+    fn for_each_project_item(&self, cx: &App, f: &mut dyn FnMut(EntityId, &dyn ProjectItem)) {
         // Surface the Terminal's CWD as a synthetic ProjectItem so workspace
         // code (window title, project-panel reveal, nav history, file-finder
         // ranking) treats a Terminal like any other project-backed item.

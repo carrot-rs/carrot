@@ -257,6 +257,10 @@ mod tests {
             done: true,
         };
         let matches = pool.fuzzy_match("main", PathStyle::local(), 100);
-        assert!(matches.iter().any(|m| m.path.as_unix_str().ends_with("main.rs")));
+        assert!(
+            matches
+                .iter()
+                .any(|m| m.path.as_unix_str().ends_with("main.rs"))
+        );
     }
 }

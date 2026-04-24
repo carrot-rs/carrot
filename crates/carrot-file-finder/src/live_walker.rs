@@ -176,6 +176,10 @@ mod tests {
         let walker = LiveWalker::spawn(dir.path().to_path_buf(), LiveWalkerConfig::default());
         let (files, _, _) = drain(&walker);
         assert!(files.iter().any(|p| p.ends_with("visible.txt")));
-        assert!(!files.iter().any(|p| p.to_string_lossy().contains("secret/a.txt")));
+        assert!(
+            !files
+                .iter()
+                .any(|p| p.to_string_lossy().contains("secret/a.txt"))
+        );
     }
 }
