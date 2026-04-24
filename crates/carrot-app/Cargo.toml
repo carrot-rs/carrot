@@ -64,13 +64,13 @@ carrot-language-selector = { workspace = true }
 carrot-language-tools = { workspace = true }
 carrot-line-ending-selector = { workspace = true }
 carrot-markdown = { workspace = true }
+carrot-markdown-preview = { workspace = true }
 carrot-node-runtime = { workspace = true }
 carrot-onboarding = { workspace = true }
 carrot-outline-panel = { workspace = true }
 carrot-platform-title-bar = { workspace = true }
 carrot-project = { workspace = true }
 carrot-project-panel = { workspace = true }
-carrot-project-registry = { workspace = true }
 carrot-prompt-store = { workspace = true }
 carrot-proto = { workspace = true }
 carrot-recent-projects = { workspace = true }

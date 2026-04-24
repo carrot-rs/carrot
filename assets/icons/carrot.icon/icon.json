@@ -6,11 +6,10 @@
     {
       "layers" : [
         {
-          "glass" : true,
-          "image-name" : "carrot-logo.png",
-          "name" : "carrot-logo",
+          "image-name" : "LOGO-TRANSPARENT.png",
+          "name" : "LOGO-TRANSPARENT",
           "position" : {
-            "scale" : 0.36,
+            "scale" : 0.17,
             "translation-in-points" : [
               0,
               0

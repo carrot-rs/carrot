@@ -1,13 +1,23 @@
-use std::{future::IntoFuture, path::Path, time::Duration};
+use std::{future::IntoFuture, path::Path, path::PathBuf, time::Duration};
 
 use super::*;
+use crate::delegate::FileFinderDelegate;
+use crate::matches::{Match, ProjectPanelOrdMatch};
+use crate::path_render::PathComponentSlice;
+use crate::search_query::FileSearchQuery;
 use carrot_editor::Editor;
+use carrot_project::Project;
 use carrot_project::{FS_WATCH_LATENCY, RemoveOptions};
+use carrot_project_panel::project_panel_settings::ProjectPanelSettings;
 use carrot_shell::open_paths;
+use carrot_workspace::OpenVisible;
 use carrot_workspace::{AppState, CloseActiveItem, OpenOptions, ToggleFileFinder, Workspace};
 use inazuma::{Entity, TestAppContext, VisualTestContext};
+use inazuma_fuzzy::PathMatch;
 use inazuma_menu::{Confirm, SelectNext, SelectPrevious};
 use inazuma_settings_framework::SettingsStore;
+use inazuma_util::paths::{PathStyle, PathWithPosition};
+use inazuma_util::rel_path::RelPath;
 use inazuma_util::{path, rel_path::rel_path};
 use pretty_assertions::{assert_eq, assert_matches};
 use serde_json::json;

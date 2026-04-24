@@ -109,6 +109,7 @@ fn lookup_agent_for_pane(pane: &Entity<Pane>, cx: &App) -> Option<AgentRowInfo> 
 /// 4. **Panes mode, pane row inside a multi-pane group** —
 ///    `pane_id = Some(entity_id)`, `header_text = None`. Rendered as a
 ///    card scoped to one pane; clicking activates the session + pane.
+#[derive(Clone)]
 pub(crate) struct TabRowData {
     /// Session position in the workspace's session list. Stable across
     /// renders; used as the primary lookup key for session activation.
@@ -178,11 +179,25 @@ impl VerticalTabsPanel {
         let is_panes_mode = matches!(settings.view_mode, VerticalTabsViewMode::Panes);
         let mut rows: Vec<TabRowData> = Vec::new();
 
+        log::debug!(
+            target: "carrot::routing",
+            "sidebar rows: sessions={} panes_mode={}",
+            self.cached_sessions.len(),
+            is_panes_mode
+        );
         for (session_index, session) in self.cached_sessions.iter().enumerate() {
             let session_data = session.read(cx);
             let session_name = session_data.name();
             let session_active_pane = session_data.active_pane().clone();
             let all_panes = session_data.panes();
+            log::debug!(
+                target: "carrot::routing",
+                "sidebar session[{}] panes={} active_pane={:?} pane_ids={:?}",
+                session_index,
+                all_panes.len(),
+                session_active_pane.entity_id(),
+                all_panes.iter().map(|p| p.entity_id()).collect::<Vec<_>>()
+            );
             // Three shapes:
             //   Tabs mode                → 1 row from active_pane
             //   Panes, 1 pane            → 1 row from active_pane (collapsed group)

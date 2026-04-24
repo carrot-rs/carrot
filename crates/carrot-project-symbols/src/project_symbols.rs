@@ -5,7 +5,7 @@ use carrot_project::{Project, Symbol, lsp_store::SymbolLocation};
 use carrot_theme::ActiveTheme;
 use carrot_theme_settings::ThemeSettings;
 use carrot_ui::{LabelLike, ListItem, ListItemSpacing, prelude::*};
-use carrot_workspace::Workspace;
+use carrot_workspace::{PaneRole, Workspace};
 use inazuma::{
     App, Context, DismissEvent, Entity, HighlightStyle, ParentElement, StyledText, Task, TextStyle,
     WeakEntity, Window, relative, rems,
@@ -136,7 +136,7 @@ impl PickerDelegate for ProjectSymbolsDelegate {
                     let pane = if secondary {
                         workspace.adjacent_pane(window, cx)
                     } else {
-                        workspace.active_pane().clone()
+                        workspace.target_pane_for_role(PaneRole::Editor, window, cx)
                     };
 
                     let editor = workspace.open_project_item::<Editor>(

@@ -173,7 +173,6 @@ members = [
     "crates/carrot-search",
     "crates/carrot-file-finder",
     "crates/carrot-project-panel",
-    "crates/carrot-project-registry",
     "crates/carrot-project-symbols",
     "crates/carrot-vim",
     # "crates/carrot-repl",  # see plan/29-HYBRID-TERMINAL-REPL.md — needs terminal type rework for Carrot's block architecture
@@ -454,7 +453,6 @@ carrot-diagnostics = { path = "crates/carrot-diagnostics" }
 carrot-search = { path = "crates/carrot-search" }
 carrot-file-finder = { path = "crates/carrot-file-finder" }
 carrot-project-panel = { path = "crates/carrot-project-panel" }
-carrot-project-registry = { path = "crates/carrot-project-registry" }
 carrot-project-symbols = { path = "crates/carrot-project-symbols" }
 carrot-vim = { path = "crates/carrot-vim" }
 carrot-repl = { path = "crates/carrot-repl" }

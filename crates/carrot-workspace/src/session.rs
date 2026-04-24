@@ -225,10 +225,18 @@ impl WorkspaceSession {
         panes: Vec<Entity<Pane>>,
         active_pane: Entity<Pane>,
         last_active_center_pane: Option<WeakEntity<Pane>>,
+        cx: &App,
     ) {
+        let active_pane_changed = self.active_pane != active_pane;
         self.pane_group = pane_group;
         self.panes = panes;
-        self.active_pane = active_pane;
+        self.active_pane = active_pane.clone();
         self.last_active_center_pane = last_active_center_pane;
+        if active_pane_changed
+            && let Some(item) = active_pane.read(cx).active_item()
+            && item.pane_role(cx) == PaneRole::Editor
+        {
+            self.last_active_editor_pane = Some(active_pane.downgrade());
+        }
     }
 }

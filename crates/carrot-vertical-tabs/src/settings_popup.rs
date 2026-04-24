@@ -69,6 +69,13 @@ impl Render for SettingsPopup {
         v_flex()
             .key_context("VerticalTabsSettingsPopup")
             .track_focus(&self.focus_handle)
+            // Click anywhere outside the popup → dismiss. Matches how
+            // every other popover in the app behaves; without this the
+            // user has to re-click the trigger icon to close.
+            .on_mouse_down_out(cx.listener(|_, _, _, cx| {
+                cx.emit(DismissEvent);
+                cx.notify();
+            }))
             // Fixed narrow width — the popup must float beside the
             // panel, not fill it. `flex_none` stops parent flex
             // layouts (inside PopoverMenu) from stretching it wider.

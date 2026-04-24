@@ -21,6 +21,9 @@ use crate::terminal_pane::{
     detect_available_shells, general_to_tui_awareness,
 };
 
+/// Marker type for deduplicating `ProjectDetected` toasts per worktree root.
+pub(crate) struct ProjectDetectedMarker;
+
 impl TerminalPane {
     pub(crate) fn handle_terminal_event(
         &mut self,
@@ -63,6 +66,7 @@ impl TerminalPane {
         if let carrot_terminal::ShellMarker::Metadata(ref json) = marker {
             match serde_json::from_str::<carrot_shell_integration::ShellMetadataPayload>(json) {
                 Ok(payload) => {
+                    let cwd_changed = self.shell_context.cwd != payload.cwd;
                     let new_cwd = std::path::PathBuf::from(&payload.cwd);
                     self.shell_context.update_from_metadata(&payload);
                     self.shell_completion.update_cwd(new_cwd.clone());
@@ -71,22 +75,61 @@ impl TerminalPane {
                     self.last_duration_ms = payload.last_duration_ms;
 
                     let new_git_root = payload.git_root.as_ref().map(std::path::PathBuf::from);
-                    if new_git_root != self.current_git_root
-                        && let Some(registry) =
-                            carrot_project_registry::ProjectRegistry::try_global(cx)
-                    {
-                        registry.update(cx, |reg, cx| {
-                            if let Some(ref old) = self.current_git_root {
-                                reg.release(old, cx);
-                            }
-                            if let Some(ref root) = new_git_root {
-                                let (_ctx, task) = reg.acquire(root, cx);
-                                task.detach_and_log_err(cx);
-                            }
-                        });
+                    if new_git_root != self.current_git_root {
                         self.current_git_root = new_git_root;
                     }
-                    let _ = payload.last_duration_ms;
+
+                    if cwd_changed
+                        && let Some(project) = self.project.as_ref().and_then(|p| p.upgrade())
+                    {
+                        use carrot_shell::scope_policy::{ProjectKind, WorktreeRoot, classify};
+                        use inazuma_settings_framework::Settings as _;
+                        let classification = classify(&new_cwd);
+                        let (worktree_path, detected_kind) = match &classification {
+                            WorktreeRoot::ProjectLike { root, kind, .. } => {
+                                (root.clone(), Some(*kind))
+                            }
+                            WorktreeRoot::AdHoc { cwd } => (cwd.clone(), None),
+                        };
+                        let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
+                            let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
+                            scope
+                                .git_track_decision(&worktree_path)
+                                .should_track_immediately()
+                        };
+                        project.update(cx, |project, cx| {
+                            if should_track {
+                                project
+                                    .ensure_tracked_worktree(&worktree_path, cx)
+                                    .detach_and_log_err(cx);
+                            } else {
+                                project
+                                    .ensure_browseable_worktree(&worktree_path, cx)
+                                    .detach_and_log_err(cx);
+                            }
+                        });
+                        if let Some(kind) = detected_kind
+                            && !should_track
+                        {
+                            let notify = match kind {
+                                ProjectKind::Git => {
+                                    carrot_settings::WorktreeScopeSettings::get_global(cx)
+                                        .git_track_decision(&worktree_path)
+                                        .is_ask()
+                                }
+                                ProjectKind::AgentRules => true,
+                                ProjectKind::Manifest(_) => false,
+                            };
+                            if notify {
+                                cx.emit(TerminalPaneEvent::ProjectDetected {
+                                    root: worktree_path.clone(),
+                                    kind,
+                                });
+                                self.show_project_detected_toast(worktree_path, kind, cx);
+                            }
+                        }
+                    }
+
                     cx.emit(TerminalPaneEvent::TitleChanged);
                     cx.notify();
                 }
@@ -351,6 +394,65 @@ impl TerminalPane {
 
         cx.emit(TerminalPaneEvent::TitleChanged);
         cx.notify();
+    }
+
+    /// Show a workspace-level notification offering the user to promote
+    /// a freshly-detected scope to Tracked. Deduplicated per root via
+    /// `NotificationId::composite` so re-entering the same directory
+    /// doesn't stack toasts.
+    fn show_project_detected_toast(
+        &self,
+        root: std::path::PathBuf,
+        kind: carrot_shell::scope_policy::ProjectKind,
+        cx: &mut Context<Self>,
+    ) {
+        use carrot_shell::scope_policy::ProjectKind;
+        use carrot_workspace::notifications::NotificationId;
+        use carrot_workspace::notifications::simple_message_notification::MessageNotification;
+        use inazuma::{Action as _, AppContext as _};
+
+        let Some(workspace) = self.workspace.as_ref().and_then(|w| w.upgrade()) else {
+            return;
+        };
+        let root_display = root.display().to_string();
+        let kind_label = match kind {
+            ProjectKind::Git => "Git project",
+            ProjectKind::AgentRules => "Project rules",
+            ProjectKind::Manifest(_) => "Project manifest",
+        };
+        let message = format!("{kind_label} detected at {root_display}. Track it?");
+        let offer_never = matches!(kind, ProjectKind::Git);
+        workspace.update(cx, move |ws, cx| {
+            ws.show_notification(
+                NotificationId::composite::<ProjectDetectedMarker>(inazuma::ElementId::from(
+                    inazuma::SharedString::from(root_display),
+                )),
+                cx,
+                move |cx| {
+                    cx.new(|cx| {
+                        let mut notif = MessageNotification::new(message.clone(), cx)
+                            .primary_message("Track")
+                            .primary_on_click(|window, _cx| {
+                                window.dispatch_action(
+                                    carrot_actions::TrackActiveScope.boxed_clone(),
+                                    _cx,
+                                );
+                            });
+                        if offer_never {
+                            notif = notif.secondary_message("Never").secondary_on_click(
+                                |window, _cx| {
+                                    window.dispatch_action(
+                                        carrot_actions::NeverTrackScope.boxed_clone(),
+                                        _cx,
+                                    );
+                                },
+                            );
+                        }
+                        notif
+                    })
+                },
+            );
+        });
     }
 }
 

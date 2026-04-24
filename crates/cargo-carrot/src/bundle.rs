@@ -40,7 +40,7 @@ pub fn create_app_bundle(config: &BundleConfig) -> Result<PathBuf> {
         )
     })?;
 
-    // Copy Assets.car (compiled icon)
+    // Copy Assets.car (compiled Icon Composer icon, macOS 26+)
     let assets_car = config.assets_dir.join("Assets.car");
     if assets_car.exists() {
         let dest = resources_dir.join("Assets.car");
@@ -51,14 +51,6 @@ pub fn create_app_bundle(config: &BundleConfig) -> Result<PathBuf> {
             "Assets.car not found at {}, skipping icon",
             assets_car.display()
         );
-    }
-
-    // Copy .icns fallback (for older macOS)
-    let icns_file = config.assets_dir.join("carrot.icns");
-    if icns_file.exists() {
-        let dest = resources_dir.join("carrot.icns");
-        fs::copy(&icns_file, &dest)
-            .with_context(|| format!("failed to copy carrot.icns to {}", dest.display()))?;
     }
 
     // Generate Info.plist
@@ -91,12 +83,10 @@ fn generate_info_plist(config: &BundleConfig) -> String {
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>carrot</string>
-    <key>CFBundleIconFile</key>
-    <string>carrot.icns</string>
     <key>CFBundleIconName</key>
-    <string>AppIcon</string>
+    <string>carrot</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>26.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>

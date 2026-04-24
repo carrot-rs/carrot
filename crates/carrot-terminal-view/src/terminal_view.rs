@@ -129,11 +129,58 @@ pub fn init(cx: &mut App) {
                 |workspace, _action: &carrot_workspace::NewTerminal, window, cx| {
                     let terminal = cx.new(|cx| crate::terminal_pane::TerminalPane::new(window, cx));
                     workspace.add_item_to_active_pane(Box::new(terminal), None, true, window, cx);
-                    // Terminal self-registers with the cli-agents
-                    // session manager via its Item-trait lifecycle
-                    // hooks (`pane_changed` + `on_removed`). No
-                    // external wiring here — see
-                    // `TerminalPane::pane_changed` in terminal_pane.rs.
+                },
+            );
+            workspace.register_action(
+                |workspace, _: &carrot_actions::TrackActiveScope, _window, cx| {
+                    let Some(terminal_pane) = workspace
+                        .active_item(cx)
+                        .and_then(|item| item.downcast::<crate::terminal_pane::TerminalPane>())
+                    else {
+                        return;
+                    };
+                    let pane = terminal_pane.read(cx);
+                    let Some(git_root) = pane.current_git_root.clone() else {
+                        return;
+                    };
+                    let Some(project) = pane.project.as_ref().and_then(|p| p.upgrade()) else {
+                        return;
+                    };
+                    project.update(cx, |project, cx| {
+                        project
+                            .ensure_tracked_worktree(&git_root, cx)
+                            .detach_and_log_err(cx);
+                    });
+                },
+            );
+            workspace.register_action(
+                |workspace, _: &carrot_actions::NeverTrackScope, _window, cx| {
+                    let Some(terminal_pane) = workspace
+                        .active_item(cx)
+                        .and_then(|item| item.downcast::<crate::terminal_pane::TerminalPane>())
+                    else {
+                        return;
+                    };
+                    let pane = terminal_pane.read(cx);
+                    let Some(git_root) = pane.current_git_root.clone() else {
+                        return;
+                    };
+                    let fs = workspace.project().read(cx).fs().clone();
+                    inazuma_settings_framework::update_settings_file(fs, cx, move |content, _| {
+                        let mut scope = content.worktree_scope.clone().unwrap_or_default();
+                        let mut paths = scope.never_track_paths.unwrap_or_default();
+                        let new_entry = git_root.display().to_string();
+                        if !paths.iter().any(|p| p == &new_entry) {
+                            paths.push(new_entry);
+                        }
+                        scope.never_track_paths = Some(paths);
+                        content.worktree_scope = Some(scope);
+                    });
+                },
+            );
+            workspace.register_action(
+                |_workspace, _: &carrot_actions::TrackAskLater, _window, _cx| {
+                    log::debug!("TrackAskLater: notification dismissed");
                 },
             );
         },

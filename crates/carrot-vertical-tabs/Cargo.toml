@@ -25,3 +25,4 @@ carrot-terminal.workspace = true
 carrot-theme.workspace = true
 carrot-ui.workspace = true
 carrot-workspace.workspace = true
+log.workspace = true

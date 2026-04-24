@@ -51,9 +51,9 @@ cat > "$BUNDLE/Contents/Info.plist" << PLIST
     <key>CFBundleExecutable</key>
     <string>carrot</string>
     <key>CFBundleIconName</key>
-    <string>AppIcon</string>
+    <string>carrot</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>26.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>

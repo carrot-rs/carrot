@@ -26,11 +26,11 @@ log.workspace = true
 lsp-types = { workspace = true, features = ["proposed"] }
 parking_lot.workspace = true
 inazuma-settings-framework.workspace = true
+carrot-actions.workspace = true
 carrot-chips.workspace = true
 carrot-cli-agents.workspace = true
 carrot-completions = { path = "../carrot-completions" }
 carrot-project.workspace = true
-carrot-project-registry.workspace = true
 carrot-session.workspace = true
 carrot-settings.workspace = true
 carrot-shell.workspace = true

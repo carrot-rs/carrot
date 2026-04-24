@@ -159,7 +159,22 @@ impl Pane {
         }
 
         let mut to_pane = cx.entity();
-        let split_direction = self.drag_split_direction;
+        let mut split_direction = self.drag_split_direction;
+        // If the user drops onto a Terminal pane without an explicit split
+        // gesture, honour the Editor-in-Terminal-Session-Pattern by forcing
+        // a split rather than letting the file replace the Terminal. This is
+        // the drag-drop mirror of `target_pane_for_role`'s Terminal→Editor
+        // branch — same invariant, different entry-point.
+        if split_direction.is_none() {
+            let drop_target_is_terminal = to_pane
+                .read(cx)
+                .active_item()
+                .map(|i| matches!(i.pane_role(cx), crate::item::PaneRole::Terminal))
+                .unwrap_or(false);
+            if drop_target_is_terminal {
+                split_direction = Some(SplitDirection::Right);
+            }
+        }
         let project_entry_id = *project_entry_id;
         self.workspace
             .update(cx, |_, cx| {

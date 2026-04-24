@@ -22,3 +22,6 @@ carrot-remote.workspace = true
 carrot-theme.workspace = true
 carrot-ui.workspace = true
 carrot-workspace.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

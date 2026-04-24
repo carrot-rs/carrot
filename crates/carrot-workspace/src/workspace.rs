@@ -1410,6 +1410,14 @@ type PromptForOpenPath = Box<
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>>,
 >;
 
+/// Factory that produces the default item for a freshly-created session
+/// (the item the initial pane is populated with). Registered once during
+/// app bootstrap in `carrot-app::main` — lets `carrot-workspace` stay free
+/// of concrete feature types like `TerminalPane` while still producing a
+/// terminal item synchronously when a new session is created.
+pub type SessionItemFactory =
+    Arc<dyn Fn(&mut Window, &mut App) -> Box<dyn ItemHandle> + Send + Sync + 'static>;
+
 #[derive(Default)]
 struct DispatchingKeystrokes {
     dispatched: HashSet<Vec<Keystroke>>,
@@ -1486,6 +1494,11 @@ pub struct Workspace {
     removing: bool,
     _panels_task: Option<Task<Result<()>>>,
     sidebar_focus_handle: Option<FocusHandle>,
+    /// Produces the default item for a freshly-created session. Registered
+    /// once during bootstrap so `new_session` can populate the new pane
+    /// synchronously without taking a layer-breaking dependency on concrete
+    /// feature crates (e.g. `carrot-terminal-view`).
+    default_session_item_factory: Option<SessionItemFactory>,
 }
 
 impl EventEmitter<Event> for Workspace {}
@@ -1874,6 +1887,7 @@ impl Workspace {
             last_open_dock_positions: Vec::new(),
             removing: false,
             sidebar_focus_handle: None,
+            default_session_item_factory: None,
         }
     }
 
@@ -2567,6 +2581,16 @@ impl Workspace {
 
     pub fn debugger_provider(&self) -> Option<Arc<dyn DebuggerProvider>> {
         self.debugger_provider.clone()
+    }
+
+    /// Register the factory used to populate a freshly-created session's
+    /// initial pane. Called once during app bootstrap.
+    pub fn set_default_session_item_factory(&mut self, factory: SessionItemFactory) {
+        self.default_session_item_factory = Some(factory);
+    }
+
+    pub fn default_session_item_factory(&self) -> Option<SessionItemFactory> {
+        self.default_session_item_factory.clone()
     }
 
     pub fn prompt_for_open_path(
@@ -3991,15 +4015,65 @@ impl Workspace {
     /// - If active pane is an Editor → replace its item
     /// - If active pane is a Terminal → find last_active_editor_pane in the
     ///   session and open there; if none exists, split right with a new pane
+    /// Route a freshly-minted item into the active session, obeying the
+    /// `(active_pane_role, new_item_role)` policy matrix (Hard Rule:
+    /// Editor-in-Terminal-Session-Pattern, CLAUDE.md).
+    ///
+    /// This is the single entry point for almost every new pane-item — File-
+    /// Finder confirm, Drag-Drop, Command-Palette, Diagnostics-Click, Search
+    /// Result, Debugger source-open, Agent-Panel file-open. The match below
+    /// is the one place that decides whether the Terminal stays side-by-side
+    /// with the new file, whether the file replaces an existing editor, or
+    /// whether it spawns a new session.
+    ///
+    /// For the rare case where a caller needs to bypass the role policy (tests
+    /// that construct deterministic pane layouts, internal Workspace logic),
+    /// use `add_to_active_pane_raw`.
+    /// Add `item` to the pane resolved by the role-policy (see
+    /// `target_pane_for_role`). Central entry-point for "the user just asked
+    /// to open something and didn't pick a pane" — File-Finder, Drag-Drop,
+    /// Command-Palette, Agent tool-calls, Theme-Preview, Settings-UI, and
+    /// the like. For a path-backed item that needs dedup / preview-tab
+    /// semantics, prefer `open_path_at_target_pane_for_role`.
     pub fn add_item_to_active_pane(
         &mut self,
         item: Box<dyn ItemHandle>,
         destination_index: Option<usize>,
         focus_item: bool,
         window: &mut Window,
-        cx: &mut App,
+        cx: &mut Context<Self>,
     ) {
-        use crate::item::PaneRole;
+        let new_item_role = item.pane_role(cx);
+        let target = self.target_pane_for_role(new_item_role, window, cx);
+        self.add_item(
+            target,
+            item,
+            destination_index,
+            true,
+            focus_item,
+            window,
+            cx,
+        );
+    }
+
+    /// Single source-of-truth for the Editor-in-Terminal-Session-Pattern.
+    /// Returns the pane into which an item of `new_role` should land given
+    /// the currently active pane's role and the `file_finder.open_target`
+    /// settings. May create a new split pane or an entirely new session in
+    /// the NewSplit / NewSession branches, so the returned pane is
+    /// guaranteed to exist as a member of `self.panes` / the active session.
+    ///
+    /// Callers that don't use this helper are bypassing the policy — treat
+    /// them the same as `add_to_active_pane_raw`: escape-hatch only, needs
+    /// an explicit comment justifying why the policy must be skipped.
+    pub fn target_pane_for_role(
+        &mut self,
+        new_role: PaneRole,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Pane> {
+        use carrot_settings::{FileOpenConfig, WhenEditorOpen, WhenTerminalActive};
+        use inazuma_settings_framework::Settings as _;
 
         let active_pane = self.active_pane.clone();
         let active_role = active_pane
@@ -4008,27 +4082,104 @@ impl Workspace {
             .map(|i| i.pane_role(cx))
             .unwrap_or(PaneRole::Editor);
 
-        let target_pane = if active_role == PaneRole::Terminal {
-            // Terminal pane: never replace. Route to last editor pane instead.
-            let session = self.sessions[self.active_session_index].clone();
-            session
-                .read(cx)
-                .last_active_editor_pane()
-                .and_then(|w| w.upgrade())
-                .unwrap_or(active_pane)
-        } else {
-            active_pane
-        };
+        if !matches!(
+            (active_role, new_role),
+            (PaneRole::Terminal, PaneRole::Editor)
+        ) {
+            log::debug!(
+                target: "carrot::routing",
+                "target_pane_for_role: passthrough (active={:?}, new={:?}) -> pane {:?}",
+                active_role, new_role, active_pane.entity_id()
+            );
+            return active_pane;
+        }
 
+        let session = self.sessions[self.active_session_index].clone();
+        let existing_editor = session
+            .read(cx)
+            .last_active_editor_pane()
+            .and_then(|w| w.upgrade());
+        let cfg = FileOpenConfig::get_global(cx).clone();
+        log::debug!(
+            target: "carrot::routing",
+            "target_pane_for_role: active=Terminal new=Editor session_idx={} existing_editor={:?} when_terminal_active={:?} when_editor_open={:?}",
+            self.active_session_index,
+            existing_editor.as_ref().map(|p| p.entity_id()),
+            cfg.when_terminal_active,
+            cfg.when_editor_open
+        );
+        let result = match existing_editor {
+            Some(editor_pane) => match cfg.when_editor_open {
+                WhenEditorOpen::ReuseLast => ("ReuseLast", editor_pane),
+                WhenEditorOpen::NewSplit => (
+                    "NewSplit(editor→right)",
+                    self.split_pane(editor_pane, SplitDirection::Right, window, cx),
+                ),
+                WhenEditorOpen::NewSession => {
+                    let (_, new_pane) = self.new_empty_session(window, cx);
+                    ("NewSession", new_pane)
+                }
+            },
+            None => match cfg.when_terminal_active {
+                WhenTerminalActive::SplitRight => (
+                    "SplitRight(terminal→right)",
+                    self.split_pane(active_pane, SplitDirection::Right, window, cx),
+                ),
+                WhenTerminalActive::SplitLeft => (
+                    "SplitLeft",
+                    self.split_pane(active_pane, SplitDirection::Left, window, cx),
+                ),
+                WhenTerminalActive::SplitDown => (
+                    "SplitDown",
+                    self.split_pane(active_pane, SplitDirection::Down, window, cx),
+                ),
+                WhenTerminalActive::SplitUp => (
+                    "SplitUp",
+                    self.split_pane(active_pane, SplitDirection::Up, window, cx),
+                ),
+                WhenTerminalActive::NewSession => {
+                    let (_, new_pane) = self.new_empty_session(window, cx);
+                    ("NewSession", new_pane)
+                }
+            },
+        };
+        log::debug!(
+            target: "carrot::routing",
+            "target_pane_for_role: branch={} -> pane {:?}  panes_now={} sessions_now={}",
+            result.0,
+            result.1.entity_id(),
+            self.panes.len(),
+            self.sessions.len()
+        );
+        result.1
+    }
+
+    /// Plain "add the item to whichever pane is currently active, no role
+    /// policy". Internal helper used by `add_item_to_active_pane`'s
+    /// `_` match-arm and exposed for tests / Workspace-internal flows that
+    /// need a deterministic target pane.
+    ///
+    /// Production code — File-Finder, Drag-Drop, Command-Palette, Agent
+    /// tool-calls etc. — should use `add_item_to_active_pane` so the
+    /// Editor-in-Terminal-Session-Pattern stays enforced at one spot.
+    pub fn add_to_active_pane_raw(
+        &mut self,
+        item: Box<dyn ItemHandle>,
+        destination_index: Option<usize>,
+        focus_item: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let active_pane = self.active_pane.clone();
         self.add_item(
-            target_pane,
+            active_pane,
             item,
             destination_index,
             true,
             focus_item,
             window,
             cx,
-        )
+        );
     }
 
     pub fn add_item(
@@ -4132,21 +4283,76 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
-        let pane = pane.unwrap_or_else(|| {
-            self.last_active_center_pane.clone().unwrap_or_else(|| {
-                self.panes
-                    .first()
-                    .expect("There must be an active pane")
-                    .downgrade()
-            })
-        });
+        // Caller didn't pin a pane — apply the Editor-in-Terminal-Session-
+        // Pattern: resolve the target pane via `target_pane_for_role` so a
+        // file-open never silently replaces a Terminal.
+        if pane.is_none() {
+            log::debug!(
+                target: "carrot::routing",
+                "open_path_preview: pane=None -> routing through target_pane_for_role"
+            );
+            return self.open_path_at_target_pane_for_role(
+                path,
+                allow_preview,
+                activate,
+                focus_item,
+                window,
+                cx,
+            );
+        }
 
+        let pane = pane.expect("pane.is_none() branch returned above");
+        log::debug!(
+            target: "carrot::routing",
+            "open_path_preview: pane=Some({:?}) -> bypassing policy (caller pinned)",
+            pane.upgrade().map(|p| p.entity_id())
+        );
         let project_path = path.into();
         let task = self.load_path(project_path.clone(), window, cx);
         window.spawn(cx, async move |cx| {
             let (project_entry_id, build_item) = task.await?;
 
             pane.update_in(cx, |pane, window, cx| {
+                pane.open_item(
+                    project_entry_id,
+                    project_path,
+                    focus_item,
+                    allow_preview,
+                    activate,
+                    None,
+                    window,
+                    cx,
+                    build_item,
+                )
+            })
+        })
+    }
+
+    /// Path-backed open that routes through the role-policy and preserves
+    /// item-dedup + preview-tab semantics. Central helper for File-Finder,
+    /// Project-Panel, Agent-Tools, LSP go-to-def's path-backed flows, and
+    /// anything else that opens a file without pinning a specific pane.
+    ///
+    /// Equivalent to `open_path_preview(path, None, …)` but skips the
+    /// pane-resolution detour. Prefer this direct entry-point in new code.
+    pub fn open_path_at_target_pane_for_role(
+        &mut self,
+        path: impl Into<ProjectPath>,
+        allow_preview: bool,
+        activate: bool,
+        focus_item: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+        let weak_workspace = self.weak_handle();
+        let project_path = path.into();
+        let task = self.load_path(project_path.clone(), window, cx);
+        window.spawn(cx, async move |cx| {
+            let (project_entry_id, build_item) = task.await?;
+            let target = weak_workspace.update_in(cx, |workspace, window, cx| {
+                workspace.target_pane_for_role(PaneRole::Editor, window, cx)
+            })?;
+            target.update_in(cx, |pane, window, cx| {
                 pane.open_item(
                     project_entry_id,
                     project_path,
@@ -4783,6 +4989,18 @@ impl Workspace {
         self.sync_active_session(cx);
     }
 
+    /// Test-only helper to drive active_pane without going through the
+    /// focus-event plumbing. Do not use in production code.
+    #[cfg(test)]
+    pub(crate) fn test_set_active_pane(
+        &mut self,
+        pane: &Entity<Pane>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.set_active_pane(pane, window, cx);
+    }
+
     fn handle_pane_event(
         &mut self,
         pane: &Entity<Pane>,
@@ -5062,23 +5280,31 @@ impl Workspace {
         &self.sessions[self.active_session_index]
     }
 
-    /// Create a new session with a fresh pane and immediately activate it.
-    /// The new session becomes the rightmost tab in the title bar. After
-    /// activation a `NewTerminal` action is dispatched so the registered
-    /// handler in carrot-terminal-view adds a terminal item to the new
-    /// pane (Workspace itself doesn't know about terminals — feature
-    /// crates plug in via action handlers).
-    pub fn new_session(
+    /// Spawn a fresh session whose single pane holds `item`. Unlike
+    /// `new_session` (which populates the new pane with the registered
+    /// default item), this is the "open-file-as-new-session" path used
+    /// by the `when_*.NewSession` setting values.
+    pub fn new_session_with_item(
         &mut self,
+        item: Box<dyn ItemHandle>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<WorkspaceSession> {
-        // Snapshot the current session before switching away from it, so
-        // when the user activates it again the pane state is restored.
-        self.sync_active_session(cx);
+        let (new_session, new_pane) = self.new_empty_session(window, cx);
+        self.add_item(new_pane, item, None, true, true, window, cx);
+        new_session
+    }
 
-        // Build a fresh pane (mirrors Workspace::add_pane but standalone —
-        // the new pane belongs to the new session, not to self.panes yet).
+    /// Create a new session holding a single empty pane, activate it, and
+    /// return both handles. Shared building block for `new_session_with_item`
+    /// and `target_pane_for_role`'s NewSession branches — keeps the
+    /// create-session-activate triple in one place.
+    pub fn new_empty_session(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Entity<WorkspaceSession>, Entity<Pane>) {
+        self.sync_active_session(cx);
         let new_pane = cx.new(|cx| {
             let mut pane = Pane::new(
                 self.weak_handle(),
@@ -5094,21 +5320,35 @@ impl Workspace {
         });
         cx.subscribe_in(&new_pane, window, Self::handle_pane_event)
             .detach();
-
         let new_session = cx.new(|cx| WorkspaceSession::new(new_pane.clone(), cx));
         self.sessions.push(new_session.clone());
         let new_index = self.sessions.len() - 1;
         self.activate_session(new_index, window, cx);
+        (new_session, new_pane)
+    }
 
-        // Defer the NewTerminal dispatch until after the current render
-        // tick: dispatch_action routes through the focused element tree,
-        // and the freshly-activated empty pane isn't in that tree yet
-        // when new_session returns. Deferring lets focus settle and the
-        // handler in `carrot-terminal-view::terminal_view::init` actually
-        // fire against the new session's pane.
-        cx.defer_in(window, |_ws, window, cx| {
-            window.dispatch_action(Box::new(NewTerminal::default()), cx);
-        });
+    /// Create a new session with a fresh pane, activate it, and populate
+    /// the new pane with the default item from
+    /// `default_session_item_factory`. The new session becomes the
+    /// rightmost tab in the title bar. Workspace stays agnostic of
+    /// concrete feature types (e.g. `TerminalPane`) — the factory is
+    /// registered once during bootstrap in `carrot-app::main`.
+    pub fn new_session(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<WorkspaceSession> {
+        let (new_session, _) = self.new_empty_session(window, cx);
+
+        if let Some(factory) = self.default_session_item_factory.clone() {
+            let item = factory(window, cx);
+            self.add_item_to_active_pane(item, None, true, window, cx);
+        } else {
+            log::warn!(
+                "new_session: no default_session_item_factory registered — \
+                 session will be empty. This indicates missing bootstrap in carrot-app."
+            );
+        }
 
         new_session
     }
@@ -5305,8 +5545,8 @@ impl Workspace {
         let panes = self.panes.clone();
         let active_pane = self.active_pane.clone();
         let last_active = self.last_active_center_pane.clone();
-        session.update(cx, |s, _cx| {
-            s.replace_pane_state(pane_group, panes, active_pane, last_active);
+        session.update(cx, |s, cx| {
+            s.replace_pane_state(pane_group, panes, active_pane, last_active, cx);
         });
     }
 
@@ -12072,6 +12312,231 @@ mod tests {
                 2,
                 "Both panels should still be in the right dock"
             );
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // target_pane_for_role — role-aware pane resolution tests.
+    //
+    // These exercise the single source-of-truth helper that powers the
+    // Editor-in-Terminal-Session-Pattern. Every file-open entry-point
+    // (File-Finder, Project-Panel, LSP, Drag-Drop, etc.) routes through
+    // this helper — a regression here breaks them all at once.
+    // ------------------------------------------------------------------
+
+    fn set_file_open_target(
+        cx: &mut VisualTestContext,
+        terminal: Option<inazuma_settings_framework::settings_content::WhenTerminalActiveContent>,
+        editor: Option<inazuma_settings_framework::settings_content::WhenEditorOpenContent>,
+    ) {
+        cx.update(|_, cx| {
+            SettingsStore::update_global(cx, |store: &mut SettingsStore, cx| {
+                store.update_user_settings(cx, |content| {
+                    let ff = content.file_finder.get_or_insert_with(Default::default);
+                    let tgt = ff.open_target.get_or_insert_with(Default::default);
+                    if terminal.is_some() {
+                        tgt.when_terminal_active = terminal;
+                    }
+                    if editor.is_some() {
+                        tgt.when_editor_open = editor;
+                    }
+                });
+            });
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_editor_active_returns_active(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let editor_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Editor));
+            w.add_to_active_pane_raw(Box::new(editor_item), None, true, window, cx);
+            let active = w.active_pane.clone();
+            let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
+            assert_eq!(
+                target, active,
+                "Editor→Editor must return active pane unchanged"
+            );
+            assert_eq!(w.panes.len(), 1, "no new pane must be created");
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_terminal_terminal_returns_active(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let terminal_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Terminal));
+            w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
+            let active = w.active_pane.clone();
+            let target = w.target_pane_for_role(PaneRole::Terminal, window, cx);
+            assert_eq!(
+                target, active,
+                "Terminal→Terminal must return active pane unchanged"
+            );
+            assert_eq!(w.panes.len(), 1);
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_terminal_editor_splits_right_by_default(
+        cx: &mut TestAppContext,
+    ) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let terminal_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Terminal));
+            w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
+            let active = w.active_pane.clone();
+            let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
+            assert_ne!(target, active, "a new editor pane must be created");
+            assert_eq!(w.panes.len(), 2, "one split was created");
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_terminal_editor_new_session(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let terminal_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Terminal));
+            w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
+        });
+        set_file_open_target(
+            cx,
+            Some(
+                inazuma_settings_framework::settings_content::WhenTerminalActiveContent::NewSession,
+            ),
+            None,
+        );
+        workspace.update_in(cx, |w, window, cx| {
+            let sessions_before = w.sessions.len();
+            let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
+            assert_eq!(
+                w.sessions.len(),
+                sessions_before + 1,
+                "a new session was created"
+            );
+            assert_eq!(
+                w.active_pane, target,
+                "newly activated session's pane is the target"
+            );
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_terminal_editor_reuse_last(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let terminal_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Terminal));
+            w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
+        });
+        set_file_open_target(
+            cx,
+            None,
+            Some(inazuma_settings_framework::settings_content::WhenEditorOpenContent::ReuseLast),
+        );
+        let (terminal_pane, editor_pane) = workspace.update_in(cx, |w, window, cx| {
+            let terminal_pane = w.active_pane.clone();
+            let editor_pane =
+                w.split_pane(terminal_pane.clone(), SplitDirection::Right, window, cx);
+            w.add_item(
+                editor_pane.clone(),
+                Box::new(cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Editor))),
+                None,
+                true,
+                true,
+                window,
+                cx,
+            );
+            // Populate the session's last_active_editor_pane: session.set_active_pane
+            // only fires the Editor-check when the pane actually changes, so we
+            // bounce terminal→editor→terminal. Switching workspace.active_pane
+            // back to the terminal is deferred to the next update block below
+            // to avoid event-flush races.
+            let session = w.sessions[w.active_session_index].clone();
+            session.update(cx, |s, cx| s.set_active_pane(&terminal_pane, cx));
+            session.update(cx, |s, cx| s.set_active_pane(&editor_pane, cx));
+            session.update(cx, |s, cx| s.set_active_pane(&terminal_pane, cx));
+            (terminal_pane, editor_pane)
+        });
+        cx.run_until_parked();
+        workspace.update_in(cx, |w, window, cx| {
+            w.test_set_active_pane(&terminal_pane, window, cx);
+            let panes_before = w.panes.len();
+            let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
+            assert_eq!(
+                target, editor_pane,
+                "ReuseLast must return the existing editor pane"
+            );
+            assert_eq!(w.panes.len(), panes_before, "no new pane created");
+        });
+    }
+
+    #[inazuma::test]
+    async fn test_target_pane_for_role_terminal_editor_new_split_off_editor(
+        cx: &mut TestAppContext,
+    ) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project, window, cx));
+        workspace.update_in(cx, |w, window, cx| {
+            let terminal_item = cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Terminal));
+            w.add_to_active_pane_raw(Box::new(terminal_item), None, true, window, cx);
+        });
+        set_file_open_target(
+            cx,
+            None,
+            Some(inazuma_settings_framework::settings_content::WhenEditorOpenContent::NewSplit),
+        );
+        let (terminal_pane, editor_pane) = workspace.update_in(cx, |w, window, cx| {
+            let terminal_pane = w.active_pane.clone();
+            let editor_pane =
+                w.split_pane(terminal_pane.clone(), SplitDirection::Right, window, cx);
+            w.add_item(
+                editor_pane.clone(),
+                Box::new(cx.new(|cx| TestItem::new(cx).with_pane_role(PaneRole::Editor))),
+                None,
+                true,
+                true,
+                window,
+                cx,
+            );
+            let session = w.sessions[w.active_session_index].clone();
+            session.update(cx, |s, cx| s.set_active_pane(&terminal_pane, cx));
+            session.update(cx, |s, cx| s.set_active_pane(&editor_pane, cx));
+            session.update(cx, |s, cx| s.set_active_pane(&terminal_pane, cx));
+            (terminal_pane, editor_pane)
+        });
+        cx.run_until_parked();
+        workspace.update_in(cx, |w, window, cx| {
+            w.test_set_active_pane(&terminal_pane, window, cx);
+            let panes_before = w.panes.len();
+            let target = w.target_pane_for_role(PaneRole::Editor, window, cx);
+            assert_ne!(
+                target, editor_pane,
+                "NewSplit must not return the existing editor pane"
+            );
+            assert_eq!(w.panes.len(), panes_before + 1, "a new split was created");
         });
     }
 }

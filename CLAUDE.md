@@ -86,8 +86,26 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **Split = new pane in the same session** (file-drop, Cmd+D, etc.).
 - **Last pane closed → session closed.** Last session closed → window closed.
 - **Terminal pane is never replaced by file-open** — file-open lands in an editor pane (via `last_active_editor_pane`) or a new split.
+- **Editor-in-Terminal-Session-Pattern (Warp-parity, verified 2026-04-24):** Die Pane-Wahl-Policy für "wo landet ein neues Item bei welchem aktiven Pane" lebt in **einem einzigen Helper** — nicht in jedem Caller dupliziert. Zwei Achsen sauber getrennt:
+  1. **Pane-Wahl (Policy)** — Helper `Workspace::target_pane_for_role(new_role, window, cx) -> Entity<Pane>`. Entscheidet via `PaneRole`-Match, splittet/erzeugt ggf. neue Panes oder Sessions, gibt den Ziel-Pane zurück. **Einzige Stelle der Policy.**
+  2. **Item-Insertion (Caller-Semantik)** — jeder Entry-Point fügt das Item nach seiner eigenen Semantik ein, nachdem er den Ziel-Pane vom Helper bekommen hat. `Workspace::add_item_to_active_pane` nutzt `target_pane.add_item(...)` (plain insert). `Pane::open_path_preview` nutzt `target_pane.open_item(...)` und behält damit Dedup (gleiche Datei 2× öffnen fokussiert existing item) + Preview-Slot-Handling (`allow_preview` ersetzt den Preview-Tab). Diese Insertion-Features sind nicht verzichtbar und leben deshalb in ihrem jeweiligen Entry-Point, nicht im Helper.
+  
+  PaneRole-Match-Table im Helper:
+  - `(Terminal, Editor)` → wenn `last_active_editor_pane` existiert, reuse/split danach (Setting `file_finder.open_target.when_editor_open` = `reuse_last | new_split | new_session`). Sonst Split im Terminal-Pane-Group (Setting `file_finder.open_target.when_terminal_active`, Default `split_right`).
+  - `(Editor, Editor)` → Default `new_split` (Warp-parity, weil Carrot per Hard-Rule keine Tabbed-File-Viewer pro Pane hat und `reuse_last` hier destruktives Replace wäre). Konfigurierbar.
+  - Alle anderen Kombinationen → aktiver Pane (Terminal→Terminal, Editor→Terminal etc.), kein Routing.
+  
+  Ergebnis: jeder Editor-Item-Open-Flow (File-Finder, Drag-Drop, Command-Palette, Diagnostics-Click, Search-Result-Click, Debugger-Source-Open, Agent-Panel-File-Open) ruft den Helper und behält seine Insertion-Semantik. Neue Callsites kriegen die Policy gratis — sie müssen nur zwischen `add_item` (kein Dedup/Preview) und `open_item` (mit Dedup/Preview) wählen. **Escape-Hatch:** `Workspace::add_to_active_pane_raw` umgeht den Helper für Sonderfälle (Tests, interne Workspace-Operationen).
+  
+  **Sidebar-Rendering läuft gratis:** `carrot-vertical-tabs` aktualisiert sich automatisch — im Tabs-Mode zeigt die Session-Row den aktiven Pane via `tab_content_text()`, im Panes-Mode werden alle Panes als Rows unter einem Group-Header gerendert. Kein neuer UI-Code nötig. `same_pane`-Setting-Option triggert `log::warn!` + fallback zu `split_right` weil es die "Terminal never replaced by file-open"-Regel brechen würde.
 - **`PaneRole` has no default** — every Item must explicitly declare `PaneRole::Terminal` or `PaneRole::Editor`.
 - **Session name = override or fallback** — `session.name` if set, else `item.tab_content_text()`.
+
+### Command Palette / Discoverability
+- **Eine Palette, keine Doppel-Modals.** `carrot-command-palette` ist der einzige Quick-Open-Entry-Point für Files, Actions, Sessions, History, Prompts, Workflows, Notebooks, Env-Vars, Drive, Launch-Configs, Conversations. Keine separaten `*-finder`- oder `*-picker`-Modals neben der Palette. Wenn ein Feature einen Modal-artigen Picker braucht der nicht offensichtlich in diese Struktur passt, im Zweifel Palette um eine neue `SearchCategory` erweitern statt einen zweiten Modal zu bauen.
+- **Keybinds sind Pre-Filter, keine separaten Panels.** `Cmd+P` / `Cmd+O` / `Cmd+Shift+P` / `Cmd+R` öffnen alle denselben Palette-Modal mit unterschiedlicher vor-ausgewählter Category. Neue Shortcuts folgen demselben Pattern: `command_palette::ToggleWithFilter { category_filter: Some(X) }`, kein Custom-Modal.
+- **Jedes neue User-facing Feature registriert in der Palette** — entweder als Action (via `workspace.register_action(...)` + `CommandPaletteFilter`-Hook, erscheint automatisch in `ActionsSource`) oder als eigene Source (wenn die Discovery Domain-Logik braucht, z.B. Workflows mit Parametern). Pull-Request-Checklist vor Merge: *Ist das Feature aus der Command Palette heraus aufrufbar? Wenn nein, warum?* Ausnahmen nur mit dokumentierter Begründung (z.B. „rein intern, kein User-Flow").
+- **Ausnahmen sind `Cmd+Shift+F` (Content-Search) und `Cmd+F` (Buffer-Find).** Beide sind fundamental andere UX (Match-Navigation vs. Item-Select) und bleiben eigene Modals. Alles andere geht durch die Palette.
 
 ### Glass UI / Rendering (see "Design System: Glass UI Pattern")
 - **The background image lives at the workspace render root** — not in a pane or panel. Edits to image rendering happen at the workspace root.
@@ -105,6 +123,12 @@ Authoritative cross-cutting rules. Detailed context for each lives in the sectio
 - **Feature Crates never depend on `carrot-app`.**
 - **`inazuma-*` crates never depend on `carrot-*` crates.**
 - **No circular dependencies.** Extract shared parts into a third crate.
+
+### Project Scope (see "Project Scope Architecture" in ARCHITECTURE.md)
+- **One `Entity<Project>` per Workspace.** Never introduce parallel project systems (e.g. the deleted `carrot-project-registry` pattern).
+- **Create worktrees via `Project::ensure_browseable_worktree` / `ensure_tracked_worktree` / `ensure_ephemeral_worktree`.** Do not call `find_or_create_worktree(path, visible, cx)` directly in new code — that signature is retained only for backward compatibility and always maps to Tracked.
+- **Reactive worktree creation lives in `terminal_pane/shell.rs`.** Scope classification happens in `carrot_shell::scope_policy::classify`; auto-tracking applies only to `ProjectKind::Git`.
+- **No synchronous reads of `Workspace` from inside a `Context<TerminalPane>` that runs mid-Workspace-update** — use the cached `WeakEntity<Project>` on `TerminalPane` (`self.project`) instead of `self.workspace.read(cx).project()`, otherwise the re-entrance guard panics.
 
 ### Workflow & Process
 - **Never commit without explicit user approval** — and never before the user has tested and confirmed.

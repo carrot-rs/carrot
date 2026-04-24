@@ -119,6 +119,9 @@ pub struct SettingsContent {
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 
+    /// Scope/auto-track policy for the worktrees the Terminal creates on cwd change.
+    pub worktree_scope: Option<WorktreeScopeSettingsContent>,
+
     pub git_panel: Option<GitPanelSettingsContent>,
 
     pub tabs: Option<ItemSettingsContent>,
@@ -721,6 +724,174 @@ pub struct FileFinderSettingsContent {
     ///
     /// Default: false
     pub include_channels: Option<bool>,
+    /// Live filesystem walker configuration. Used when the active scope has no
+    /// pre-built worktree index (Browseable worktrees, non-Git dirs).
+    pub live: Option<LiveFinderSettingsContent>,
+    /// Where newly-opened files land when the active pane is a Terminal
+    /// and/or editor panes already exist.
+    pub open_target: Option<FileOpenTargetContent>,
+}
+
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
+pub struct FileOpenTargetContent {
+    /// What to do when the active pane is a Terminal and no editor pane
+    /// exists yet in the current session.
+    ///
+    /// Default: split_right
+    pub when_terminal_active: Option<WhenTerminalActiveContent>,
+    /// What to do when at least one editor pane already exists in the
+    /// current session.
+    ///
+    /// Default: reuse_last
+    pub when_editor_open: Option<WhenEditorOpenContent>,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum WhenTerminalActiveContent {
+    /// Split the Terminal pane to the right, land the file there.
+    #[default]
+    SplitRight,
+    /// Split the Terminal pane to the left.
+    SplitLeft,
+    /// Split the Terminal pane downward.
+    SplitDown,
+    /// Split the Terminal pane upward.
+    SplitUp,
+    /// Spawn the file in a brand-new session (new tab in the session bar).
+    NewSession,
+    /// Replace the Terminal item in the active pane. Breaks the
+    /// "Terminal pane is never replaced by file-open" Hard Rule; at load
+    /// time the loader logs a warning and falls back to `split_right`.
+    SamePane,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum WhenEditorOpenContent {
+    /// Reuse the last active editor pane (replaces its current item).
+    /// Zed / VSCode-flavour: second file takes the first file's slot.
+    ReuseLast,
+    /// Split the last active editor pane to the right for the new file.
+    /// Warp-flavour default: each file gets its own pane, Terminal stays
+    /// on the left, Editor1 | Editor2 | … grow to the right.
+    #[default]
+    NewSplit,
+    /// Spawn the file in a brand-new session.
+    NewSession,
+}
+
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
+pub struct LiveFinderSettingsContent {
+    /// Hard cap on files returned by a single live walk.
+    ///
+    /// Default: 100000
+    pub max_entries: Option<usize>,
+    /// Hard cap on wall-clock time a live walk can spend.
+    ///
+    /// Default: 5000
+    pub max_wall_time_ms: Option<u64>,
+    /// Symlink-loop protection and general depth bound for the walker.
+    ///
+    /// Default: 25
+    pub max_depth: Option<usize>,
+    /// How many parallel worker threads the walker uses.
+    ///
+    /// Default: num_cpus
+    pub parallel_walkers: Option<usize>,
+    /// Respect `.gitignore` rules when walking.
+    ///
+    /// Default: true
+    pub respect_gitignore: Option<bool>,
+    /// Respect `.carrotignore` rules when walking.
+    ///
+    /// Default: true
+    pub respect_carrotignore: Option<bool>,
+    /// Skip dot-prefixed hidden files and directories.
+    ///
+    /// Default: true
+    pub respect_hidden: Option<bool>,
+    /// How long a completed walk is cached before the next open re-walks.
+    ///
+    /// Default: 30
+    pub ttl_cache_seconds: Option<u64>,
+}
+
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
+pub struct WorktreeScopeSettingsContent {
+    /// Auto-tracking policy for Git repositories entered via the Terminal
+    /// (cwd change). Non-Git scopes (AgentRules, Manifest, AdHoc) never
+    /// auto-track regardless of this value.
+    ///
+    /// Default: ask
+    pub auto_track_git: Option<AutoTrackPolicyContent>,
+    /// Paths for which Git repos never auto-track, even when
+    /// `auto_track_git = "always"`. Typically the home directory and
+    /// system paths.
+    ///
+    /// Default: ["~", "/tmp", "/", "/etc", "/var", "/usr"]
+    pub never_track_paths: Option<Vec<String>>,
+    /// Paths for which Git repos always auto-track, overriding the
+    /// global policy. Typically the user's main project directory.
+    ///
+    /// Default: []
+    pub always_track_paths: Option<Vec<String>>,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Default,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoTrackPolicyContent {
+    /// Git repos entered via the Terminal stay Browseable until the user
+    /// explicitly upgrades them.
+    Never,
+    /// Emit a notification on first entry; user decides per-repo.
+    #[default]
+    Ask,
+    /// Git repos entered via the Terminal are upgraded to Tracked
+    /// immediately, unless their root is in `never_track_paths`.
+    Always,
 }
 
 #[derive(

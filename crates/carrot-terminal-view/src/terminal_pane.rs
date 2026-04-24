@@ -116,6 +116,13 @@ pub enum TerminalPaneEvent {
     TitleChanged,
     CloseRequested,
     BellRang,
+    /// A scope marker was detected at `root`. Consumed by a workspace-side
+    /// subscriber that decides whether to show a "track this project"
+    /// notification.
+    ProjectDetected {
+        root: std::path::PathBuf,
+        kind: carrot_shell::scope_policy::ProjectKind,
+    },
 }
 
 impl inazuma::EventEmitter<TerminalPaneEvent> for TerminalPane {}
@@ -173,6 +180,12 @@ pub struct TerminalPane {
 
     // Workspace reference (for modal access via action dispatch)
     pub(crate) workspace: Option<inazuma::WeakEntity<Workspace>>,
+
+    // Cached Project weak-ref populated in `Item::added_to_workspace`.
+    // Used by `for_each_project_item` to avoid `workspace.read(cx)` during
+    // Workspace-Reconciliation (`active_item_path_changed`), which would
+    // panic with "cannot read Workspace while it is already being updated".
+    pub(crate) project: Option<inazuma::WeakEntity<carrot_project::Project>>,
 
     // cli-agents session-manager registration state. `pane_changed`
     // (Item trait) populates these so `on_removed` and
@@ -254,17 +267,6 @@ impl TerminalPane {
 
         cx.subscribe_in(&input_state, window, Self::on_input_event)
             .detach();
-
-        cx.on_release(|this, cx| {
-            if let Some(ref git_root) = this.current_git_root {
-                if let Some(registry) = carrot_project_registry::ProjectRegistry::try_global(cx) {
-                    registry.update(cx, |reg, cx| {
-                        reg.release(git_root, cx);
-                    });
-                }
-            }
-        })
-        .detach();
 
         let events_rx = terminal.event_receiver().clone();
         cx.spawn_in(window, async move |this, cx| {
@@ -355,6 +357,7 @@ impl TerminalPane {
             workspace: None,
             registered_pty_pid: None,
             registered_pane_id: None,
+            project: None,
             _subscriptions: vec![focus_in],
         }
     }

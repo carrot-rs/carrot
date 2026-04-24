@@ -25,6 +25,7 @@ context = ""
 context = "Workspace"
 
 [section.bindings]
+"ctrl-o" = "file_finder::Toggle"
 "ctrl-shift-t" = "workspace::NewTerminal"
 "ctrl-d" = "pane::SplitAndMoveRight"
 "ctrl-shift-d" = "pane::SplitAndMoveDown"
@@ -142,3 +143,12 @@ context = "Input"
 "ctrl-right" = "input::MoveToNextWord"
 "ctrl-z" = "input::Undo"
 "ctrl-y" = "input::Redo"
+
+# === Picker context (file-finder, command-palette, any modal picker) ===
+[[section]]
+context = "Picker > Editor"
+
+[section.bindings]
+"enter" = "menu::Confirm"
+"shift-enter" = "menu::SecondaryConfirm"
+"escape" = "menu::Cancel"

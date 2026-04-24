@@ -4,7 +4,7 @@ mod carrot;
 // mod reliability;
 
 use std::borrow::Cow;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 pub(crate) static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
@@ -143,16 +143,6 @@ fn main() {
             );
             carrot::handle_keymap_file_changes(user_keymap_rx, user_keymap_watcher, cx);
 
-            // 5. Initialize ProjectRegistry (reactive git-root-based project detection)
-            carrot_project_registry::ProjectRegistry::init(
-                app_state.client.clone(),
-                app_state.user_store.clone(),
-                app_state.languages.clone(),
-                app_state.fs.clone(),
-                carrot_node_runtime::NodeRuntime::unavailable(),
-                cx,
-            );
-
             // 5. Initialize theme system (ThemeSettings via SettingsStore + Provider registration)
             //    MUST happen after SettingsStore init — registers ThemeSettingsProvider for carrot-ui
             carrot_theme_settings::init(
@@ -198,6 +188,8 @@ fn main() {
             carrot_client::init(&app_state.client, cx);
             carrot_project::Project::init(&app_state.client, cx);
             carrot_workspace::init(app_state.clone(), cx);
+            carrot_editor::init(cx);
+            carrot_markdown_preview::init(cx);
             carrot_call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
             carrot_channel::init(&app_state.client.clone(), app_state.user_store.clone(), cx);
             carrot_notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
@@ -328,15 +320,28 @@ fn main() {
                         )
                     });
 
-                    // Add our terminal as the first item. Docks stay closed by
-                    // default (Terminal-First ADE philosophy) — individual panels
-                    // opt in via `starts_open()` (e.g. vertical tabs, which owns
-                    // session tab management, is always initially open).
+                    // Register the default-item factory used whenever a new
+                    // session is created (the `+` in vertical tabs, the
+                    // `NewSession` branches of the file-open routing, etc.),
+                    // and populate the initial session's pane through the
+                    // same factory so "what does a fresh session hold" lives
+                    // at a single spot. Docks stay closed by default
+                    // (Terminal-First ADE philosophy) — individual panels
+                    // opt in via `starts_open()` (e.g. vertical tabs, which
+                    // owns session tab management, is always initially open).
                     workspace.update(cx, |ws, cx| {
-                        let terminal = cx.new(|cx| {
-                            carrot_terminal_view::terminal_pane::TerminalPane::new(window, cx)
-                        });
-                        ws.add_item_to_active_pane(Box::new(terminal), None, true, window, cx);
+                        let factory: carrot_workspace::SessionItemFactory =
+                            Arc::new(|window, cx| {
+                                let pane = cx.new(|cx| {
+                                    carrot_terminal_view::terminal_pane::TerminalPane::new(
+                                        window, cx,
+                                    )
+                                });
+                                Box::new(pane)
+                            });
+                        ws.set_default_session_item_factory(factory.clone());
+                        let initial = factory(window, cx);
+                        ws.add_item_to_active_pane(initial, None, true, window, cx);
                     });
 
                     // Root wraps Workspace (provides Sheets, Dialogs, Notifications)

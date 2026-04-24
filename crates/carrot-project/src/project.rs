@@ -4542,6 +4542,92 @@ impl Project {
         })
     }
 
+    /// Ensure a visible, lazy-expanded worktree exists for `abs_path`. No
+    /// `BackgroundScanner`, no file-watcher, no GitStore attachment. Cheap
+    /// enough to call on every Terminal cwd change.
+    pub fn ensure_browseable_worktree(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
+        self.worktree_store.update(cx, |worktree_store, cx| {
+            worktree_store.find_or_create_worktree_with_mode(
+                abs_path,
+                worktree_store::WorktreeMode::Browseable,
+                cx,
+            )
+        })
+    }
+
+    /// Ensure a fully-tracked worktree exists for `abs_path`: scanner +
+    /// watcher + GitStore are active. Promote from Browseable to Tracked
+    /// comes later; this is the one-shot "open a project" path.
+    pub fn ensure_tracked_worktree(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
+        self.worktree_store.update(cx, |worktree_store, cx| {
+            worktree_store.find_or_create_worktree_with_mode(
+                abs_path,
+                worktree_store::WorktreeMode::Tracked,
+                cx,
+            )
+        })
+    }
+
+    /// Ensure an invisible path-anchor worktree exists. Used when a buffer
+    /// references a file outside any visible worktree; the worktree resolves
+    /// paths without contributing to the UI.
+    pub fn ensure_ephemeral_worktree(
+        &mut self,
+        abs_path: impl AsRef<Path>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
+        self.worktree_store.update(cx, |worktree_store, cx| {
+            worktree_store.find_or_create_worktree_with_mode(
+                abs_path,
+                worktree_store::WorktreeMode::Ephemeral,
+                cx,
+            )
+        })
+    }
+
+    /// Promote an existing worktree from Browseable to Tracked. Flips the
+    /// shared `scanning_enabled` atomic and restarts the background
+    /// scanner so the filesystem watcher and initial scan start up.
+    pub fn promote_to_tracked(
+        &mut self,
+        worktree_id: WorktreeId,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<()>> {
+        match self.worktree_for_id(worktree_id, cx) {
+            Some(worktree) => {
+                worktree.update(cx, |wt, cx| wt.set_scanning_enabled(true, cx));
+                Task::ready(Ok(()))
+            }
+            None => Task::ready(Err(anyhow!("worktree {worktree_id:?} not found"))),
+        }
+    }
+
+    /// Demote a Tracked worktree back to Browseable. Flips the shared
+    /// `scanning_enabled` atomic; the scanner loop observes it on its
+    /// next poll and exits. The worktree keeps its root entry and
+    /// remains in the project — only the scanner winds down.
+    pub fn demote_to_browseable(
+        &mut self,
+        worktree_id: WorktreeId,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<()>> {
+        match self.worktree_for_id(worktree_id, cx) {
+            Some(worktree) => {
+                worktree.update(cx, |wt, cx| wt.set_scanning_enabled(false, cx));
+                Task::ready(Ok(()))
+            }
+            None => Task::ready(Err(anyhow!("worktree {worktree_id:?} not found"))),
+        }
+    }
+
     pub fn find_worktree(
         &self,
         abs_path: &Path,
