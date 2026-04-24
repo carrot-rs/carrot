@@ -1,7 +1,17 @@
-use std::{future::IntoFuture, path::Path, time::Duration};
+use std::{future::IntoFuture, path::Path, path::PathBuf, time::Duration};
 
 use super::*;
+use crate::delegate::FileFinderDelegate;
+use crate::matches::{Match, ProjectPanelOrdMatch};
+use crate::path_render::PathComponentSlice;
+use crate::search_query::FileSearchQuery;
 use carrot_editor::Editor;
+use carrot_project::Project;
+use carrot_project_panel::project_panel_settings::ProjectPanelSettings;
+use carrot_workspace::OpenVisible;
+use inazuma_fuzzy::PathMatch;
+use inazuma_util::paths::{PathStyle, PathWithPosition};
+use inazuma_util::rel_path::RelPath;
 use carrot_project::{FS_WATCH_LATENCY, RemoveOptions};
 use carrot_shell::open_paths;
 use carrot_workspace::{AppState, CloseActiveItem, OpenOptions, ToggleFileFinder, Workspace};
