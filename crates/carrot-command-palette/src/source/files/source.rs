@@ -165,16 +165,24 @@ impl FilesSource {
     }
 
     fn resolve_scope(workspace: &Workspace, cx: &App) -> PathBuf {
-        // Prefer the first visible worktree root; fall back to the user's
-        // home directory so a fresh workspace still produces some results
-        // instead of an empty pane.
-        workspace
-            .project()
-            .read(cx)
-            .visible_worktrees(cx)
-            .next()
-            .map(|wt| wt.read(cx).abs_path().to_path_buf())
-            .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
+        // Authoritative source: the shell-side scope classifier writes
+        // `ActiveTerminalScope.project_root` whenever the focused
+        // terminal's cwd changes. That happens synchronously on every
+        // OSC 7777 metadata payload, so it leads `Project::visible_worktrees`
+        // by however long `ensure_*_worktree` takes to resolve its task.
+        if let Some(scope) =
+            carrot_session::command_history::ActiveTerminalScope::try_global(cx)
+        {
+            return scope.project_root;
+        }
+
+        // No focused terminal yet (very first frame after launch). Fall
+        // back to whatever the project already knows about, then to the
+        // process cwd.
+        if let Some(wt) = workspace.project().read(cx).visible_worktrees(cx).next() {
+            return wt.read(cx).abs_path().to_path_buf();
+        }
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     }
 
     /// Expand a leading `~/` into the user's home directory so queries

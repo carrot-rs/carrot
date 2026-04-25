@@ -79,11 +79,10 @@ impl TerminalPane {
                         self.current_git_root = new_git_root;
                     }
 
-                    if cwd_changed
-                        && let Some(project) = self.project.as_ref().and_then(|p| p.upgrade())
-                    {
+                    if cwd_changed {
                         use carrot_shell::scope_policy::{ProjectKind, WorktreeRoot, classify};
                         use inazuma_settings_framework::Settings as _;
+
                         let classification = classify(&new_cwd);
                         let (worktree_path, detected_kind) = match &classification {
                             WorktreeRoot::ProjectLike { root, kind, .. } => {
@@ -91,41 +90,54 @@ impl TerminalPane {
                             }
                             WorktreeRoot::AdHoc { cwd } => (cwd.clone(), None),
                         };
-                        let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
-                            let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
-                            scope
-                                .git_track_decision(&worktree_path)
-                                .should_track_immediately()
-                        };
-                        project.update(cx, |project, cx| {
-                            if should_track {
-                                project
-                                    .ensure_tracked_worktree(&worktree_path, cx)
-                                    .detach_and_log_err(cx);
-                            } else {
-                                project
-                                    .ensure_browseable_worktree(&worktree_path, cx)
-                                    .detach_and_log_err(cx);
-                            }
-                        });
-                        if let Some(kind) = detected_kind
-                            && !should_track
-                        {
-                            let notify = match kind {
-                                ProjectKind::Git => {
-                                    carrot_settings::WorktreeScopeSettings::get_global(cx)
+
+                        if self.focus_handle.contains_focused(window, cx) {
+                            carrot_session::command_history::ActiveTerminalScope::set_global(
+                                new_cwd.clone(),
+                                worktree_path.clone(),
+                                cx,
+                            );
+                        }
+
+                        if let Some(project) = self.project.as_ref().and_then(|p| p.upgrade()) {
+                            let should_track =
+                                matches!(detected_kind, Some(ProjectKind::Git)) && {
+                                    let scope =
+                                        carrot_settings::WorktreeScopeSettings::get_global(cx);
+                                    scope
                                         .git_track_decision(&worktree_path)
-                                        .is_ask()
+                                        .should_track_immediately()
+                                };
+                            project.update(cx, |project, cx| {
+                                if should_track {
+                                    project
+                                        .ensure_tracked_worktree(&worktree_path, cx)
+                                        .detach_and_log_err(cx);
+                                } else {
+                                    project
+                                        .ensure_browseable_worktree(&worktree_path, cx)
+                                        .detach_and_log_err(cx);
                                 }
-                                ProjectKind::AgentRules => true,
-                                ProjectKind::Manifest(_) => false,
-                            };
-                            if notify {
-                                cx.emit(TerminalPaneEvent::ProjectDetected {
-                                    root: worktree_path.clone(),
-                                    kind,
-                                });
-                                self.show_project_detected_toast(worktree_path, kind, cx);
+                            });
+                            if let Some(kind) = detected_kind
+                                && !should_track
+                            {
+                                let notify = match kind {
+                                    ProjectKind::Git => {
+                                        carrot_settings::WorktreeScopeSettings::get_global(cx)
+                                            .git_track_decision(&worktree_path)
+                                            .is_ask()
+                                    }
+                                    ProjectKind::AgentRules => true,
+                                    ProjectKind::Manifest(_) => false,
+                                };
+                                if notify {
+                                    cx.emit(TerminalPaneEvent::ProjectDetected {
+                                        root: worktree_path.clone(),
+                                        kind,
+                                    });
+                                    self.show_project_detected_toast(worktree_path, kind, cx);
+                                }
                             }
                         }
                     }

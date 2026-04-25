@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     future::Future,
     path::{Path, PathBuf},
     sync::{
@@ -6,6 +7,14 @@ use std::{
         atomic::{AtomicU64, AtomicUsize},
     },
 };
+
+/// Maximum number of `Browseable` worktrees the store keeps alive. Each
+/// terminal `cd` into a non-Tracked directory adds one (see
+/// `Project::ensure_browseable_worktree`); without an upper bound the
+/// project panel and file-search index would accumulate every parent
+/// directory the user has ever traversed in a long-running session.
+/// `Tracked` and `Ephemeral` worktrees are never evicted.
+const MAX_BROWSEABLE_WORKTREES: usize = 8;
 
 use anyhow::{Context as _, Result, anyhow, bail};
 use carrot_fs::{Fs, copy_recursive};
@@ -98,6 +107,12 @@ pub struct WorktreeStore {
     downstream_client: Option<(AnyProtoClient, u64)>,
     retain_worktrees: bool,
     worktrees: Vec<WorktreeHandle>,
+    /// Insertion / re-touch order of currently-Browseable worktrees,
+    /// oldest first. Capped at [`MAX_BROWSEABLE_WORKTREES`]; eviction
+    /// is lazy — entries that have since been promoted to `Tracked`
+    /// are skipped at evict time so the user never loses a project
+    /// they explicitly opted in to.
+    browseable_lru: VecDeque<WorktreeId>,
     worktrees_reordered: bool,
     scanning_enabled: bool,
     #[allow(clippy::type_complexity)]
@@ -145,6 +160,7 @@ impl WorktreeStore {
             loading_worktrees: Default::default(),
             downstream_client: None,
             worktrees: Vec::new(),
+            browseable_lru: VecDeque::new(),
             worktrees_reordered: false,
             scanning_enabled: true,
             retain_worktrees,
@@ -166,6 +182,7 @@ impl WorktreeStore {
             loading_worktrees: Default::default(),
             downstream_client: None,
             worktrees: Vec::new(),
+            browseable_lru: VecDeque::new(),
             worktrees_reordered: false,
             scanning_enabled: true,
             retain_worktrees,
@@ -356,10 +373,46 @@ impl WorktreeStore {
     ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
         let abs_path = abs_path.as_ref();
         if let Some((tree, relative_path)) = self.find_worktree(abs_path, cx) {
+            if matches!(mode, WorktreeMode::Browseable) {
+                self.touch_browseable_lru(tree.read(cx).id(), cx);
+            }
             Task::ready(Ok((tree, relative_path)))
         } else {
             let worktree = self.create_worktree_with_mode(abs_path, mode, cx);
-            cx.background_spawn(async move { Ok((worktree.await?, RelPath::empty().into())) })
+            let track = matches!(mode, WorktreeMode::Browseable);
+            cx.spawn(async move |this, cx| {
+                let worktree = worktree.await?;
+                if track {
+                    this.update(cx, |this, cx| {
+                        let id = worktree.read(cx).id();
+                        this.touch_browseable_lru(id, cx);
+                    })?;
+                }
+                Ok((worktree, RelPath::empty().into()))
+            })
+        }
+    }
+
+    /// Re-anchor `id` at the back of the Browseable LRU queue and evict
+    /// any over-cap entries that are still Browseable (Tracked entries
+    /// are skipped without being removed).
+    fn touch_browseable_lru(&mut self, id: WorktreeId, cx: &mut Context<Self>) {
+        self.browseable_lru.retain(|&existing| existing != id);
+        self.browseable_lru.push_back(id);
+        while self.browseable_lru.len() > MAX_BROWSEABLE_WORKTREES {
+            let Some(victim_id) = self.browseable_lru.pop_front() else {
+                break;
+            };
+            let still_browseable = self
+                .worktree_for_id(victim_id, cx)
+                .map(|wt| {
+                    let wt = wt.read(cx);
+                    wt.is_visible() && !wt.scanning_enabled()
+                })
+                .unwrap_or(false);
+            if still_browseable {
+                self.remove_worktree(victim_id, cx);
+            }
         }
     }
 
@@ -890,6 +943,8 @@ impl WorktreeStore {
     }
 
     pub fn remove_worktree(&mut self, id_to_remove: WorktreeId, cx: &mut Context<Self>) {
+        self.browseable_lru
+            .retain(|&existing| existing != id_to_remove);
         self.worktrees.retain(|worktree| {
             if let Some(worktree) = worktree.upgrade() {
                 if worktree.read(cx).id() == id_to_remove {

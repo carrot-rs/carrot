@@ -588,6 +588,42 @@ impl ActiveCommandHistory {
     }
 }
 
+/// App-level snapshot of where the currently-focused terminal pane is
+/// working — both the literal `cwd` and the `project_root` that the
+/// shell-side classifier picked for it (the nearest `.git`, agent-rules
+/// file, or package-manifest directory; falls back to `cwd` for shells
+/// that aren't inside any project).
+///
+/// Set by `TerminalPane` on focus-in and on every cwd change while
+/// focused. Authoritative because it bypasses `Project::visible_worktrees`,
+/// whose contents lag behind the shell — `ensure_*_worktree` returns a
+/// `Task` that resolves on the next tick, so a fresh `cd` into a project
+/// is observable here several frames before the worktree shows up in the
+/// store. Feature crates that need a scope for the active terminal
+/// (e.g. the file-search source in the command palette) read
+/// `project_root` directly.
+#[derive(Clone)]
+pub struct ActiveTerminalScope {
+    pub cwd: std::path::PathBuf,
+    pub project_root: std::path::PathBuf,
+}
+
+impl Global for ActiveTerminalScope {}
+
+impl ActiveTerminalScope {
+    pub fn try_global(cx: &App) -> Option<Self> {
+        cx.try_global::<Self>().cloned()
+    }
+
+    pub fn set_global(
+        cwd: std::path::PathBuf,
+        project_root: std::path::PathBuf,
+        cx: &mut App,
+    ) {
+        cx.set_global(Self { cwd, project_root });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -312,6 +312,15 @@ impl TerminalPane {
                 this.command_history.clone(),
                 cx,
             );
+            let cwd = std::path::PathBuf::from(&this.shell_context.cwd);
+            if !cwd.as_os_str().is_empty() {
+                let project_root = this.current_git_root.clone().unwrap_or_else(|| cwd.clone());
+                carrot_session::command_history::ActiveTerminalScope::set_global(
+                    cwd,
+                    project_root,
+                    cx,
+                );
+            }
             // Notify the cli-agents session manager that this
             // pane received focus so it can clear the Vertical-
             // Tabs unread dot. `registered_pane_id` is populated
