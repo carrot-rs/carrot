@@ -117,6 +117,15 @@ impl SearchAction {
 /// and produce plain data. Mutable access to the app context is provided so
 /// stateful sources (e.g. [`FilesSource`]) can spawn walkers or write back
 /// to caches without threading a separate channel.
+///
+/// Two orthogonal gates control when a source participates:
+/// - [`default_visible`] decides whether the source contributes to the
+///   empty-query "Suggested" view (typically a tiny curated slice).
+/// - [`searchable`] decides whether the source is queried once the user
+///   types something with no explicit category filter active.
+///
+/// Being opt-out of Suggested (`default_visible=false`) does not prevent
+/// typed-query matches — the two choices are independent.
 pub trait SearchSource: Send + Sync {
     fn category(&self) -> SearchCategory;
     fn collect(
@@ -127,11 +136,18 @@ pub trait SearchSource: Send + Sync {
         cx: &mut App,
     ) -> Vec<SearchResult>;
 
-    /// Whether this source contributes to the default (no-filter) view.
-    /// Bulk sources like env vars opt out so the modal doesn't flood the
-    /// result list with hundreds of items on open — they still participate
-    /// when the user types a query or selects the matching chip.
+    /// Contributes to the empty-query "Suggested" view. Return `false`
+    /// to stay out of the default opening list; the chip and the
+    /// category prefix still reach this source on demand.
     fn default_visible(&self) -> bool {
+        true
+    }
+
+    /// Participates in universal search once the user types a query.
+    /// Return `false` for bulk sources like env vars that would otherwise
+    /// match nearly every keystroke; the user can still reach them via
+    /// the explicit `env:` prefix or the chip.
+    fn searchable(&self) -> bool {
         true
     }
 

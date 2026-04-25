@@ -42,4 +42,11 @@ impl SearchSource for EnvVarsSource {
     fn default_visible(&self) -> bool {
         false
     }
+
+    fn searchable(&self) -> bool {
+        // Hundreds of env vars would fuzzy-match almost every keystroke
+        // and swamp real matches. The `env:` prefix and chip remain the
+        // explicit entry points.
+        false
+    }
 }

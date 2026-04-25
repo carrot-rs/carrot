@@ -14,6 +14,13 @@ impl SearchSource for SessionsSource {
         SearchCategory::Sessions
     }
 
+    fn default_visible(&self) -> bool {
+        // Kept out of the empty-query "Suggested" view — session names
+        // don't add much before the user types, and Cmd+Shift+P / the
+        // Sessions chip is the intended shortcut for switching.
+        false
+    }
+
     fn collect(
         &self,
         workspace: &Entity<Workspace>,

@@ -261,25 +261,29 @@ impl CommandPalette {
             return;
         };
 
+        // Three routing modes for the source loop:
+        //  1. explicit category (chip or `prefix:`) → only that source
+        //  2. universal + empty query → Suggested: only `default_visible`
+        //  3. universal + typed query → wide search: only `searchable`
+        // Rules 2 and 3 are independent gates, so History can stay out
+        // of Suggested while still matching typed queries, and EnvVars
+        // can be chip-only without polluting the live-search results.
         let is_default_view = effective_cat.is_none() && query.is_empty();
         let raw_results: Vec<SearchResult> = {
             let mut collected = Vec::new();
-            // Clone the Arc list so we don't hold `self.sources` while
-            // calling `collect()` — that signature takes `&mut App`, which
-            // conflicts with an open `&self` borrow.
             let sources = self.sources.clone();
             for src in &sources {
-                if let Some(cat) = effective_cat {
-                    if src.category() != cat {
-                        continue;
-                    }
-                } else if is_default_view && !src.default_visible() {
+                let include = if let Some(cat) = effective_cat {
+                    src.category() == cat
+                } else if query.is_empty() {
+                    src.default_visible()
+                } else {
+                    src.searchable()
+                };
+                if !include {
                     continue;
                 }
                 let mut from_source = src.collect(&workspace, &query, window, cx);
-                // Suggested-Section (universal mode, empty query): cap
-                // each source so the mix stays roughly balanced —
-                // otherwise Actions alone can eat the whole list.
                 if is_default_view {
                     from_source.truncate(SUGGESTED_PER_SOURCE);
                 }
@@ -482,18 +486,18 @@ impl CommandPalette {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let colors = cx.theme().colors();
-        let accent = colors.text_accent;
         // A row is considered "selected" only once the user has engaged
         // with the modal (typed or pressed an arrow key). Before that the
         // row with `selected_index == 0` gets no visual treatment, so the
         // list doesn't look pre-highlighted on open.
         let is_selected = self.has_interacted && index == self.selected_index;
-        // Selected and hover share the same accent-tinted background so
-        // keyboard navigation and pointer hover produce a consistent
-        // affordance. Text stays neutral — only the bg tints.
-        let hover_bg = accent.opacity(0.10);
+        // Theme-aware highlight: `element_hover` / `element_selected`
+        // adapt to whatever accent the active theme defines, where
+        // `text_accent` was locked to the default palette's blue.
+        let hover_bg = colors.element_hover;
+        let selected_bg = colors.element_selected;
         let bg = if is_selected {
-            hover_bg
+            selected_bg
         } else {
             inazuma::transparent_black()
         };
@@ -672,41 +676,81 @@ impl Render for CommandPalette {
                             .with_size(carrot_ui::Size::Medium),
                     )
             })
-            .child(
-                v_flex()
-                    .px_4()
-                    .py_4()
-                    .gap_4()
-                    .child(h_flex().flex_wrap().gap_2().children(chips))
-                    .child(if has_results {
-                        let list = v_flex().gap_0p5().children(result_elements);
-                        if show_suggested_header {
-                            v_flex()
-                                .gap_2()
-                                .child(
-                                    div()
-                                        .text_size(px(11.))
-                                        .text_color(text_muted)
-                                        .child("Suggested"),
-                                )
-                                .child(list)
-                                .into_any_element()
-                        } else {
-                            list.into_any_element()
-                        }
+            .child({
+                // When the user is actively typing, the chip strip and
+                // the section headers would only get in the way.
+                // Collapse down to just the result list so the full
+                // panel height is devoted to matches — the Warp
+                // behaviour. The chips come back as soon as the input
+                // is cleared.
+                let body = v_flex().px_4().py_4().gap_4();
+                let body = if query_is_empty {
+                    body.child(h_flex().flex_wrap().gap_2().children(chips))
+                } else {
+                    body
+                };
+                body.child(if has_results {
+                    if show_suggested_header {
+                        self.render_grouped_results(window, cx).into_any_element()
                     } else {
-                        div()
-                            .text_size(px(11.))
-                            .text_color(text_muted)
-                            .child(empty_label)
-                            .into_any_element()
-                    }),
-            )
+                        v_flex().gap_0p5().children(result_elements).into_any_element()
+                    }
+                } else {
+                    div()
+                        .text_size(px(11.))
+                        .text_color(text_muted)
+                        .child(empty_label)
+                        .into_any_element()
+                })
+            })
             .child(self.render_footer(cx))
     }
 }
 
 impl CommandPalette {
+    /// Empty-query rendering. Splits the result list into labeled
+    /// sections — Actions become "Suggested", Files become "Recent",
+    /// anything else uses the category's own label. Matches Warp's
+    /// empty-state behaviour where a handful of curated shortcuts and a
+    /// short history of recent files live in distinct groups.
+    fn render_grouped_results(
+        &self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let text_muted = cx.theme().colors().text_muted;
+        let mut groups: Vec<(SearchCategory, Vec<usize>)> = Vec::new();
+        for (ix, row) in self.results.iter().enumerate() {
+            let cat = row.result.category;
+            match groups.last_mut() {
+                Some((last_cat, list)) if *last_cat == cat => list.push(ix),
+                _ => groups.push((cat, vec![ix])),
+            }
+        }
+
+        let mut root = v_flex().gap_3();
+        for (cat, indices) in groups {
+            let label = match cat {
+                SearchCategory::Actions => "Suggested",
+                SearchCategory::Files => "Recent",
+                other => other.label(),
+            };
+            let mut section = v_flex().gap_1();
+            section = section.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(text_muted)
+                    .child(SharedString::from(label)),
+            );
+            for ix in indices {
+                let row = &self.results[ix];
+                section = section.child(self.render_result_row(ix, row, window, cx));
+            }
+            root = root.child(section);
+        }
+        root
+    }
+
     /// Footer combining two rows: the active source's status line
     /// (scope breadcrumb + scanned counter, when a stateful source like
     /// [`FilesSource`] has something to report) and the global pre-filter

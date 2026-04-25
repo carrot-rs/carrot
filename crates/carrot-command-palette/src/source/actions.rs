@@ -11,6 +11,13 @@ use crate::category::SearchCategory;
 use crate::persistence::CommandPaletteDB;
 use crate::source::{SearchAction, SearchResult, SearchSource};
 
+/// Curated suggestion list for the empty-query "Suggested" section.
+/// Deliberately tiny — just a pair of shortcuts, matching Warp's
+/// "Create Workflow" / "Open Theme Picker" pattern. Actions the focused
+/// element hasn't registered are silently skipped. Order here is the
+/// render order.
+const CURATED_SUGGESTIONS: &[&str] = &["theme_selector::Toggle", "carrot::OpenSettings"];
+
 /// Dynamic workspace action discovery. Every action currently dispatchable
 /// from the focused element is surfaced here, filtered through the global
 /// `CommandPaletteFilter` and ranked by the usage history persisted in
@@ -44,12 +51,33 @@ impl SearchSource for ActionsSource {
             })
             .collect();
 
+        // Empty-query path is the "Suggested" section. Return only the
+        // hand-picked entries from `CURATED_SUGGESTIONS`, skipping any
+        // that aren't currently registered. Keeps the opening view small
+        // instead of flooding it with every workspace action.
+        if query.is_empty() {
+            let mut curated: Vec<SearchResult> = Vec::new();
+            for wanted in CURATED_SUGGESTIONS {
+                if let Some(pos) = entries.iter().position(|(_, a)| a.name() == *wanted) {
+                    let (humanized, action) = entries.swap_remove(pos);
+                    let raw_name = action.name().to_string();
+                    curated.push(SearchResult {
+                        id: format!("action:{raw_name}").into(),
+                        category: SearchCategory::Actions,
+                        title: humanized.into(),
+                        subtitle: Some(raw_name.into()),
+                        icon: IconName::BoltFilled,
+                        action: SearchAction::DispatchAction(action),
+                    });
+                }
+            }
+            return curated;
+        }
+
         // Frecency: entries with higher invocation counts float to the top
         // so repeated use keeps the most-used commands in the first rows,
         // matching the behavior of the previous Zed-style palette.
         entries.sort_by_key(|(name, _)| (Reverse(hit_counts.get(name).copied()), name.clone()));
-
-        let _ = query;
 
         entries
             .into_iter()

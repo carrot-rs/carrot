@@ -90,7 +90,11 @@ impl SearchSource for HistorySource {
     }
 
     fn default_visible(&self) -> bool {
-        true
+        // History stays off the empty-query Suggested list. Dumping
+        // dozens of shell commands into the first view drowns the
+        // curated Actions; users hit Cmd+R or the `history:` chip when
+        // they actually want to recall a past command.
+        false
     }
 
     fn collect(
