@@ -33,9 +33,15 @@ impl ThemeSettingsProvider for ThemeSettingsProviderImpl {
     fn line_height(&self, role: FontRole, cx: &App) -> f32 {
         match role {
             FontRole::Body => 1.3,
-            FontRole::Code | FontRole::Terminal => {
+            // Editor / REPL / markdown code share the user-configured
+            // `theme.fonts.mono.line_height` (default `comfortable`,
+            // 1.618). Terminal grids hard-code 1.0 — terminal output is
+            // line-dense by convention and the configured `comfortable`
+            // value would scatter `ls` listings across the screen.
+            FontRole::Code => {
                 ThemeSettings::get_global(cx).fonts.mono.line_height.value()
             }
+            FontRole::Terminal => 1.0,
         }
     }
 

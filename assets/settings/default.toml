@@ -37,7 +37,7 @@ weight = 400
 
 [theme.fonts.mono]
 family = ".CarrotMono"
-size = 15
+size = 13
 weight = 400
 line_height = "comfortable"
 
@@ -231,7 +231,7 @@ show_diagnostics = "off"
 
 [vertical_tabs]
 button = true
-default_width = 260.0
+default_width = 200.0
 dock = "left"
 density = "compact"
 view_mode = "panes"

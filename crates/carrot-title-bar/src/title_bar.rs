@@ -338,7 +338,7 @@ impl TitleBar {
             )
             .child(
                 div()
-                    .text_size(inazuma::px(14.))
+                    .text_xs()
                     .text_color(colors.text_muted)
                     .child("Search sessions, agents, files…"),
             )
