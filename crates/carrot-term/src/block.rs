@@ -41,7 +41,7 @@ pub use kind::BlockKind;
 pub use live_frame::{LiveFrameRegion, LiveFrameSource};
 pub use mode::TermMode;
 pub use render_view::{ActiveBlockView, FrozenView, RenderView};
-pub use replay::ReplayBuffer;
+pub use replay::{ReplayBuffer, replay_frozen_block};
 pub use router::{
     ActiveTarget, BlockId, BlockRouter, RouterBlockMetadata, RouterEntry, RouterLimits,
 };
