@@ -486,20 +486,12 @@ impl Render for TerminalPane {
 
         // Terminal output + resize logic
         let handle = self.terminal.handle();
-        let appearance = {
-            use inazuma_settings_framework::Settings;
-            carrot_settings::AppearanceSettings::get_global(cx).clone()
-        };
-        let font_family = appearance.font_family.clone();
-        let font_size = appearance.font_size;
-        let line_height_multiplier = appearance.line_height;
+        let font = carrot_theme::terminal_font(cx).clone();
+        let font_size: f32 = carrot_theme::terminal_font_size(cx).into();
+        let line_height_multiplier = carrot_theme::theme_settings(cx)
+            .line_height(carrot_theme::FontRole::Terminal, cx);
 
         {
-            let font = inazuma::Font {
-                family: font_family.clone().into(),
-                weight: inazuma::FontWeight::NORMAL,
-                ..inazuma::Font::default()
-            };
             let font_id = window.text_system().resolve_font(&font);
             let font_px = px(font_size);
             let cell_width = window

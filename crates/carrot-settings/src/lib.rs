@@ -88,31 +88,24 @@ impl GeneralSettings {
     }
 }
 
-/// Resolved appearance settings — font, cursor, contrast, colorspace, symbol maps.
+/// Resolved appearance settings — cursor, contrast, colorspace.
+///
+/// Fonts and symbol maps are not here — they live on the theme-fonts
+/// roles. Read them via `terminal_font(cx)` / `code_font(cx)` /
+/// `body_font(cx)` and `symbol_map_for(role, cx)`.
 ///
 /// Access via `AppearanceSettings::get_global(cx)`.
 #[derive(Debug, Clone, RegisterSetting)]
 pub struct AppearanceSettings {
-    pub font_family: String,
-    pub font_size: f32,
-    pub line_height: f32,
     pub cursor_style: CursorShapeContent,
     pub cursor_blink: TerminalBlink,
     pub minimum_contrast: f32,
     pub window_colorspace: WindowColorspace,
-    pub symbol_map: Vec<ResolvedSymbolMap>,
 }
 
 impl Settings for AppearanceSettings {
     fn from_settings(content: &inazuma_settings_content::SettingsContent) -> Self {
         let appearance = content.appearance.clone().unwrap_or_default();
-
-        let symbol_map = appearance
-            .symbol_map
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|entry| entry.resolve())
-            .collect();
 
         let window_colorspace = match appearance.window_colorspace.unwrap_or_default() {
             AppearanceColorspace::Srgb => WindowColorspace::Srgb,
@@ -121,23 +114,12 @@ impl Settings for AppearanceSettings {
         };
 
         AppearanceSettings {
-            font_family: appearance
-                .font_family
-                .map(|f| f.0.to_string())
-                .unwrap_or_else(|| "DankMono Nerd Font Mono".to_string()),
-            font_size: appearance.font_size.map(|s| s.0).unwrap_or(15.0),
-            // Terminal default is 1.0 (no extra vertical padding per row).
-            // A higher default makes the grid look "too big" because every
-            // block-drawing glyph (used by TUI logos / boxes) scales with
-            // the cell, not just the text.
-            line_height: appearance.line_height.unwrap_or(1.0),
             cursor_style: appearance.cursor_style.unwrap_or(CursorShapeContent::Bar),
             cursor_blink: appearance
                 .cursor_blink
                 .unwrap_or(TerminalBlink::TerminalControlled),
             minimum_contrast: appearance.minimum_contrast.unwrap_or(45.0),
             window_colorspace,
-            symbol_map,
         }
     }
 }

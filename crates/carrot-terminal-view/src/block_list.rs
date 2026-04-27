@@ -99,21 +99,14 @@ impl BlockListView {
     /// Read current font/appearance config and build Font + dimensions.
     pub(crate) fn read_config(
         cx: &App,
-    ) -> (Font, f32, f32, Vec<carrot_settings::ResolvedSymbolMap>) {
-        use inazuma_settings_framework::Settings;
-        let appearance = carrot_settings::AppearanceSettings::get_global(cx);
-        let font = Font {
-            family: appearance.font_family.clone().into(),
-            weight: inazuma::FontWeight::NORMAL,
-            ..Font::default()
-        };
-        let symbol_maps = appearance.symbol_map.clone();
-        (
-            font,
-            appearance.font_size,
-            appearance.line_height,
-            symbol_maps,
-        )
+    ) -> (Font, f32, f32, Vec<carrot_theme::ResolvedSymbolMap>) {
+        let font = carrot_theme::terminal_font(cx).clone();
+        let font_size: f32 = carrot_theme::terminal_font_size(cx).into();
+        let line_height = carrot_theme::theme_settings(cx)
+            .line_height(carrot_theme::FontRole::Terminal, cx);
+        let symbol_maps = carrot_theme::symbol_map_for(carrot_theme::FontRole::Terminal, cx)
+            .to_vec();
+        (font, font_size, line_height, symbol_maps)
     }
 
     /// Clear all blocks. The v2 router doesn't expose a bulk-clear

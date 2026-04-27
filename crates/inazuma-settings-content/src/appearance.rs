@@ -3,32 +3,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::terminal::{CursorShapeContent, TerminalBlink};
-use crate::theme::SymbolMapEntry;
-use crate::{FontFamilyName, FontSize};
 
 /// Content for the `[appearance]` section in settings.toml.
 ///
-/// In Carrot, the terminal font IS the main font. These settings control
-/// the primary visual appearance of the entire application.
+/// Holds cursor / contrast / colorspace knobs. Fonts live in
+/// `theme.fonts.{ui,mono}` and are read via the `body_font(cx)` /
+/// `code_font(cx)` / `terminal_font(cx)` convenience accessors.
 #[with_fallible_options]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct AppearanceSettingsContent {
-    /// The main font family used for terminal output and UI.
-    ///
-    /// Default: "DankMono Nerd Font Mono"
-    pub font_family: Option<FontFamilyName>,
-
-    /// The main font size in pixels.
-    ///
-    /// Default: 15
-    pub font_size: Option<FontSize>,
-
-    /// Line height as a multiplier of font size.
-    ///
-    /// Default: 1.6
-    #[serde(serialize_with = "crate::serialize_optional_f32_with_two_decimal_places")]
-    pub line_height: Option<f32>,
-
     /// Default cursor shape for the terminal.
     /// Can be "bar", "block", "underline", or "hollow".
     ///
@@ -77,18 +60,6 @@ pub struct AppearanceSettingsContent {
     ///
     /// Default: 85
     pub window_opacity: Option<u32>,
-
-    /// Symbol maps: map Unicode ranges to specific font families.
-    /// Useful for Nerd Font icons, Powerline glyphs, etc.
-    ///
-    /// Example in settings.toml:
-    /// ```toml
-    /// [[appearance.symbol_map]]
-    /// start = "E0B0"
-    /// end = "E0D7"
-    /// font_family = "Symbols Nerd Font Mono"
-    /// ```
-    pub symbol_map: Option<Vec<SymbolMapEntry>>,
 }
 
 /// Window colorspace setting.
@@ -117,6 +88,3 @@ pub enum AppearanceColorspace {
     Native,
 }
 
-// `SymbolMapEntry` and `ResolvedSymbolMap` live in `theme.rs` now —
-// they belong to the mono font role, not to the Appearance surface.
-// Already re-exported via the wildcard in `settings_content.rs`.

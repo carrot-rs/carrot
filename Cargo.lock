@@ -6680,6 +6680,7 @@ dependencies = [
  "derive_more 0.99.20",
  "inazuma",
  "inazuma-refineable",
+ "inazuma-settings-content",
  "itertools 0.14.0",
  "log",
  "parking_lot",
