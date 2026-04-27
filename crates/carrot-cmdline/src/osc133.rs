@@ -109,7 +109,8 @@ pub fn emit(event: &ShellMarker) -> Vec<u8> {
         ShellMarker::PromptKind { .. }
         | ShellMarker::Metadata(_)
         | ShellMarker::TuiHint(_)
-        | ShellMarker::AgentEvent(_) => return Vec::new(),
+        | ShellMarker::AgentEvent(_)
+        | ShellMarker::ImageInlineITerm2(_) => return Vec::new(),
     }
     out.push(BEL);
     out

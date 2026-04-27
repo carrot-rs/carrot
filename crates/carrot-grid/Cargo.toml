@@ -11,6 +11,8 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
+base64.workspace = true
+image.workspace = true
 inazuma-collections.workspace = true
 zstd.workspace = true
 

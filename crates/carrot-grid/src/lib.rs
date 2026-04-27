@@ -21,6 +21,7 @@ pub mod custom_render;
 pub mod grapheme;
 pub mod hyperlink;
 pub mod image;
+pub mod image_protocols;
 pub mod page;
 pub mod page_list;
 pub mod reflow;
@@ -40,6 +41,7 @@ pub use custom_render::{
 pub use grapheme::GraphemeStore;
 pub use hyperlink::{HyperlinkId, HyperlinkStore};
 pub use image::{DecodedImage, ImageEntry, ImageFormat, ImageStore, Placement};
+pub use image_protocols::{ITerm2Image, decode_image_bytes, parse_iterm2_payload, placement_from_iterm2};
 pub use page::{Page, PageCapacity};
 pub use page_list::{PageList, RowIter};
 pub use reflow::{

@@ -269,6 +269,59 @@ impl TerminalPane {
                 // OSC 133 ;L — consumed by `carrot-cmdline`'s AI
                 // ghost-text suppression path, no-op here.
             }
+            carrot_terminal::ShellMarker::ImageInlineITerm2(payload) => {
+                use carrot_grid::{
+                    Cell, CellStyleId, parse_iterm2_payload, placement_from_iterm2,
+                };
+                let Some(parsed) = parse_iterm2_payload(&payload) else {
+                    log::warn!("Failed to parse OSC 1337 iTerm2 image payload");
+                    return;
+                };
+                let handle = self.terminal.handle();
+                let mut term = handle.lock();
+                let viewport_cols = term.columns() as u16;
+                let viewport_rows = term.screen_lines() as u16;
+                // Cell pixel size — iTerm2 width=Npx hints divide by these.
+                // Carrot's grid layer doesn't track pixel dims directly
+                // (block_render owns that); use a 8×16 placeholder
+                // that's good enough for the dimensional clamping math.
+                // The renderer scales to the actual cell dims at paint
+                // time via `Placement.rows / .cols` (cell-grained).
+                let cell_w_px = 8u16;
+                let cell_h_px = 16u16;
+                if let carrot_term::block::ActiveTarget::Block { block, .. } =
+                    term.block_router_mut().active()
+                {
+                    let row_start = block.grid().total_rows() as u32;
+                    let placement = placement_from_iterm2(
+                        &parsed,
+                        row_start,
+                        0,
+                        cell_w_px,
+                        cell_h_px,
+                        viewport_rows,
+                        viewport_cols,
+                    );
+                    let placement_rows = placement.rows;
+                    let placement_cols = placement.cols;
+                    let image_idx = block.images_mut().push(parsed.image, placement);
+                    // Reserve cell rows for the image — Cell-Tag 4
+                    // pixels in placement bounds; the renderer's
+                    // image-pass skips text emission for those cells.
+                    let style = CellStyleId(0);
+                    for _ in 0..placement_rows {
+                        let row: Vec<Cell> = (0..placement_cols)
+                            .map(|_| Cell::image(image_idx, style))
+                            .chain(std::iter::repeat_n(
+                                Cell::default(),
+                                viewport_cols.saturating_sub(placement_cols) as usize,
+                            ))
+                            .collect();
+                        block.grid_mut().append_row(&row);
+                    }
+                }
+                cx.notify();
+            }
         }
     }
 

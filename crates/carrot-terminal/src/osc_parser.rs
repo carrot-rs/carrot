@@ -122,6 +122,28 @@ impl OscScanner {
             .or_else(|| self.parse_osc_7777_metadata())
             .or_else(|| self.parse_osc_7777_tui_hint())
             .or_else(|| self.parse_osc_7777_agent())
+            .or_else(|| self.parse_osc_1337_iterm2_image())
+    }
+
+    /// Parse `OSC 1337 ; File=key=value,...:base64-data` into
+    /// [`ShellMarker::ImageInlineITerm2`]. The decoded marker carries
+    /// the raw payload **after** `1337;` (i.e. starts with `File=`);
+    /// `carrot_grid::parse_iterm2_payload` handles the rest.
+    ///
+    /// Reference: <https://iterm2.com/documentation-images.html>
+    fn parse_osc_1337_iterm2_image(&self) -> Option<ShellMarker> {
+        let params = &self.param_buf;
+        let prefix = b"1337;File=";
+        if params.len() <= prefix.len() || params[..prefix.len()] != *prefix {
+            return None;
+        }
+        // Hand the rest of the OSC body — including `File=` — to the
+        // grid layer's parser. Cloning here avoids borrowing from the
+        // scanner's reusable buffer; the marker outlives a `.scan()`
+        // call.
+        Some(ShellMarker::ImageInlineITerm2(
+            params[b"1337;".len()..].to_vec(),
+        ))
     }
 
     /// Parse `OSC 7777;carrot-precmd;<hex>` into `ShellMarker::Metadata`.
