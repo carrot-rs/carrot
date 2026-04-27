@@ -1444,7 +1444,7 @@ pub struct SymbolMapEntry {
 }
 
 /// Parsed symbol map entry with resolved codepoint range.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedSymbolMap {
     pub start: u32,
     pub end: u32,

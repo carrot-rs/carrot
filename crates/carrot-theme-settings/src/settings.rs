@@ -6,7 +6,9 @@ use inazuma_refineable::Refineable;
 use inazuma_settings_framework::{IntoInazuma, RegisterSetting, Settings, SettingsContent};
 use std::sync::Arc;
 
-pub use inazuma_settings_content::{FontFamilyName, IconThemeName, ThemeAppearanceMode, ThemeName};
+pub use inazuma_settings_content::{
+    FontFamilyName, IconThemeName, ResolvedSymbolMap, ThemeAppearanceMode, ThemeName,
+};
 
 const MIN_FONT_SIZE: Pixels = px(6.0);
 const MAX_FONT_SIZE: Pixels = px(100.0);
@@ -39,12 +41,43 @@ pub struct ThemeSettings {
     /// The agent buffer font size. Falls back to the buffer font size if unset.
     agent_buffer_font_size: Option<Pixels>,
     pub buffer_line_height: BufferLineHeight,
+    /// Role-based font configuration. Mirrors `ui_font` / `buffer_font` /
+    /// `buffer_line_height` plus a resolved symbol-map. Once all
+    /// call-sites have migrated to `body_font(cx)` / `code_font(cx)` /
+    /// `terminal_font(cx)`, the flat fields above go away.
+    pub fonts: ThemeFonts,
     pub theme: ThemeSelection,
     pub experimental_theme_overrides: Option<inazuma_settings_content::ThemeStyleContent>,
     pub theme_overrides: HashMap<String, inazuma_settings_content::ThemeStyleContent>,
     pub icon_theme: IconThemeSelection,
     pub ui_density: UiDensity,
     pub unnecessary_code_fade: f32,
+}
+
+/// Two-slot resolved font configuration. Drives the
+/// `body_font` / `code_font` / `terminal_font` convenience accessors.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ThemeFonts {
+    pub ui: ResolvedUiFont,
+    pub mono: ResolvedMonoFont,
+}
+
+/// Resolved UI font role — proportional surfaces (palette, sidebar,
+/// tabs, notifications, settings panels).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedUiFont {
+    pub font: Font,
+    pub size: Pixels,
+}
+
+/// Resolved mono font role — every monospace surface (terminal grid,
+/// editor, REPL, markdown code, hover popovers).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedMonoFont {
+    pub font: Font,
+    pub size: Pixels,
+    pub line_height: BufferLineHeight,
+    pub symbol_map: Vec<ResolvedSymbolMap>,
 }
 
 /// Returns the name of the default theme for the given [`Appearance`].
@@ -516,6 +549,7 @@ impl Settings for ThemeSettings {
             agent_ui_font_size: content.agent_ui_font_size.map(|s| s.into_inazuma()),
             agent_buffer_font_size: content.agent_buffer_font_size.map(|s| s.into_inazuma()),
             buffer_line_height: content.buffer_line_height.unwrap_or_default().into(),
+            fonts: build_theme_fonts(content),
             theme: theme_selection,
             experimental_theme_overrides: content.experimental_theme_overrides.clone(),
             theme_overrides: content.theme_overrides.clone(),
@@ -527,4 +561,113 @@ impl Settings for ThemeSettings {
                 .unwrap_or(0.3),
         }
     }
+}
+
+/// Build the resolved [`ThemeFonts`] from settings content. Reads the
+/// new `theme.fonts.{ui,mono}` schema if present and falls back to the
+/// flat `ui_font_*` / `buffer_font_*` fields for compatibility while
+/// the surfaces migrate over.
+fn build_theme_fonts(theme: &inazuma_settings_content::ThemeSettingsContent) -> ThemeFonts {
+    let ui_content = theme.fonts.as_ref().and_then(|f| f.ui.as_ref());
+    let mono_content = theme.fonts.as_ref().and_then(|f| f.mono.as_ref());
+
+    let ui_family = ui_content
+        .and_then(|c| c.family.as_ref())
+        .or(theme.ui_font_family.as_ref())
+        .map(|f| f.0.clone().into())
+        .unwrap_or_else(|| "DankMono Nerd Font Mono".into());
+    let ui_size = clamp_font_size(
+        ui_content
+            .and_then(|c| c.size)
+            .or(theme.ui_font_size)
+            .unwrap_or(inazuma_settings_content::FontSize(15.0))
+            .into_inazuma(),
+    );
+    let ui_weight = ui_content
+        .and_then(|c| c.weight)
+        .or(theme.ui_font_weight)
+        .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
+        .into_inazuma();
+    let ui_stretch = font_stretch_from_content(ui_content.and_then(|c| c.stretch));
+    let ui_features = ui_content
+        .and_then(|c| c.features.clone())
+        .or_else(|| theme.ui_font_features.clone())
+        .unwrap_or_default()
+        .into_inazuma();
+    let ui_fallbacks = font_fallbacks_from_settings(
+        ui_content
+            .and_then(|c| c.fallbacks.clone())
+            .or_else(|| theme.ui_font_fallbacks.clone()),
+    );
+
+    let mono_family = mono_content
+        .and_then(|c| c.family.as_ref())
+        .or(theme.buffer_font_family.as_ref())
+        .map(|f| f.0.clone().into())
+        .unwrap_or_else(|| "DankMono Nerd Font Mono".into());
+    let mono_size = clamp_font_size(
+        mono_content
+            .and_then(|c| c.size)
+            .or(theme.buffer_font_size)
+            .unwrap_or(inazuma_settings_content::FontSize(15.0))
+            .into_inazuma(),
+    );
+    let mono_weight = mono_content
+        .and_then(|c| c.weight)
+        .or(theme.buffer_font_weight)
+        .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
+        .into_inazuma();
+    let mono_stretch = font_stretch_from_content(mono_content.and_then(|c| c.stretch));
+    let mono_features = mono_content
+        .and_then(|c| c.features.clone())
+        .or_else(|| theme.buffer_font_features.clone())
+        .unwrap_or_default()
+        .into_inazuma();
+    let mono_fallbacks = font_fallbacks_from_settings(
+        mono_content
+            .and_then(|c| c.fallbacks.clone())
+            .or_else(|| theme.buffer_font_fallbacks.clone()),
+    );
+    let mono_line_height = mono_content
+        .and_then(|c| c.line_height)
+        .or(theme.buffer_line_height)
+        .unwrap_or_default()
+        .into();
+    let mono_symbol_map = mono_content
+        .and_then(|c| c.symbol_map.as_ref())
+        .map(|entries| entries.iter().filter_map(|e| e.resolve()).collect())
+        .unwrap_or_default();
+
+    ThemeFonts {
+        ui: ResolvedUiFont {
+            font: Font {
+                family: ui_family,
+                features: ui_features,
+                fallbacks: ui_fallbacks,
+                weight: ui_weight,
+                style: FontStyle::default(),
+                stretch: ui_stretch,
+            },
+            size: ui_size,
+        },
+        mono: ResolvedMonoFont {
+            font: Font {
+                family: mono_family,
+                features: mono_features,
+                fallbacks: mono_fallbacks,
+                weight: mono_weight,
+                style: FontStyle::default(),
+                stretch: mono_stretch,
+            },
+            size: mono_size,
+            line_height: mono_line_height,
+            symbol_map: mono_symbol_map,
+        },
+    }
+}
+
+fn font_stretch_from_content(
+    stretch: Option<inazuma_settings_content::FontStretchContent>,
+) -> FontStretch {
+    stretch.map(|s| FontStretch(s.0)).unwrap_or_default()
 }
