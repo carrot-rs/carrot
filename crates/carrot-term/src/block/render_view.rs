@@ -21,6 +21,7 @@ use carrot_grid::{BlockSnapshot, CellStyle, CellStyleAtlas, GraphemeStore, Hyper
 use super::active::ActiveBlock;
 use super::display::DisplayState;
 use super::frozen::FrozenBlock;
+use super::kind::BlockKind;
 use super::live_frame::LiveFrameRegion;
 use super::router::{BlockId, BlockRouter, RouterBlockMetadata, RouterEntry};
 use super::selection::BlockSelection;
@@ -50,6 +51,10 @@ pub struct FrozenView {
     pub id: BlockId,
     pub block: Arc<FrozenBlock>,
     pub metadata: RouterBlockMetadata,
+    /// Lifecycle marker carried over from the active block (sticky).
+    /// Renderers route Shell blocks inline and Tui blocks through
+    /// the PinnedFooter surface.
+    pub kind: BlockKind,
 }
 
 /// Active-block snapshot. The grid data lives in [`BlockSnapshot`] —
@@ -73,6 +78,9 @@ pub struct ActiveBlockView {
     pub metadata: RouterBlockMetadata,
     pub selection: Option<BlockSelection>,
     pub live_frame: Option<LiveFrameRegion>,
+    /// Lifecycle marker — `Shell` until promoted to `Tui` by the
+    /// detector. Sticky for the block's lifetime.
+    pub kind: BlockKind,
     /// Monotonic frame id. Bumped every time the active block's
     /// `sync_update_frame_id` advances — Layer 5 memoizes its
     /// rendered snapshot keyed on `(block_id, frame_id)`.
@@ -99,10 +107,12 @@ impl RenderView {
         for entry in router.entries() {
             match &entry.variant {
                 BlockVariant::Frozen(block) => {
+                    let kind = block.kind();
                     frozen.push(FrozenView {
                         id: entry.id,
                         block: block.clone(),
                         metadata: entry.metadata.clone(),
+                        kind,
                     });
                 }
                 BlockVariant::Active(block) => {
@@ -148,6 +158,7 @@ fn active_view(
         metadata: entry.metadata.clone(),
         selection: block.selection().copied(),
         live_frame: block.live_frame().cloned(),
+        kind: block.kind(),
     }
 }
 

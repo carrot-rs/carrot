@@ -16,6 +16,7 @@
 pub mod active;
 pub mod display;
 pub mod frozen;
+pub mod kind;
 pub mod live_frame;
 pub mod mode;
 pub mod render_view;
@@ -35,6 +36,7 @@ pub mod tests;
 pub use active::ActiveBlock;
 pub use display::{DisplayState, Scroll};
 pub use frozen::FrozenBlock;
+pub use kind::BlockKind;
 pub use live_frame::{LiveFrameRegion, LiveFrameSource};
 pub use mode::TermMode;
 pub use render_view::{ActiveBlockView, FrozenView, RenderView};
