@@ -775,15 +775,30 @@ fn appearance_page() -> SettingsPage {
 
     fn buffer_font_section() -> [SettingsPageItem; 7] {
         [
-            SettingsPageItem::SectionHeader("Buffer Font"),
+            SettingsPageItem::SectionHeader("Code & Terminal Font"),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Font Family",
-                description: "Font family for editor text.",
+                description: "Font family for editor text, terminal output, and code blocks.",
                 field: Box::new(SettingField {
-                    json_path: Some("buffer_font_family"),
-                    pick: |settings_content| settings_content.theme.buffer_font_family.as_ref(),
+                    json_path: Some("fonts.mono.family"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .mono
+                            .as_ref()?
+                            .family
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.buffer_font_family = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .mono
+                            .get_or_insert_with(Default::default)
+                            .family = value;
                     },
                 }),
                 metadata: None,
@@ -791,12 +806,27 @@ fn appearance_page() -> SettingsPage {
             }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Font Size",
-                description: "Font size for editor text.",
+                description: "Font size for editor text, terminal output, and code blocks.",
                 field: Box::new(SettingField {
-                    json_path: Some("buffer_font_size"),
-                    pick: |settings_content| settings_content.theme.buffer_font_size.as_ref(),
+                    json_path: Some("fonts.mono.size"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .mono
+                            .as_ref()?
+                            .size
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.buffer_font_size = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .mono
+                            .get_or_insert_with(Default::default)
+                            .size = value;
                     },
                 }),
                 metadata: None,
@@ -806,10 +836,25 @@ fn appearance_page() -> SettingsPage {
                 title: "Font Weight",
                 description: "Font weight for editor text (100-900).",
                 field: Box::new(SettingField {
-                    json_path: Some("buffer_font_weight"),
-                    pick: |settings_content| settings_content.theme.buffer_font_weight.as_ref(),
+                    json_path: Some("fonts.mono.weight"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .mono
+                            .as_ref()?
+                            .weight
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.buffer_font_weight = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .mono
+                            .get_or_insert_with(Default::default)
+                            .weight = value;
                     },
                 }),
                 metadata: None,
@@ -819,27 +864,36 @@ fn appearance_page() -> SettingsPage {
                 discriminant: SettingItem {
                     files: USER,
                     title: "Line Height",
-                    description: "Line height for editor text.",
+                    description: "Line height for editor text and terminal output.",
                     field: Box::new(SettingField {
-                        json_path: Some("buffer_line_height$"),
+                        json_path: Some("fonts.mono.line_height$"),
                         pick: |settings_content| {
                             Some(
                                 &dynamic_variants::<inazuma_settings_framework::BufferLineHeight>()[settings_content
                                     .theme
-                                    .buffer_line_height
+                                    .fonts
+                                    .as_ref()?
+                                    .mono
+                                    .as_ref()?
+                                    .line_height
                                     .as_ref()?
                                     .discriminant()
                                     as usize],
                             )
                         },
                         write: |settings_content, value| {
+                            let mono = settings_content
+                                .theme
+                                .fonts
+                                .get_or_insert_with(Default::default)
+                                .mono
+                                .get_or_insert_with(Default::default);
                             let Some(value) = value else {
-                                settings_content.theme.buffer_line_height = None;
+                                mono.line_height = None;
                                 return;
                             };
-                            let settings_value = settings_content
-                                .theme
-                                .buffer_line_height
+                            let settings_value = mono
+                                .line_height
                                 .get_or_insert_with(|| inazuma_settings_framework::BufferLineHeight::default());
                             *settings_value = match value {
                                 inazuma_settings_framework::BufferLineHeightDiscriminants::Comfortable => {
@@ -863,7 +917,11 @@ fn appearance_page() -> SettingsPage {
                     Some(
                         settings_content
                             .theme
-                            .buffer_line_height
+                            .fonts
+                            .as_ref()?
+                            .mono
+                            .as_ref()?
+                            .line_height
                             .as_ref()?
                             .discriminant() as usize,
                     )
@@ -878,10 +936,14 @@ fn appearance_page() -> SettingsPage {
                             title: "Custom Line Height",
                             description: "Custom line height value (must be at least 1.0).",
                             field: Box::new(SettingField {
-                                json_path: Some("buffer_line_height"),
+                                json_path: Some("fonts.mono.line_height"),
                                 pick: |settings_content| match settings_content
                                     .theme
-                                    .buffer_line_height
+                                    .fonts
+                                    .as_ref()?
+                                    .mono
+                                    .as_ref()?
+                                    .line_height
                                     .as_ref()
                                 {
                                     Some(inazuma_settings_framework::BufferLineHeight::Custom(value)) => Some(value),
@@ -891,7 +953,16 @@ fn appearance_page() -> SettingsPage {
                                     let Some(value) = value else {
                                         return;
                                     };
-                                    match settings_content.theme.buffer_line_height.as_mut() {
+                                    let mono = match settings_content
+                                        .theme
+                                        .fonts
+                                        .as_mut()
+                                        .and_then(|f| f.mono.as_mut())
+                                    {
+                                        Some(m) => m,
+                                        None => return,
+                                    };
+                                    match mono.line_height.as_mut() {
                                         Some(inazuma_settings_framework::BufferLineHeight::Custom(line_height)) => {
                                             *line_height = f32::max(value, 1.0)
                                         }
@@ -910,12 +981,25 @@ fn appearance_page() -> SettingsPage {
                 description: "The OpenType features to enable for rendering in text buffers.",
                 field: Box::new(
                     SettingField {
-                        json_path: Some("buffer_font_features"),
+                        json_path: Some("fonts.mono.features"),
                         pick: |settings_content| {
-                            settings_content.theme.buffer_font_features.as_ref()
+                            settings_content
+                                .theme
+                                .fonts
+                                .as_ref()?
+                                .mono
+                                .as_ref()?
+                                .features
+                                .as_ref()
                         },
                         write: |settings_content, value| {
-                            settings_content.theme.buffer_font_features = value;
+                            settings_content
+                                .theme
+                                .fonts
+                                .get_or_insert_with(Default::default)
+                                .mono
+                                .get_or_insert_with(Default::default)
+                                .features = value;
                         },
                     }
                     .unimplemented(),
@@ -928,12 +1012,25 @@ fn appearance_page() -> SettingsPage {
                 description: "The font fallbacks to use for rendering in text buffers.",
                 field: Box::new(
                     SettingField {
-                        json_path: Some("buffer_font_fallbacks"),
+                        json_path: Some("fonts.mono.fallbacks"),
                         pick: |settings_content| {
-                            settings_content.theme.buffer_font_fallbacks.as_ref()
+                            settings_content
+                                .theme
+                                .fonts
+                                .as_ref()?
+                                .mono
+                                .as_ref()?
+                                .fallbacks
+                                .as_ref()
                         },
                         write: |settings_content, value| {
-                            settings_content.theme.buffer_font_fallbacks = value;
+                            settings_content
+                                .theme
+                                .fonts
+                                .get_or_insert_with(Default::default)
+                                .mono
+                                .get_or_insert_with(Default::default)
+                                .fallbacks = value;
                         },
                     }
                     .unimplemented(),
@@ -950,10 +1047,25 @@ fn appearance_page() -> SettingsPage {
                 title: "Font Family",
                 description: "Font family for UI elements.",
                 field: Box::new(SettingField {
-                    json_path: Some("ui_font_family"),
-                    pick: |settings_content| settings_content.theme.ui_font_family.as_ref(),
+                    json_path: Some("fonts.ui.family"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .ui
+                            .as_ref()?
+                            .family
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.ui_font_family = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .ui
+                            .get_or_insert_with(Default::default)
+                            .family = value;
                     },
                 }),
                 metadata: None,
@@ -963,10 +1075,25 @@ fn appearance_page() -> SettingsPage {
                 title: "Font Size",
                 description: "Font size for UI elements.",
                 field: Box::new(SettingField {
-                    json_path: Some("ui_font_size"),
-                    pick: |settings_content| settings_content.theme.ui_font_size.as_ref(),
+                    json_path: Some("fonts.ui.size"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .ui
+                            .as_ref()?
+                            .size
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.ui_font_size = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .ui
+                            .get_or_insert_with(Default::default)
+                            .size = value;
                     },
                 }),
                 metadata: None,
@@ -976,10 +1103,25 @@ fn appearance_page() -> SettingsPage {
                 title: "Font Weight",
                 description: "Font weight for UI elements (100-900).",
                 field: Box::new(SettingField {
-                    json_path: Some("ui_font_weight"),
-                    pick: |settings_content| settings_content.theme.ui_font_weight.as_ref(),
+                    json_path: Some("fonts.ui.weight"),
+                    pick: |settings_content| {
+                        settings_content
+                            .theme
+                            .fonts
+                            .as_ref()?
+                            .ui
+                            .as_ref()?
+                            .weight
+                            .as_ref()
+                    },
                     write: |settings_content, value| {
-                        settings_content.theme.ui_font_weight = value;
+                        settings_content
+                            .theme
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .ui
+                            .get_or_insert_with(Default::default)
+                            .weight = value;
                     },
                 }),
                 metadata: None,
@@ -991,10 +1133,25 @@ fn appearance_page() -> SettingsPage {
                 description: "The OpenType features to enable for rendering in UI elements.",
                 field: Box::new(
                     SettingField {
-                        json_path: Some("ui_font_features"),
-                        pick: |settings_content| settings_content.theme.ui_font_features.as_ref(),
+                        json_path: Some("fonts.ui.features"),
+                        pick: |settings_content| {
+                            settings_content
+                                .theme
+                                .fonts
+                                .as_ref()?
+                                .ui
+                                .as_ref()?
+                                .features
+                                .as_ref()
+                        },
                         write: |settings_content, value| {
-                            settings_content.theme.ui_font_features = value;
+                            settings_content
+                                .theme
+                                .fonts
+                                .get_or_insert_with(Default::default)
+                                .ui
+                                .get_or_insert_with(Default::default)
+                                .features = value;
                         },
                     }
                     .unimplemented(),
@@ -1007,59 +1164,30 @@ fn appearance_page() -> SettingsPage {
                 description: "The font fallbacks to use for rendering in the UI.",
                 field: Box::new(
                     SettingField {
-                        json_path: Some("ui_font_fallbacks"),
-                        pick: |settings_content| settings_content.theme.ui_font_fallbacks.as_ref(),
+                        json_path: Some("fonts.ui.fallbacks"),
+                        pick: |settings_content| {
+                            settings_content
+                                .theme
+                                .fonts
+                                .as_ref()?
+                                .ui
+                                .as_ref()?
+                                .fallbacks
+                                .as_ref()
+                        },
                         write: |settings_content, value| {
-                            settings_content.theme.ui_font_fallbacks = value;
+                            settings_content
+                                .theme
+                                .fonts
+                                .get_or_insert_with(Default::default)
+                                .ui
+                                .get_or_insert_with(Default::default)
+                                .fallbacks = value;
                         },
                     }
                     .unimplemented(),
                 ),
                 metadata: None,
-            }),
-        ]
-    }
-
-    fn agent_panel_font_section() -> [SettingsPageItem; 3] {
-        [
-            SettingsPageItem::SectionHeader("Agent Panel Font"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "UI Font Size",
-                description: "Font size for agent response text in the agent panel. Falls back to the regular UI font size.",
-                field: Box::new(SettingField {
-                    json_path: Some("agent_ui_font_size"),
-                    pick: |settings_content| {
-                        settings_content
-                            .theme
-                            .agent_ui_font_size
-                            .as_ref()
-                            .or(settings_content.theme.ui_font_size.as_ref())
-                    },
-                    write: |settings_content, value| {
-                        settings_content.theme.agent_ui_font_size = value;
-                    },
-                }),
-                metadata: None,
-                files: USER,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Buffer Font Size",
-                description: "Font size for user messages text in the agent panel.",
-                field: Box::new(SettingField {
-                    json_path: Some("agent_buffer_font_size"),
-                    pick: |settings_content| {
-                        settings_content
-                            .theme
-                            .agent_buffer_font_size
-                            .as_ref()
-                            .or(settings_content.theme.buffer_font_size.as_ref())
-                    },
-                    write: |settings_content, value| {
-                        settings_content.theme.agent_buffer_font_size = value;
-                    },
-                }),
-                metadata: None,
-                files: USER,
             }),
         ]
     }
@@ -1439,7 +1567,6 @@ fn appearance_page() -> SettingsPage {
         theme_section(),
         buffer_font_section(),
         ui_font_section(),
-        agent_panel_font_section(),
         text_rendering_section(),
         cursor_section(),
         highlighting_section(),
