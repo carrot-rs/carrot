@@ -73,6 +73,11 @@ pub enum ShellMarker {
     /// pre-VT scanner because the byte-introducer recognition is
     /// adjacent (`ESC P` vs `ESC ]`).
     ImageInlineSixel(Vec<u8>),
+    /// `\e_G[key=value,...];[base64]\e\\` — Kitty Graphics inline
+    /// image. Carried bytes are the APC body **after** `\e_` and
+    /// **before** `\e\\` (i.e. starts with `G`). The marker consumer
+    /// hands them to `carrot_grid::parse_kitty_payload`.
+    ImageInlineKitty(Vec<u8>),
 }
 
 /// Nushell prompt-kind types from `OSC 133 ; P`.

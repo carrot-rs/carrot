@@ -302,40 +302,15 @@ impl TerminalPane {
                     log::warn!("Failed to decode Sixel DCS payload");
                     return;
                 };
-                let handle = self.terminal.handle();
-                let mut term = handle.lock();
-                let viewport_cols = term.columns() as u16;
-                let viewport_rows = term.screen_lines() as u16;
-                if let carrot_term::block::ActiveTarget::Block { block, .. } =
-                    term.block_router_mut().active()
-                {
-                    let row_start = block.grid().total_rows() as u32;
-                    // Sixel images carry no width/height hint — derive
-                    // cell rows / cols straight from the native pixel
-                    // dimensions and clamp to the viewport.
-                    let native_cols = ((decoded.width as u16)
-                        + IMAGE_CELL_W_PX.saturating_sub(1))
-                        / IMAGE_CELL_W_PX.max(1);
-                    let native_rows = ((decoded.height as u16)
-                        + IMAGE_CELL_H_PX.saturating_sub(1))
-                        / IMAGE_CELL_H_PX.max(1);
-                    let placement = carrot_grid::Placement {
-                        row_start,
-                        col_start: 0,
-                        rows: native_rows.clamp(1, viewport_rows),
-                        cols: native_cols.clamp(1, viewport_cols),
-                        offset_x: 0,
-                        offset_y: 0,
-                        external_id: 0,
-                    };
-                    install_image_into_block(
-                        block,
-                        std::sync::Arc::new(decoded),
-                        placement,
-                        viewport_cols,
-                    );
-                }
-                cx.notify();
+                self.install_protocol_image(decoded, cx);
+            }
+            carrot_terminal::ShellMarker::ImageInlineKitty(payload) => {
+                use carrot_grid::parse_kitty_payload;
+                let Some(decoded) = parse_kitty_payload(&payload) else {
+                    log::warn!("Failed to decode Kitty Graphics APC payload");
+                    return;
+                };
+                self.install_protocol_image(decoded, cx);
             }
         }
     }
@@ -575,5 +550,50 @@ fn install_image_into_block(
             ))
             .collect();
         block.grid_mut().append_row(&row);
+    }
+}
+
+impl TerminalPane {
+    /// Hook for protocol image markers (Sixel + Kitty Graphics) that
+    /// don't carry a width/height hint of their own. Derives placement
+    /// from the native pixel dimensions of the decoded image, clamping
+    /// to the current viewport, and forwards to
+    /// `install_image_into_block`.
+    fn install_protocol_image(
+        &self,
+        decoded: carrot_grid::DecodedImage,
+        cx: &mut inazuma::Context<Self>,
+    ) {
+        let handle = self.terminal.handle();
+        let mut term = handle.lock();
+        let viewport_cols = term.columns() as u16;
+        let viewport_rows = term.screen_lines() as u16;
+        if let carrot_term::block::ActiveTarget::Block { block, .. } =
+            term.block_router_mut().active()
+        {
+            let row_start = block.grid().total_rows() as u32;
+            let native_cols = ((decoded.width as u16)
+                + IMAGE_CELL_W_PX.saturating_sub(1))
+                / IMAGE_CELL_W_PX.max(1);
+            let native_rows = ((decoded.height as u16)
+                + IMAGE_CELL_H_PX.saturating_sub(1))
+                / IMAGE_CELL_H_PX.max(1);
+            let placement = carrot_grid::Placement {
+                row_start,
+                col_start: 0,
+                rows: native_rows.clamp(1, viewport_rows),
+                cols: native_cols.clamp(1, viewport_cols),
+                offset_x: 0,
+                offset_y: 0,
+                external_id: 0,
+            };
+            install_image_into_block(
+                block,
+                std::sync::Arc::new(decoded),
+                placement,
+                viewport_cols,
+            );
+        }
+        cx.notify();
     }
 }

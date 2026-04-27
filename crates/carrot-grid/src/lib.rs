@@ -42,7 +42,8 @@ pub use grapheme::GraphemeStore;
 pub use hyperlink::{HyperlinkId, HyperlinkStore};
 pub use image::{DecodedImage, ImageEntry, ImageFormat, ImageStore, Placement};
 pub use image_protocols::{
-    ITerm2Image, decode_image_bytes, decode_sixel, parse_iterm2_payload, placement_from_iterm2,
+    ITerm2Image, decode_image_bytes, decode_sixel, parse_iterm2_payload, parse_kitty_payload,
+    placement_from_iterm2,
 };
 pub use page::{Page, PageCapacity};
 pub use page_list::{PageList, RowIter};

@@ -133,6 +133,89 @@ pub fn decode_image_bytes(bytes: &[u8]) -> Option<DecodedImage> {
     ))
 }
 
+/// Parse a Kitty Graphics APC payload (`G[key=value,...];[base64]`)
+/// into a [`DecodedImage`].
+///
+/// `payload` is the APC body **after** the `\e_` introducer and **before**
+/// the `\e\\` terminator. The `G` opcode that identifies the Kitty
+/// Graphics protocol must be the first byte; other APC opcodes (e.g.
+/// custom shell-integration extensions) are caller-rejected upstream.
+///
+/// **Scope**: this implementation handles single-chunk transfers
+/// (`m=0` or no `m=` key). Chunked transfers (`m=1` continuation
+/// payloads) need accumulation across multiple APC sequences and are
+/// tracked separately by the consumer (Plan 31 A7.2 follow-up).
+///
+/// Format detection: `f=24` (RGB), `f=32` (RGBA), `f=100` (PNG /
+/// auto-detect via `image` crate). Other formats return `None`.
+///
+/// Reference: <https://sw.kovidgoyal.net/kitty/graphics-protocol/>
+pub fn parse_kitty_payload(payload: &[u8]) -> Option<DecodedImage> {
+    // First byte must be the `G` opcode.
+    let body = payload.strip_prefix(b"G")?;
+    let split = body.iter().position(|&b| b == b';')?;
+    let (header, data) = (&body[..split], &body[split + 1..]);
+
+    let mut format: u32 = 32;
+    let mut width: Option<u32> = None;
+    let mut height: Option<u32> = None;
+    let mut more_chunks = false;
+    if let Ok(header_str) = std::str::from_utf8(header) {
+        for kv in header_str.split(',') {
+            let Some(eq) = kv.find('=') else {
+                continue;
+            };
+            let (k, v) = (kv[..eq].trim(), kv[eq + 1..].trim());
+            match k {
+                "f" => format = v.parse().unwrap_or(32),
+                "s" => width = v.parse().ok(),
+                "v" => height = v.parse().ok(),
+                "m" => more_chunks = matches!(v, "1"),
+                // Other keys (a, i, q, S, V, x, y, …) are advisory or
+                // out-of-scope for the single-chunk decode path.
+                _ => {}
+            }
+        }
+    }
+    if more_chunks {
+        // Chunked transfers need accumulation across APC sequences —
+        // the upstream consumer handles that. We can't decode a
+        // partial payload.
+        return None;
+    }
+
+    let decoded = STANDARD.decode(data).ok()?;
+    match format {
+        100 => {
+            // PNG / auto-detect via `image` crate magic-bytes.
+            decode_image_bytes(&decoded)
+        }
+        24 => {
+            // Raw RGB. Width / height are mandatory in the spec.
+            let w = width? as usize;
+            let h = height? as usize;
+            if decoded.len() != w * h * 3 {
+                return None;
+            }
+            let mut rgba = Vec::with_capacity(w * h * 4);
+            for px in decoded.chunks_exact(3) {
+                rgba.extend_from_slice(&[px[0], px[1], px[2], 0xFF]);
+            }
+            Some(DecodedImage::new(w as u32, h as u32, ImageFormat::Rgba8, rgba))
+        }
+        32 => {
+            // Raw RGBA.
+            let w = width? as usize;
+            let h = height? as usize;
+            if decoded.len() != w * h * 4 {
+                return None;
+            }
+            Some(DecodedImage::new(w as u32, h as u32, ImageFormat::Rgba8, decoded))
+        }
+        _ => None,
+    }
+}
+
 /// Decode a Sixel DCS sequence (`\eP[params]q[payload]\e\\`) into a
 /// [`DecodedImage`] with `Rgba8` pixels.
 ///
@@ -332,4 +415,61 @@ mod tests {
     // upstream pre-scanner only invokes `decode_sixel` after recognising
     // a `\eP...q...\e\\` DCS envelope — non-DCS bytes never reach this
     // function in production.
+
+    #[test]
+    fn parse_kitty_png_single_chunk() {
+        let payload = format!("Gf=100,a=T;{TINY_PNG_B64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 1);
+        assert_eq!(img.height, 1);
+        assert_eq!(img.format, ImageFormat::Rgba8);
+    }
+
+    #[test]
+    fn parse_kitty_rgba_raw() {
+        // 2×2 transparent black, raw RGBA.
+        let raw_rgba = vec![0u8; 16];
+        let b64 = STANDARD.encode(&raw_rgba);
+        let payload = format!("Gf=32,s=2,v=2;{b64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 2);
+        assert_eq!(img.pixels.len(), 16);
+    }
+
+    #[test]
+    fn parse_kitty_rgb_raw_expands_to_rgba() {
+        // 2×1 RGB → opaque alpha appended.
+        let raw_rgb = vec![0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00];
+        let b64 = STANDARD.encode(&raw_rgb);
+        let payload = format!("Gf=24,s=2,v=1;{b64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 1);
+        assert_eq!(img.pixels, vec![0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]);
+    }
+
+    #[test]
+    fn parse_kitty_rejects_chunked_continuation() {
+        let b64 = STANDARD.encode(b"first chunk");
+        let payload = format!("Gf=100,m=1;{b64}");
+        // Chunked transfers must be accumulated upstream — single
+        // chunk parser correctly rejects partial payloads.
+        assert!(parse_kitty_payload(payload.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn parse_kitty_missing_g_opcode_returns_none() {
+        // APC payload that is not Kitty Graphics — e.g. some custom
+        // tool's APC abuse — must not be misinterpreted.
+        assert!(parse_kitty_payload(b"X;notbase64").is_none());
+    }
+
+    #[test]
+    fn parse_kitty_rejects_size_mismatch() {
+        // f=32 with 4×4 declared but only 4 bytes payload.
+        let b64 = STANDARD.encode(&[0u8; 4]);
+        let payload = format!("Gf=32,s=4,v=4;{b64}");
+        assert!(parse_kitty_payload(payload.as_bytes()).is_none());
+    }
 }

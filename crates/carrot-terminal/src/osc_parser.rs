@@ -28,6 +28,9 @@ pub struct OscScanner {
     /// protocol additions; isolating the buffers makes the
     /// state-transition logic obvious.
     dcs_buf: Vec<u8>,
+    /// Accumulator for in-flight APC sequences (Kitty Graphics).
+    /// Distinct from `dcs_buf` for the same reason.
+    apc_buf: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +49,12 @@ enum ScanState {
     InDcs,
     /// Inside DCS, saw ESC — waiting for `\` (ST terminator).
     InDcsSawEsc,
+    /// Inside an APC sequence (`\e_...\e\\`). Used by the Kitty
+    /// Graphics protocol — the body is buffered raw and handed to
+    /// `parse_kitty_payload` on terminator.
+    InApc,
+    /// Inside APC, saw ESC — waiting for `\` (ST terminator).
+    InApcSawEsc,
 }
 
 impl OscScanner {
@@ -54,6 +63,7 @@ impl OscScanner {
             state: ScanState::Normal,
             param_buf: Vec::with_capacity(512),
             dcs_buf: Vec::new(),
+            apc_buf: Vec::new(),
         }
     }
 
@@ -89,6 +99,13 @@ impl OscScanner {
                         self.dcs_buf.clear();
                         self.dcs_buf.extend_from_slice(b"\x1bP");
                         self.state = ScanState::InDcs;
+                    } else if byte == b'_' {
+                        // APC introducer (Kitty Graphics). The
+                        // payload starts after `\e_`; we only buffer
+                        // the body so `parse_kitty_payload` sees the
+                        // raw `G…;base64` shape.
+                        self.apc_buf.clear();
+                        self.state = ScanState::InApc;
                     } else {
                         self.state = ScanState::Normal;
                     }
@@ -156,10 +173,45 @@ impl OscScanner {
                         self.state = ScanState::InDcs;
                     }
                 }
+
+                ScanState::InApc => {
+                    if byte == 0x1B {
+                        self.state = ScanState::InApcSawEsc;
+                    } else {
+                        self.apc_buf.push(byte);
+                    }
+                }
+
+                ScanState::InApcSawEsc => {
+                    if byte == b'\\' {
+                        if let Some(marker) = self.try_parse_apc() {
+                            markers.push(PositionedMarker {
+                                marker,
+                                start: osc_start,
+                                end: i + 1,
+                            });
+                        }
+                        self.apc_buf.clear();
+                        self.state = ScanState::Normal;
+                    } else {
+                        self.apc_buf.push(0x1B);
+                        self.apc_buf.push(byte);
+                        self.state = ScanState::InApc;
+                    }
+                }
             }
         }
 
         markers
+    }
+
+    /// Recognise APC sequences. Currently only Kitty Graphics
+    /// (`G…;base64`); other APC opcodes are dropped.
+    fn try_parse_apc(&self) -> Option<ShellMarker> {
+        if self.apc_buf.first().copied() != Some(b'G') {
+            return None;
+        }
+        Some(ShellMarker::ImageInlineKitty(self.apc_buf.clone()))
     }
 
     /// Recognise DCS sequences we care about — currently only Sixel.
