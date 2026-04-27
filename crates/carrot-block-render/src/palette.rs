@@ -89,6 +89,32 @@ impl TerminalPalette {
         }
     }
 
+    /// Same as [`resolve`], but applies the *bold-as-bright* convention:
+    /// when `bold` is set and the foreground references a base ANSI-16
+    /// color (Red, Green, Blue, …), the bright variant is used instead
+    /// (BrightRed, BrightGreen, BrightBlue, …). xterm, alacritty,
+    /// gnome-terminal and Warp all default to this — without it, every
+    /// `\e[1;31m` byte from `eza` / `git` / colored prompts renders in
+    /// the muted base shade and the terminal looks washed out.
+    ///
+    /// `bg` channels and indexed/RGB colors are left untouched.
+    pub fn resolve_styled(&self, color: Color, default_slot: DefaultSlot, bold: bool) -> OklchArr {
+        if bold && matches!(default_slot, DefaultSlot::Foreground)
+            && let Color::Named(n) = color
+        {
+            return self.named(promote_to_bright(n));
+        }
+        self.resolve(color, default_slot)
+    }
+
+    /// Same as [`resolve`], applying [`promote_to_bright`] when `bold`
+    /// is set. Convenience wrapper for callers that already have a
+    /// `Color` value rather than a [`CellStyle`].
+    #[doc(hidden)]
+    pub fn resolve_named_bold(&self, n: NamedColor) -> OklchArr {
+        self.named(promote_to_bright(n))
+    }
+
     fn named(&self, n: NamedColor) -> OklchArr {
         match n {
             NamedColor::Black => self.black,
@@ -203,6 +229,24 @@ fn oklch_to_arr(c: Oklch) -> OklchArr {
 pub enum DefaultSlot {
     Foreground,
     Background,
+}
+
+/// Promote a base ANSI-16 named color to its bright variant. Used for
+/// the bold-as-bright convention applied at fg-resolution time. Bright,
+/// dim, and special slots (Foreground / Background / Cursor) pass
+/// through unchanged.
+fn promote_to_bright(n: NamedColor) -> NamedColor {
+    match n {
+        NamedColor::Black => NamedColor::BrightBlack,
+        NamedColor::Red => NamedColor::BrightRed,
+        NamedColor::Green => NamedColor::BrightGreen,
+        NamedColor::Yellow => NamedColor::BrightYellow,
+        NamedColor::Blue => NamedColor::BrightBlue,
+        NamedColor::Magenta => NamedColor::BrightMagenta,
+        NamedColor::Cyan => NamedColor::BrightCyan,
+        NamedColor::White => NamedColor::BrightWhite,
+        other => other,
+    }
 }
 
 #[cfg(test)]

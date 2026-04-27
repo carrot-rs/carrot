@@ -428,9 +428,10 @@ impl Element for BlockElement {
                                     origin: point(x, y + ascent),
                                     font_id,
                                     glyph_id,
-                                    color: oklch_from_arr(self.palette.resolve(
+                                    color: oklch_from_arr(self.palette.resolve_styled(
                                         style.fg,
                                         crate::palette::DefaultSlot::Foreground,
+                                        style.flags.contains(carrot_grid::CellStyleFlags::BOLD),
                                     )),
                                 });
                             }

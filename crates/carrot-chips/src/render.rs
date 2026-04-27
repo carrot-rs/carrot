@@ -59,46 +59,49 @@ pub fn chip_theme_color(colors: &ChipColors, id: ChipId) -> Oklch {
     }
 }
 
+// Chip language/devops accents — kept in sync with the saturated
+// `terminal.ansi.*` palette in the Carrot Dark theme so a `python` chip
+// shows the same vivid yellow as a `\e[33m` byte from the terminal.
 const BOLD_RED: Oklch = Oklch {
-    l: 0.7227,
-    c: 0.1589,
-    h: 10.28,
+    l: 0.70,
+    c: 0.24,
+    h: 25.0,
     a: 1.0,
 };
 const BOLD_GREEN: Oklch = Oklch {
-    l: 0.8441,
-    c: 0.1991,
-    h: 156.83,
+    l: 0.88,
+    c: 0.24,
+    h: 142.0,
     a: 1.0,
 };
 const BOLD_BLUE: Oklch = Oklch {
-    l: 0.719,
-    c: 0.1322,
-    h: 264.2,
+    l: 0.72,
+    c: 0.22,
+    h: 240.0,
     a: 1.0,
 };
 const BOLD_YELLOW: Oklch = Oklch {
-    l: 0.7839,
-    c: 0.1057,
-    h: 75.43,
+    l: 0.92,
+    c: 0.18,
+    h: 95.0,
     a: 1.0,
 };
 const BOLD_CYAN: Oklch = Oklch {
-    l: 0.82,
-    c: 0.1051,
-    h: 235.72,
+    l: 0.88,
+    c: 0.14,
+    h: 200.0,
     a: 1.0,
 };
 const BOLD_PURPLE: Oklch = Oklch {
-    l: 0.7515,
-    c: 0.1344,
-    h: 299.5,
+    l: 0.75,
+    c: 0.25,
+    h: 320.0,
     a: 1.0,
 };
 const BOLD_ORANGE: Oklch = Oklch {
-    l: 0.787,
-    c: 0.1373,
-    h: 50.56,
+    l: 0.78,
+    c: 0.20,
+    h: 50.0,
     a: 1.0,
 };
 

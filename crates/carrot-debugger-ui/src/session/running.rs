@@ -1,3 +1,4 @@
+mod ansi_color;
 pub(crate) mod breakpoint_list;
 pub(crate) mod console;
 pub(crate) mod loaded_source_list;

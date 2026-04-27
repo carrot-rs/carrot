@@ -80,9 +80,16 @@ pub struct AppearanceSettingsContent {
 #[serde(rename_all = "snake_case")]
 pub enum AppearanceColorspace {
     /// Explicit sRGB tagging — prevents oversaturation on P3 displays.
+    /// Matches our `Oklch → Rgba` pipeline, which gamut-maps to sRGB
+    /// per CSS Color 4. Switching to `DisplayP3` here without also
+    /// routing the pipeline through `to_gamut_p3` would feed sRGB
+    /// pixels into a P3-tagged layer and shift hues.
     #[default]
     Srgb,
-    /// Enable the wider Display P3 gamut for richer colors.
+    /// Enable the wider Display P3 gamut for richer colors. **Pipeline
+    /// caveat**: the color resolver must produce P3-mapped Rgba, which
+    /// is not yet wired up — flipping this on right now over-saturates
+    /// theme tokens. Tracked for a follow-up.
     DisplayP3,
     /// Use the display's native colorspace without explicit tagging.
     Native,

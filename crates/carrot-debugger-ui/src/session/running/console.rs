@@ -235,9 +235,10 @@ impl Console {
                         let range = buffer.anchor_after(MultiBufferOffset(range.start))
                             ..buffer.anchor_before(MultiBufferOffset(range.end));
                         let style = HighlightStyle {
-                            color: Some(carrot_terminal_view::colors::convert_color(
+                            color: Some(super::ansi_color::ansi_to_oklch(
                                 &color,
                                 cx.theme(),
+                                false,
                             )),
                             ..Default::default()
                         };

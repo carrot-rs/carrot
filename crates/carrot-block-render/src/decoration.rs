@@ -56,15 +56,20 @@ pub fn render_decorations(
 ) -> Vec<DecorationDraw> {
     let mut out = Vec::new();
 
+    let bold = style.flags.contains(CellStyleFlags::BOLD);
     if style.flags.contains(CellStyleFlags::UNDERLINE) {
         let color_tag = underline_color_override
             .or(style.underline_color)
             .unwrap_or(style.fg);
+        // Promote bold + base ANSI to the bright variant — keep the
+        // underline color in lock-step with the glyph color so a
+        // `\e[1;31;4m` segment doesn't show a muted underline below
+        // a bright-red word.
         out.push(DecorationDraw {
             kind: DecorationKind::Underline,
             y_offset_frac: 0.90,
             height_frac: 0.06,
-            color: palette.resolve(color_tag, DefaultSlot::Foreground),
+            color: palette.resolve_styled(color_tag, DefaultSlot::Foreground, bold),
         });
     }
 
@@ -73,7 +78,7 @@ pub fn render_decorations(
             kind: DecorationKind::Strikethrough,
             y_offset_frac: 0.50,
             height_frac: 0.06,
-            color: palette.resolve(style.fg, DefaultSlot::Foreground),
+            color: palette.resolve_styled(style.fg, DefaultSlot::Foreground, bold),
         });
     }
 
