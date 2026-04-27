@@ -410,12 +410,15 @@ impl Hash for RenderGlyphParams {
 }
 
 /// Maps well-known virtual font names to their concrete equivalents.
+/// Future default-font swaps happen here — touch this map and the
+/// rest of the resolver picks up the new family without a config
+/// migration for users who stayed on `.CarrotSans` / `.CarrotMono`.
 #[allow(unused)]
 pub fn font_name_with_fallbacks<'a>(name: &'a str, system: &'a str) -> &'a str {
     match name {
         ".SystemUIFont" => system,
-        ".CarrotSans" => "IBM Plex Sans",
-        ".CarrotMono" => "Lilex",
+        ".CarrotSans" => "Comic Stack",
+        ".CarrotMono" => "CRT-02",
         _ => name,
     }
 }
@@ -428,8 +431,8 @@ pub fn font_name_with_fallbacks_shared<'a>(
 ) -> &'a SharedString {
     match name.as_str() {
         ".SystemUIFont" => system,
-        ".CarrotSans" => const { &SharedString::new_static("IBM Plex Sans") },
-        ".CarrotMono" => const { &SharedString::new_static("Lilex") },
+        ".CarrotSans" => const { &SharedString::new_static("Comic Stack") },
+        ".CarrotMono" => const { &SharedString::new_static("CRT-02") },
         _ => name,
     }
 }

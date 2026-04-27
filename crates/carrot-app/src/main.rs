@@ -87,16 +87,25 @@ fn main() {
     Application::new()
         .with_assets(carrot_assets::Assets)
         .run(|cx: &mut App| {
-            // Register bundled terminal fonts via asset pipeline
-            let font_paths = [
-                "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Regular.otf",
-                "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Bold.otf",
-                "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Italic.otf",
-            ];
-            let bundled_fonts: Vec<Cow<'static, [u8]>> = font_paths
-                .iter()
-                .filter_map(|path| cx.asset_source().load(path).ok().flatten())
-                .collect();
+            // Register every bundled font via the asset pipeline. The
+            // walker grabs every `.otf` / `.ttf` under each font
+            // directory so adding a new face is a drop-the-file
+            // operation, no main.rs edit. Two roles ship as defaults
+            // (`comic-stack` / `CRT-02`); `ibm-plex-sans` and `lilex`
+            // ride along as secondary picker options the user can opt
+            // into via settings.
+            let font_dirs = ["comic-stack", "CRT-02", "ibm-plex-sans", "lilex"];
+            let mut bundled_fonts: Vec<Cow<'static, [u8]>> = Vec::new();
+            for dir in &font_dirs {
+                let prefix = format!("fonts/{dir}/");
+                for path in cx.asset_source().list(&prefix).unwrap_or_default() {
+                    if path.ends_with(".otf") || path.ends_with(".ttf") {
+                        if let Some(bytes) = cx.asset_source().load(&path).ok().flatten() {
+                            bundled_fonts.push(bytes);
+                        }
+                    }
+                }
+            }
             cx.text_system()
                 .add_fonts(bundled_fonts)
                 .expect("failed to register bundled fonts");
