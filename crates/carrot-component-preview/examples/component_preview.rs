@@ -80,7 +80,7 @@ fn main() {
             {
                 move |window, cx| {
                     let app_state = app_state;
-                    carrot_theme_settings::setup_ui_font(window, cx);
+                    carrot_theme_settings::setup_body_font(window, cx);
 
                     let project = Project::local(
                         app_state.client.clone(),

@@ -869,7 +869,7 @@ fn register_actions(
                             .insert(f32::from(carrot_theme_settings::clamp_font_size(ui_font_size)).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_ui_font_size(cx, |size| size + px(1.0));
+                    carrot_theme_settings::adjust_body_font_size(cx, |size| size + px(1.0));
                 }
             }
         })
@@ -885,7 +885,7 @@ fn register_actions(
                             .insert(f32::from(carrot_theme_settings::clamp_font_size(ui_font_size)).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_ui_font_size(cx, |size| size - px(1.0));
+                    carrot_theme_settings::adjust_body_font_size(cx, |size| size - px(1.0));
                 }
             }
         })
@@ -897,7 +897,7 @@ fn register_actions(
                         settings.theme.ui_font_size = None;
                     });
                 } else {
-                    carrot_theme_settings::reset_ui_font_size(cx);
+                    carrot_theme_settings::reset_body_font_size(cx);
                 }
             }
         })
@@ -914,7 +914,7 @@ fn register_actions(
                             .insert(f32::from(carrot_theme_settings::clamp_font_size(buffer_font_size)).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_buffer_font_size(cx, |size| size + px(1.0));
+                    carrot_theme_settings::adjust_mono_font_size(cx, |size| size + px(1.0));
                 }
             }
         })
@@ -931,7 +931,7 @@ fn register_actions(
                             .insert(f32::from(carrot_theme_settings::clamp_font_size(buffer_font_size)).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_buffer_font_size(cx, |size| size - px(1.0));
+                    carrot_theme_settings::adjust_mono_font_size(cx, |size| size - px(1.0));
                 }
             }
         })
@@ -943,7 +943,7 @@ fn register_actions(
                         settings.theme.buffer_font_size = None;
                     });
                 } else {
-                    carrot_theme_settings::reset_buffer_font_size(cx);
+                    carrot_theme_settings::reset_mono_font_size(cx);
                 }
             }
         })
@@ -958,8 +958,8 @@ fn register_actions(
                         settings.theme.agent_buffer_font_size = None;
                     });
                 } else {
-                    carrot_theme_settings::reset_ui_font_size(cx);
-                    carrot_theme_settings::reset_buffer_font_size(cx);
+                    carrot_theme_settings::reset_body_font_size(cx);
+                    carrot_theme_settings::reset_mono_font_size(cx);
                     carrot_theme_settings::reset_agent_ui_font_size(cx);
                     carrot_theme_settings::reset_agent_buffer_font_size(cx);
                 }

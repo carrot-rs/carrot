@@ -8,7 +8,7 @@ use carrot_theme::{
 use inazuma::{App, AssetSource, Font, Pixels};
 use inazuma_settings_framework::{Settings, SettingsStore};
 
-use crate::settings::{ThemeSettings, default_theme, reset_buffer_font_size, reset_ui_font_size};
+use crate::settings::{ThemeSettings, default_theme, reset_mono_font_size, reset_body_font_size};
 
 struct ThemeSettingsProviderImpl;
 
@@ -156,8 +156,8 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
 
     // 6. Set up SettingsStore observer for live theme/font reloading
     let settings = ThemeSettings::get_global(cx);
-    let mut prev_buffer_font_size_settings = settings.buffer_font_size_settings();
-    let mut prev_ui_font_size_settings = settings.ui_font_size_settings();
+    let mut prev_mono_font_size_settings = settings.mono_font_size_settings();
+    let mut prev_body_font_size_settings = settings.body_font_size_settings();
     let mut prev_theme_name = settings.theme.name(Appearance::Dark);
     let mut prev_icon_theme_name = settings.icon_theme.name(Appearance::Dark);
     let mut prev_theme_overrides = (
@@ -168,8 +168,8 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
     cx.observe_global::<SettingsStore>(move |cx| {
         let settings = ThemeSettings::get_global(cx);
 
-        let buffer_font_size_settings = settings.buffer_font_size_settings();
-        let ui_font_size_settings = settings.ui_font_size_settings();
+        let mono_font_size_settings = settings.mono_font_size_settings();
+        let body_font_size_settings = settings.body_font_size_settings();
         let theme_name = settings.theme.name(Appearance::Dark);
         let icon_theme_name = settings.icon_theme.name(Appearance::Dark);
         let theme_overrides = (
@@ -177,14 +177,14 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
             settings.theme_overrides.clone(),
         );
 
-        if buffer_font_size_settings != prev_buffer_font_size_settings {
-            prev_buffer_font_size_settings = buffer_font_size_settings;
-            reset_buffer_font_size(cx);
+        if mono_font_size_settings != prev_mono_font_size_settings {
+            prev_mono_font_size_settings = mono_font_size_settings;
+            reset_mono_font_size(cx);
         }
 
-        if ui_font_size_settings != prev_ui_font_size_settings {
-            prev_ui_font_size_settings = ui_font_size_settings;
-            reset_ui_font_size(cx);
+        if body_font_size_settings != prev_body_font_size_settings {
+            prev_body_font_size_settings = body_font_size_settings;
+            reset_body_font_size(cx);
         }
 
         if theme_name != prev_theme_name || theme_overrides != prev_theme_overrides {

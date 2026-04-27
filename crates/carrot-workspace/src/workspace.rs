@@ -8124,7 +8124,7 @@ impl Render for Workspace {
         } else {
             (None, None)
         };
-        let ui_font = carrot_theme_settings::setup_ui_font(window, cx);
+        let ui_font = carrot_theme_settings::setup_body_font(window, cx);
 
         let theme = cx.theme().clone();
         let colors = theme.colors();

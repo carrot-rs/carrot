@@ -2858,7 +2858,7 @@ impl Focusable for Sidebar {
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _titlebar_height = ui::utils::platform_title_bar_height(window);
-        let ui_font = theme_settings::setup_ui_font(window, cx);
+        let ui_font = theme_settings::setup_body_font(window, cx);
         let sticky_header = self.render_sticky_header(window, cx);
 
         let color = cx.theme().colors();

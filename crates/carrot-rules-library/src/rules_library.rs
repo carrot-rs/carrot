@@ -1405,7 +1405,7 @@ impl RulesLibrary {
 
 impl Render for RulesLibrary {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = carrot_theme_settings::setup_ui_font(window, cx);
+        let ui_font = carrot_theme_settings::setup_body_font(window, cx);
         let theme = cx.theme().clone();
 
         client_side_decorations(

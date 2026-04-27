@@ -90,7 +90,7 @@ pub fn default_theme(appearance: Appearance) -> &'static str {
 
 // In-memory zoom adjustments. The role-based `MonoFontSize` /
 // `BodyFontSize` are the canonical zoom state — legacy
-// `adjust_buffer_font_size` / `adjust_ui_font_size` are thin shims
+// `adjust_mono_font_size` / `adjust_body_font_size` are thin shims
 // that delegate to them, so both APIs share one piece of global
 // state.
 
@@ -277,11 +277,11 @@ impl ThemeSettings {
             .unwrap_or_else(|| self.buffer_font_size(cx))
     }
 
-    pub fn buffer_font_size_settings(&self) -> Pixels {
+    pub fn mono_font_size_settings(&self) -> Pixels {
         self.buffer_font_size
     }
 
-    pub fn ui_font_size_settings(&self) -> Pixels {
+    pub fn body_font_size_settings(&self) -> Pixels {
         self.ui_font_size
     }
 
@@ -385,30 +385,30 @@ pub fn reset_body_font_size(cx: &mut App) {
 
 // ── Legacy shims (delegate to the role-based functions above) ────────
 
-pub fn adjust_buffer_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+pub fn adjust_mono_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
     adjust_mono_font_size(cx, f)
 }
 
-pub fn observe_buffer_font_size_adjustment<V: 'static>(
+pub fn observe_mono_font_size_adjustment<V: 'static>(
     cx: &mut inazuma::Context<V>,
     f: impl 'static + Fn(&mut V, &mut inazuma::Context<V>),
 ) -> inazuma::Subscription {
     observe_mono_font_size_adjustment(cx, f)
 }
 
-pub fn reset_buffer_font_size(cx: &mut App) {
+pub fn reset_mono_font_size(cx: &mut App) {
     reset_mono_font_size(cx)
 }
 
-pub fn setup_ui_font(window: &mut Window, cx: &App) -> Font {
+pub fn setup_body_font(window: &mut Window, cx: &App) -> Font {
     setup_body_font(window, cx)
 }
 
-pub fn adjust_ui_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+pub fn adjust_body_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
     adjust_body_font_size(cx, f)
 }
 
-pub fn reset_ui_font_size(cx: &mut App) {
+pub fn reset_body_font_size(cx: &mut App) {
     reset_body_font_size(cx)
 }
 
