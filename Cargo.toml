@@ -861,6 +861,7 @@ heed = { version = "0.21.0", features = ["read-txn-no-tls"] }
 hex = "0.4"
 html5ever = "0.27"
 human_bytes = "0.4.1"
+icy_sixel = "0.5"
 ignore = "0.4"
 image = "0.25"
 imara-diff = "0.1.8"

@@ -270,9 +270,7 @@ impl TerminalPane {
                 // ghost-text suppression path, no-op here.
             }
             carrot_terminal::ShellMarker::ImageInlineITerm2(payload) => {
-                use carrot_grid::{
-                    Cell, CellStyleId, parse_iterm2_payload, placement_from_iterm2,
-                };
+                use carrot_grid::{parse_iterm2_payload, placement_from_iterm2};
                 let Some(parsed) = parse_iterm2_payload(&payload) else {
                     log::warn!("Failed to parse OSC 1337 iTerm2 image payload");
                     return;
@@ -281,14 +279,6 @@ impl TerminalPane {
                 let mut term = handle.lock();
                 let viewport_cols = term.columns() as u16;
                 let viewport_rows = term.screen_lines() as u16;
-                // Cell pixel size — iTerm2 width=Npx hints divide by these.
-                // Carrot's grid layer doesn't track pixel dims directly
-                // (block_render owns that); use a 8×16 placeholder
-                // that's good enough for the dimensional clamping math.
-                // The renderer scales to the actual cell dims at paint
-                // time via `Placement.rows / .cols` (cell-grained).
-                let cell_w_px = 8u16;
-                let cell_h_px = 16u16;
                 if let carrot_term::block::ActiveTarget::Block { block, .. } =
                     term.block_router_mut().active()
                 {
@@ -297,28 +287,53 @@ impl TerminalPane {
                         &parsed,
                         row_start,
                         0,
-                        cell_w_px,
-                        cell_h_px,
+                        IMAGE_CELL_W_PX,
+                        IMAGE_CELL_H_PX,
                         viewport_rows,
                         viewport_cols,
                     );
-                    let placement_rows = placement.rows;
-                    let placement_cols = placement.cols;
-                    let image_idx = block.images_mut().push(parsed.image, placement);
-                    // Reserve cell rows for the image — Cell-Tag 4
-                    // pixels in placement bounds; the renderer's
-                    // image-pass skips text emission for those cells.
-                    let style = CellStyleId(0);
-                    for _ in 0..placement_rows {
-                        let row: Vec<Cell> = (0..placement_cols)
-                            .map(|_| Cell::image(image_idx, style))
-                            .chain(std::iter::repeat_n(
-                                Cell::default(),
-                                viewport_cols.saturating_sub(placement_cols) as usize,
-                            ))
-                            .collect();
-                        block.grid_mut().append_row(&row);
-                    }
+                    install_image_into_block(block, parsed.image, placement, viewport_cols);
+                }
+                cx.notify();
+            }
+            carrot_terminal::ShellMarker::ImageInlineSixel(payload) => {
+                use carrot_grid::decode_sixel;
+                let Some(decoded) = decode_sixel(&payload) else {
+                    log::warn!("Failed to decode Sixel DCS payload");
+                    return;
+                };
+                let handle = self.terminal.handle();
+                let mut term = handle.lock();
+                let viewport_cols = term.columns() as u16;
+                let viewport_rows = term.screen_lines() as u16;
+                if let carrot_term::block::ActiveTarget::Block { block, .. } =
+                    term.block_router_mut().active()
+                {
+                    let row_start = block.grid().total_rows() as u32;
+                    // Sixel images carry no width/height hint — derive
+                    // cell rows / cols straight from the native pixel
+                    // dimensions and clamp to the viewport.
+                    let native_cols = ((decoded.width as u16)
+                        + IMAGE_CELL_W_PX.saturating_sub(1))
+                        / IMAGE_CELL_W_PX.max(1);
+                    let native_rows = ((decoded.height as u16)
+                        + IMAGE_CELL_H_PX.saturating_sub(1))
+                        / IMAGE_CELL_H_PX.max(1);
+                    let placement = carrot_grid::Placement {
+                        row_start,
+                        col_start: 0,
+                        rows: native_rows.clamp(1, viewport_rows),
+                        cols: native_cols.clamp(1, viewport_cols),
+                        offset_x: 0,
+                        offset_y: 0,
+                        external_id: 0,
+                    };
+                    install_image_into_block(
+                        block,
+                        std::sync::Arc::new(decoded),
+                        placement,
+                        viewport_cols,
+                    );
                 }
                 cx.notify();
             }
@@ -527,3 +542,38 @@ impl TerminalPane {
 const _: fn() = || {
     let _ = std::mem::size_of::<InputState>;
 };
+
+/// Approximate cell-pixel dimensions used by the image-protocol
+/// dispatch to derive `Placement.rows / .cols` from native pixel
+/// sizes. The renderer scales to the actual cell dims at paint time
+/// — these constants only sway the auto-fit clamp math.
+const IMAGE_CELL_W_PX: u16 = 8;
+const IMAGE_CELL_H_PX: u16 = 16;
+
+/// Push a decoded image into the active block's `ImageStore` and
+/// reserve the corresponding `Placement.rows × Placement.cols` cells
+/// with `Cell::image(idx)` (Cell-Tag 4). The renderer's image-pass
+/// skips text emission for those cells and emits a textured quad in
+/// their place.
+fn install_image_into_block(
+    block: &mut carrot_term::block::ActiveBlock,
+    image: std::sync::Arc<carrot_grid::DecodedImage>,
+    placement: carrot_grid::Placement,
+    viewport_cols: u16,
+) {
+    use carrot_grid::{Cell, CellStyleId};
+    let placement_rows = placement.rows;
+    let placement_cols = placement.cols;
+    let image_idx = block.images_mut().push(image, placement);
+    let style = CellStyleId(0);
+    for _ in 0..placement_rows {
+        let row: Vec<Cell> = (0..placement_cols)
+            .map(|_| Cell::image(image_idx, style))
+            .chain(std::iter::repeat_n(
+                Cell::default(),
+                viewport_cols.saturating_sub(placement_cols) as usize,
+            ))
+            .collect();
+        block.grid_mut().append_row(&row);
+    }
+}

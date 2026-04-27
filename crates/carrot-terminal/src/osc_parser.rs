@@ -22,18 +22,30 @@ pub use carrot_shell_integration::{PositionedMarker, PromptKindType, ShellMarker
 pub struct OscScanner {
     state: ScanState,
     param_buf: Vec<u8>,
+    /// Accumulator for in-flight DCS sequences (Sixel images). Kept
+    /// separate from `param_buf` because the OSC and DCS state
+    /// machines may not interleave but **could** under future
+    /// protocol additions; isolating the buffers makes the
+    /// state-transition logic obvious.
+    dcs_buf: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScanState {
-    /// Normal byte processing, not inside an OSC sequence.
+    /// Normal byte processing, not inside any escape sequence.
     Normal,
-    /// Saw ESC (0x1B), waiting for ] to confirm OSC start.
+    /// Saw ESC (0x1B), waiting for `]` (OSC), `P` (DCS) or other.
     SawEsc,
     /// Inside an OSC sequence, accumulating parameter bytes.
     InOsc,
-    /// Inside OSC, saw ESC — waiting for \ (ST terminator).
+    /// Inside OSC, saw ESC — waiting for `\` (ST terminator).
     InOscSawEsc,
+    /// Inside a DCS sequence (`\eP...\e\\`), accumulating raw bytes
+    /// for an image-protocol decoder. The full envelope is preserved
+    /// — `dcs_buf` already holds the leading `\eP`.
+    InDcs,
+    /// Inside DCS, saw ESC — waiting for `\` (ST terminator).
+    InDcsSawEsc,
 }
 
 impl OscScanner {
@@ -41,6 +53,7 @@ impl OscScanner {
         Self {
             state: ScanState::Normal,
             param_buf: Vec::with_capacity(512),
+            dcs_buf: Vec::new(),
         }
     }
 
@@ -69,6 +82,13 @@ impl OscScanner {
                     if byte == b']' {
                         self.param_buf.clear();
                         self.state = ScanState::InOsc;
+                    } else if byte == b'P' {
+                        // DCS introducer. Preserve the `\eP` prefix in
+                        // the buffer so `decode_sixel` receives the
+                        // full envelope.
+                        self.dcs_buf.clear();
+                        self.dcs_buf.extend_from_slice(b"\x1bP");
+                        self.state = ScanState::InDcs;
                     } else {
                         self.state = ScanState::Normal;
                     }
@@ -107,10 +127,67 @@ impl OscScanner {
                         self.state = ScanState::InOsc;
                     }
                 }
+
+                ScanState::InDcs => {
+                    if byte == 0x1B {
+                        self.state = ScanState::InDcsSawEsc;
+                    } else {
+                        self.dcs_buf.push(byte);
+                    }
+                }
+
+                ScanState::InDcsSawEsc => {
+                    if byte == b'\\' {
+                        // Append the closing `\e\\` so the buffer holds
+                        // the complete DCS envelope.
+                        self.dcs_buf.extend_from_slice(b"\x1b\\");
+                        if let Some(marker) = self.try_parse_dcs() {
+                            markers.push(PositionedMarker {
+                                marker,
+                                start: osc_start,
+                                end: i + 1,
+                            });
+                        }
+                        self.dcs_buf.clear();
+                        self.state = ScanState::Normal;
+                    } else {
+                        self.dcs_buf.push(0x1B);
+                        self.dcs_buf.push(byte);
+                        self.state = ScanState::InDcs;
+                    }
+                }
             }
         }
 
         markers
+    }
+
+    /// Recognise DCS sequences we care about — currently only Sixel.
+    /// The classic Sixel introducer signature is `q` somewhere in the
+    /// DCS params, e.g. `\eP1;1;0q...`. Any DCS that contains a literal
+    /// `q` byte before the first `\e\\` terminator is treated as Sixel
+    /// and forwarded to `carrot_grid::decode_sixel`.
+    fn try_parse_dcs(&self) -> Option<ShellMarker> {
+        // Look for `q` after the `\eP` introducer (positions 0..=1).
+        // Only DCS sequences with a `q` action byte are Sixel under
+        // ECMA-48; everything else (DECRQSS, DECRSPS, …) is ignored.
+        if self.dcs_buf.len() < 4 {
+            return None;
+        }
+        let payload = &self.dcs_buf[2..]; // skip `\eP`
+        let q_pos = payload.iter().position(|&b| b == b'q')?;
+        // Anything between `\eP` and `q` is the parameter prefix —
+        // numeric semicolon-separated. Reject DCS sequences whose
+        // param prefix has non-numeric / non-`;` bytes; those are
+        // certainly not Sixel.
+        let params = &payload[..q_pos];
+        if !params
+            .iter()
+            .all(|b| b.is_ascii_digit() || *b == b';' || *b == b':')
+        {
+            return None;
+        }
+        Some(ShellMarker::ImageInlineSixel(self.dcs_buf.clone()))
     }
 
     /// Try parsing the accumulated OSC against every known sub-schema

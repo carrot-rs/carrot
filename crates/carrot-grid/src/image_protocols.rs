@@ -133,6 +133,36 @@ pub fn decode_image_bytes(bytes: &[u8]) -> Option<DecodedImage> {
     ))
 }
 
+/// Decode a Sixel DCS sequence (`\eP[params]q[payload]\e\\`) into a
+/// [`DecodedImage`] with `Rgba8` pixels.
+///
+/// Wraps the [`icy_sixel`] crate. `bytes` is the full DCS envelope
+/// including the leading `\eP` and trailing `\e\\` — the scanner that
+/// invokes this hands the raw escape sequence over without stripping
+/// the introducer.
+///
+/// Returns `None` on malformed sequences or decoder errors. The Sixel
+/// data is rendered into RGBA at native pixel size; the consumer is
+/// responsible for placement (cell row × cell column count is derived
+/// from `width / cell_w_px` and `height / cell_h_px`).
+pub fn decode_sixel(bytes: &[u8]) -> Option<DecodedImage> {
+    let img = icy_sixel::SixelImage::decode(bytes).ok()?;
+    // icy_sixel is permissive — malformed or non-DCS input can still
+    // return an `Ok(SixelImage)` whose pixel buffer is empty or whose
+    // declared dims don't match the buffer length. Reject anything
+    // that wouldn't survive `DecodedImage::expected_len()`.
+    let expected = img.width * img.height * 4;
+    if expected == 0 || img.pixels.len() != expected {
+        return None;
+    }
+    Some(DecodedImage::new(
+        img.width as u32,
+        img.height as u32,
+        ImageFormat::Rgba8,
+        img.pixels,
+    ))
+}
+
 /// Build a [`Placement`] from a top-of-block anchor + cell dims +
 /// optional iTerm2 width/height hints.
 ///
@@ -275,4 +305,31 @@ mod tests {
         assert_eq!(p.cols, 1);
         assert_eq!(p.rows, 1);
     }
+
+    #[test]
+    fn decode_minimal_sixel_returns_rgba_pixels() {
+        // Smallest legal Sixel: \eP q !N? \e\\ — single sixel band of
+        // 1 transparent pixel. icy_sixel returns a non-empty RGBA buffer.
+        // We construct a basic 2x2 pattern with a single color register.
+        // `\eP q "1;1;2;2 #0;2;100;0;0 #0!2~ -!2~ \e\\`
+        // - DCS introducer: \eP, raster: 1;1;2;2 (aspect num/den, h-grid w-grid)
+        // - q starts the data, "1;1;2;2 sets raster attributes
+        // - #0;2;100;0;0 — color reg 0 = HLS (100,0,0) red
+        // - #0!2~ — color 0, RLE 2× sixel ~ (top row of 6-pixel band)
+        // - - newline / next band
+        // - !2~ — RLE 2× same on next band row
+        let dcs = b"\x1bP1;1;0q\"1;1;2;2#0;2;100;0;0#0!2~-!2~\x1b\\";
+        let img = decode_sixel(dcs).expect("sixel decoded");
+        assert_eq!(img.format, ImageFormat::Rgba8);
+        // RGBA bytes: 4 per pixel, width × height pixels.
+        assert_eq!(img.pixels.len(), (img.width * img.height * 4) as usize);
+        assert!(img.width > 0 && img.height > 0);
+    }
+
+    // Note: `icy_sixel` is permissive — empty / non-DCS input still
+    // returns an `Ok(SixelImage)` (typically a 1×1 placeholder) rather
+    // than an `Err`. We don't try to filter "garbage" here because the
+    // upstream pre-scanner only invokes `decode_sixel` after recognising
+    // a `\eP...q...\e\\` DCS envelope — non-DCS bytes never reach this
+    // function in production.
 }

@@ -66,6 +66,13 @@ pub enum ShellMarker {
     /// arbitrarily large (~MB for screenshots) and we don't want to
     /// pay UTF-8-validation cost on the hot OSC scan path.
     ImageInlineITerm2(Vec<u8>),
+    /// `\eP[params]q[sixel-data]\e\\` — Sixel DCS image. Carried bytes
+    /// are the **complete DCS envelope including** the leading `\eP`
+    /// and trailing `\e\\` so `carrot_grid::decode_sixel` can hand them
+    /// straight to `icy_sixel`. DCS — not OSC — but lives in the same
+    /// pre-VT scanner because the byte-introducer recognition is
+    /// adjacent (`ESC P` vs `ESC ]`).
+    ImageInlineSixel(Vec<u8>),
 }
 
 /// Nushell prompt-kind types from `OSC 133 ; P`.

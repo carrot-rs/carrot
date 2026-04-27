@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 base64.workspace = true
+icy_sixel.workspace = true
 image.workspace = true
 inazuma-collections.workspace = true
 zstd.workspace = true
