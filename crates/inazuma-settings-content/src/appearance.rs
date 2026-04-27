@@ -3,6 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::terminal::{CursorShapeContent, TerminalBlink};
+use crate::theme::SymbolMapEntry;
 use crate::{FontFamilyName, FontSize};
 
 /// Content for the `[appearance]` section in settings.toml.
@@ -116,46 +117,6 @@ pub enum AppearanceColorspace {
     Native,
 }
 
-/// Maps a Unicode codepoint range to a specific font family.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom)]
-pub struct SymbolMapEntry {
-    /// Start of Unicode range (hex, e.g. "E0B0").
-    pub start: String,
-    /// End of Unicode range (hex, e.g. "E0D7").
-    pub end: String,
-    /// Font family to use for characters in this range.
-    pub font_family: String,
-}
-
-/// Parsed symbol map entry with resolved codepoint range.
-#[derive(Debug, Clone)]
-pub struct ResolvedSymbolMap {
-    pub start: u32,
-    pub end: u32,
-    pub font_family: String,
-}
-
-impl SymbolMapEntry {
-    /// Parse hex start/end into a resolved entry.
-    pub fn resolve(&self) -> Option<ResolvedSymbolMap> {
-        let start = u32::from_str_radix(&self.start, 16).ok()?;
-        let end = u32::from_str_radix(&self.end, 16).ok()?;
-        Some(ResolvedSymbolMap {
-            start,
-            end,
-            font_family: self.font_family.clone(),
-        })
-    }
-}
-
-impl ResolvedSymbolMap {
-    /// Check if a character falls in this range and return the font family.
-    pub fn match_char(&self, c: char) -> Option<&str> {
-        let cp = c as u32;
-        if cp >= self.start && cp <= self.end {
-            Some(&self.font_family)
-        } else {
-            None
-        }
-    }
-}
+// `SymbolMapEntry` and `ResolvedSymbolMap` live in `theme.rs` now —
+// they belong to the mono font role, not to the Appearance surface.
+// Already re-exported via the wildcard in `settings_content.rs`.

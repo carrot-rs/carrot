@@ -140,6 +140,14 @@ pub struct ThemeSettingsContent {
     pub agent_ui_font_size: Option<FontSize>,
     /// The font size for user messages in the agent panel.
     pub agent_buffer_font_size: Option<FontSize>,
+    /// Role-based font configuration.
+    ///
+    /// Two slots — `ui` for proportional UI text (palette, sidebar, chrome)
+    /// and `mono` for every monospace surface (terminal, editor, REPL,
+    /// markdown code, hover popovers). Internal code roles `Body` /
+    /// `Code` / `Terminal` resolve through these two slots; the user
+    /// only ever sees two pickers.
+    pub fonts: Option<ThemeFontsContent>,
     /// The name of the Carrot theme to use.
     pub theme: Option<ThemeSelection>,
     /// The name of the icon theme to use.
@@ -1307,6 +1315,164 @@ impl schemars::JsonSchema for FontWeightContent {
             "default": Self::NORMAL.0,
             "description": "Font weight value between 100 (thin) and 900 (black)"
         })
+    }
+}
+
+/// CSS-style font width axis. 50.0 (ultra-condensed) → 200.0
+/// (ultra-expanded) with 100.0 as normal width.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Serialize,
+    Deserialize,
+    MergeFrom,
+    PartialEq,
+    PartialOrd,
+    derive_more::FromStr,
+)]
+#[serde(transparent)]
+pub struct FontStretchContent(pub f32);
+
+impl Display for FontStretchContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<f32> for FontStretchContent {
+    fn from(stretch: f32) -> Self {
+        FontStretchContent(stretch)
+    }
+}
+
+impl Default for FontStretchContent {
+    fn default() -> Self {
+        Self::NORMAL
+    }
+}
+
+impl FontStretchContent {
+    pub const ULTRA_CONDENSED: FontStretchContent = FontStretchContent(50.0);
+    pub const EXTRA_CONDENSED: FontStretchContent = FontStretchContent(62.5);
+    pub const CONDENSED: FontStretchContent = FontStretchContent(75.0);
+    pub const SEMI_CONDENSED: FontStretchContent = FontStretchContent(87.5);
+    pub const NORMAL: FontStretchContent = FontStretchContent(100.0);
+    pub const SEMI_EXPANDED: FontStretchContent = FontStretchContent(112.5);
+    pub const EXPANDED: FontStretchContent = FontStretchContent(125.0);
+    pub const EXTRA_EXPANDED: FontStretchContent = FontStretchContent(150.0);
+    pub const ULTRA_EXPANDED: FontStretchContent = FontStretchContent(200.0);
+}
+
+impl schemars::JsonSchema for FontStretchContent {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "FontStretchContent".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        use schemars::json_schema;
+        json_schema!({
+            "type": "number",
+            "minimum": Self::ULTRA_CONDENSED.0,
+            "maximum": Self::ULTRA_EXPANDED.0,
+            "default": Self::NORMAL.0,
+            "description": "Font stretch (width) between 50 (ultra-condensed) and 200 (ultra-expanded). 100 is normal."
+        })
+    }
+}
+
+/// Two-slot role-based font configuration. The `ui` slot drives every
+/// proportional UI surface; the `mono` slot drives every monospace
+/// surface (terminal grid, editor buffers, REPL output, markdown
+/// code). All other settings are surface-derived from these two.
+#[with_fallible_options]
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct ThemeFontsContent {
+    pub ui: Option<UiFontContent>,
+    pub mono: Option<MonoFontContent>,
+}
+
+/// UI font role — proportional, drives palette / sidebar / tabs /
+/// notifications / settings panels.
+#[with_fallible_options]
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct UiFontContent {
+    pub family: Option<FontFamilyName>,
+    pub size: Option<FontSize>,
+    pub weight: Option<FontWeightContent>,
+    pub stretch: Option<FontStretchContent>,
+    #[schemars(default = "default_font_features")]
+    pub features: Option<FontFeaturesContent>,
+    #[schemars(extend("uniqueItems" = true))]
+    pub fallbacks: Option<Vec<FontFamilyName>>,
+}
+
+/// Monospace font role — drives every fixed-width surface in the app.
+/// Terminal grid, editor buffers, REPL, markdown code blocks, hover
+/// popovers and any future code-rendering UI all read through this
+/// slot. `line_height` and `symbol_map` live here only; UI text uses
+/// component-layer line-heights and proportional fonts can't sensibly
+/// host monospace-aligned symbol overrides.
+#[with_fallible_options]
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MonoFontContent {
+    pub family: Option<FontFamilyName>,
+    pub size: Option<FontSize>,
+    pub weight: Option<FontWeightContent>,
+    pub stretch: Option<FontStretchContent>,
+    pub line_height: Option<BufferLineHeight>,
+    #[schemars(default = "default_font_features")]
+    pub features: Option<FontFeaturesContent>,
+    #[schemars(extend("uniqueItems" = true))]
+    pub fallbacks: Option<Vec<FontFamilyName>>,
+    pub symbol_map: Option<Vec<SymbolMapEntry>>,
+}
+
+/// Maps a Unicode codepoint range to a specific font family. Used to
+/// route Powerline / Nerd-Font glyphs through a different family than
+/// the rest of the buffer text. Lives on the mono role because symbol
+/// glyphs are monospace-aligned and don't render correctly under a
+/// proportional UI font.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct SymbolMapEntry {
+    /// Start of Unicode range (hex, e.g. "E0B0").
+    pub start: String,
+    /// End of Unicode range (hex, e.g. "E0D7").
+    pub end: String,
+    /// Font family to use for characters in this range.
+    pub font_family: String,
+}
+
+/// Parsed symbol map entry with resolved codepoint range.
+#[derive(Debug, Clone)]
+pub struct ResolvedSymbolMap {
+    pub start: u32,
+    pub end: u32,
+    pub font_family: String,
+}
+
+impl SymbolMapEntry {
+    /// Parse hex start/end into a resolved entry.
+    pub fn resolve(&self) -> Option<ResolvedSymbolMap> {
+        let start = u32::from_str_radix(&self.start, 16).ok()?;
+        let end = u32::from_str_radix(&self.end, 16).ok()?;
+        Some(ResolvedSymbolMap {
+            start,
+            end,
+            font_family: self.font_family.clone(),
+        })
+    }
+}
+
+impl ResolvedSymbolMap {
+    /// Check if a character falls in this range and return the font family.
+    pub fn match_char(&self, c: char) -> Option<&str> {
+        let cp = c as u32;
+        if cp >= self.start && cp <= self.end {
+            Some(&self.font_family)
+        } else {
+            None
+        }
     }
 }
 
