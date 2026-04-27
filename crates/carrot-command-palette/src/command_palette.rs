@@ -70,10 +70,10 @@ pub fn init(cx: &mut App) {
     source::files_init(cx);
     cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
         workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            CommandPalette::toggle(workspace, "", None, window, cx);
+            CommandPalette::toggle_or_retarget(workspace, None, window, cx);
         });
         workspace.register_action(|workspace, action: &ToggleWithFilter, window, cx| {
-            CommandPalette::toggle(workspace, "", action.category_filter, window, cx);
+            CommandPalette::toggle_or_retarget(workspace, action.category_filter, window, cx);
         });
     })
     .detach();
@@ -91,12 +91,11 @@ pub struct CommandPalette {
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
     search: inazuma::Entity<InputState>,
-    /// Chip-selected category. Overridden by a typed prefix when one is
-    /// present.
-    selected_category: Option<SearchCategory>,
-    /// Prefix category extracted from the current input text. Stored so
-    /// the empty-state label and rendering can reflect the effective
-    /// filter without re-parsing.
+    /// Active filter category — derived from the typed prefix in the
+    /// search input. Single source of truth: chip clicks, action
+    /// shortcuts (`Cmd+O`/etc.) and direct typing all funnel through the
+    /// input value, so there is no separate "selected via chip" vs
+    /// "typed prefix" state to keep in sync.
     active_prefix: Option<SearchCategory>,
     sources: Vec<Arc<dyn SearchSource>>,
     /// Separate handle to the `FilesSource` so the modal can flip the
@@ -116,12 +115,31 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
-    /// Opens (or focuses) the command palette modal.
-    ///
-    /// `query` pre-fills the search input (used by vim `:` commands).
-    /// `category_filter` pre-selects the chip so the scope is restricted
-    /// to one source on open (used by `Cmd+O`/`Cmd+Shift+P`/`Cmd+R`).
-    pub fn toggle(
+    /// Opens the modal, or — if it is already mounted — re-targets its
+    /// filter without closing. Pressing `Cmd+O` while the universal
+    /// `Cmd+P` view is open should switch to the Files filter in place,
+    /// not slam the modal shut so the user has to reopen it.
+    pub fn toggle_or_retarget(
+        workspace: &mut Workspace,
+        category_filter: Option<SearchCategory>,
+        window: &mut Window,
+        cx: &mut Context<Workspace>,
+    ) {
+        if let Some(palette) = workspace.active_modal::<CommandPalette>(cx) {
+            palette.update(cx, |modal, cx| {
+                modal.set_filter(category_filter, window, cx);
+            });
+            return;
+        }
+        Self::open_with_filter(workspace, "", category_filter, window, cx);
+    }
+
+    /// Open the modal pre-loaded with `query` and `category_filter`.
+    /// The filter is stored as a chip-style UI element on the modal
+    /// itself, not as text in the input — that's what gives it the
+    /// italic-bold rendering and the "backspace at empty clears the
+    /// chip" behaviour.
+    pub fn open_with_filter(
         workspace: &mut Workspace,
         query: &str,
         category_filter: Option<SearchCategory>,
@@ -129,17 +147,32 @@ impl CommandPalette {
         cx: &mut Context<Workspace>,
     ) {
         let weak = workspace.weak_handle();
-        let query = query.to_string();
+        let query: SharedString = query.to_string().into();
         workspace.toggle_modal(window, cx, move |window, cx| {
             let mut modal = CommandPalette::new(weak, window, cx);
-            modal.selected_category = category_filter;
+            modal.active_prefix = category_filter;
             if !query.is_empty() {
-                let query_value: SharedString = query.into();
                 modal.search.update(cx, |state, cx| {
-                    state.set_value(query_value, window, cx);
+                    state.set_value(query, window, cx);
                 });
             }
             modal
+        });
+    }
+
+    /// Replace the active filter with `category_filter`, clearing the
+    /// search input so the user types into a fresh query under the new
+    /// scope. Used by chip clicks, the `Cmd+O`/etc. retarget path, and
+    /// the Tab autocomplete commit.
+    pub fn set_filter(
+        &mut self,
+        category_filter: Option<SearchCategory>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.active_prefix = category_filter;
+        self.search.update(cx, |state, cx| {
+            state.set_value(SharedString::default(), window, cx);
         });
     }
 
@@ -196,7 +229,6 @@ impl CommandPalette {
             workspace,
             focus_handle,
             search,
-            selected_category: None,
             active_prefix: None,
             sources,
             files_source,
@@ -215,44 +247,92 @@ impl CommandPalette {
         self.refresh_results(window, cx);
     }
 
-    fn on_key_down_tab_expand(
+    /// Find the unique [`SearchCategory`] whose prefix starts with the
+    /// current input (case-insensitive). Returns `None` when the input
+    /// is empty, already a complete prefix, ambiguous, or unrelated.
+    /// Used both by the Tab key handler and by the hint chip rendered
+    /// next to the search input.
+    fn pending_prefix_completion(&self, cx: &App) -> Option<SearchCategory> {
+        let raw = self.search.read(cx).value().to_string();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || trimmed.contains(':') {
+            return None;
+        }
+        let needle = trimmed.to_ascii_lowercase();
+        let mut iter = SearchCategory::all()
+            .iter()
+            .copied()
+            .filter(|c| c.prefix().starts_with(&needle));
+        let first = iter.next()?;
+        // Ambiguous (multiple prefixes share this stem) → no completion.
+        if iter.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
+
+    fn on_key_down(
         &mut self,
         event: &KeyDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if event.keystroke.key.as_str() != "tab" {
-            return;
+        match event.keystroke.key.as_str() {
+            "tab" => {
+                if let Some(cat) = self.pending_prefix_completion(cx) {
+                    self.set_filter(Some(cat), window, cx);
+                    self.has_interacted = true;
+                }
+            }
+            "backspace" => {
+                // Chip-style: backspace on an already-empty input
+                // discards the active prefix and falls back to the
+                // universal Cmd+P view, exposing the discovery chip
+                // strip again.
+                if self.active_prefix.is_some()
+                    && self.search.read(cx).value().is_empty()
+                {
+                    self.set_filter(None, window, cx);
+                }
+            }
+            _ => {}
         }
-        let current = self.search.read(cx).value().to_string();
-        let trimmed = current.trim();
-        if trimmed.len() != 1 {
-            return;
-        }
-        let letter = trimmed.chars().next().unwrap().to_ascii_lowercase();
-        let Some(cat) = SearchCategory::all()
-            .iter()
-            .find(|c| c.prefix().chars().next() == Some(letter))
-        else {
-            return;
-        };
-        let expanded = format!("{} ", cat.prefix());
-        let expanded: SharedString = expanded.into();
-        self.search.update(cx, |state, cx| {
-            state.set_value(expanded, window, cx);
-        });
-        self.has_interacted = true;
     }
 
     /// Recompute `results` from the current query + filter state. Uses
     /// `inazuma_fuzzy::match_strings` on a background executor so large
     /// env var lists don't block the UI thread.
     fn refresh_results(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Auto-promote: if the user typed `files:` literally into the
+        // input, lift it to a proper chip and strip the prefix from the
+        // query text. Tab and the chip strip are the friendlier paths,
+        // but typing the prefix has to keep working.
         let raw = self.search.read(cx).value().to_string();
-        let (prefix_cat, rest) = parse_filter_prefix(&raw);
-        self.active_prefix = prefix_cat;
-        let effective_cat = prefix_cat.or(self.selected_category);
-        let query = rest.to_string();
+        let (typed_prefix, rest) = parse_filter_prefix(&raw);
+        if let Some(cat) = typed_prefix {
+            self.active_prefix = Some(cat);
+            let rest_value: SharedString = rest.to_string().into();
+            self.search.update(cx, |state, cx| {
+                state.set_value(rest_value, window, cx);
+            });
+        }
+        let effective_cat = self.active_prefix;
+        let query = if typed_prefix.is_some() {
+            rest.to_string()
+        } else {
+            raw.clone()
+        };
+
+        // Placeholder follows the active filter so an empty input under
+        // a `files:` chip reads "Search files" instead of the universal
+        // "Search for a command".
+        let placeholder: SharedString = match effective_cat {
+            Some(cat) => cat.search_placeholder().into(),
+            None => "Search for a command".into(),
+        };
+        self.search.update(cx, |state, cx| {
+            state.set_placeholder(placeholder, window, cx);
+        });
 
         let Some(workspace) = self.workspace.upgrade() else {
             self.results.clear();
@@ -432,7 +512,7 @@ impl CommandPalette {
 
     fn render_chip(&self, category: SearchCategory, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let is_selected = self.selected_category == Some(category);
+        let is_selected = self.active_prefix == Some(category);
         let accent = colors.text_accent;
         let icon_color = category
             .icon_color()
@@ -469,12 +549,12 @@ impl CommandPalette {
                     .color(icon_color),
             )
             .on_click(cx.listener(move |this, _, window, cx| {
-                this.selected_category = if this.selected_category == Some(category) {
+                let next = if this.active_prefix == Some(category) {
                     None
                 } else {
                     Some(category)
                 };
-                this.refresh_results(window, cx);
+                this.set_filter(next, window, cx);
             }))
     }
 
@@ -572,8 +652,7 @@ impl CommandPalette {
     }
 
     fn empty_state_label(&self) -> &'static str {
-        let effective = self.active_prefix.or(self.selected_category);
-        match effective {
+        match self.active_prefix {
             Some(SearchCategory::Sessions) => "No sessions match.",
             Some(SearchCategory::EnvironmentVariables) => "No environment variables match.",
             Some(_) => "No results — this category has no source registered yet.",
@@ -605,11 +684,6 @@ impl Render for CommandPalette {
         let elevated_surface = cx.theme().colors().elevated_surface;
         let border = cx.theme().colors().border;
         let text_muted = cx.theme().colors().text_muted;
-        let accent = cx.theme().colors().text_accent;
-        let chips = SearchCategory::all()
-            .iter()
-            .map(|cat| self.render_chip(*cat, cx).into_any_element())
-            .collect::<Vec<_>>();
 
         let result_elements: Vec<AnyElement> = self
             .results
@@ -620,8 +694,11 @@ impl Render for CommandPalette {
         let has_results = !result_elements.is_empty();
         let empty_label = SharedString::from(self.empty_state_label());
         let query_is_empty = self.search.read(cx).value().is_empty();
-        let show_suggested_header =
-            query_is_empty && self.selected_category.is_none() && self.active_prefix.is_none();
+        // Compact view when a category is locked in (typed prefix or
+        // chip click). The discovery chip grid would just take up space
+        // and re-shows the very category the user already picked.
+        let in_compact_mode = self.active_prefix.is_some();
+        let show_suggested_header = query_is_empty && self.active_prefix.is_none();
 
         v_flex()
             .key_context("CommandPalette")
@@ -631,60 +708,104 @@ impl Render for CommandPalette {
             .rounded(px(10.))
             .bg(elevated_surface)
             .overflow_hidden()
-            // Category quick-expand: pressing Tab while the input is a
-            // single letter (`h`, `f`, `s`, …) rewrites it to the full
-            // prefix (`history:`, `files:`, …) so users don't have to
-            // type the whole word.
-            .on_key_down(cx.listener(Self::on_key_down_tab_expand))
+            // Tab → commit a pending category-prefix completion.
+            // Backspace on an empty input → drop the active prefix
+            // chip and return to universal Cmd+P.
+            .on_key_down(cx.listener(Self::on_key_down))
             .child({
-                // Filter-active badge: when a prefix is on the query
-                // (either typed directly or selected via chip) we mirror
-                // it as a bold+italic badge next to the magnifier so the
-                // user sees "you are in Files mode" without reading the
-                // chip strip.
-                let active_cat = self.active_prefix.or(self.selected_category);
-                let filter_badge = active_cat.map(|cat| {
-                    div()
-                        .px_2()
-                        .py_0p5()
-                        .rounded(px(4.))
-                        .bg(accent.opacity(0.15))
-                        .text_size(px(12.))
-                        .text_color(accent)
-                        .italic()
-                        .font_weight(inazuma::FontWeight::BOLD)
-                        .child(SharedString::from(cat.prefix()))
-                });
+                let pending_completion = self.pending_prefix_completion(cx);
+                let active_prefix = self.active_prefix;
+                let accent = cx.theme().colors().text_accent;
+                let prefix_element: AnyElement = match active_prefix {
+                    Some(cat) => {
+                        // Build the prefix face explicitly from the
+                        // user's UI font so this works regardless of
+                        // which family is configured. Italic and Bold
+                        // are best-effort: when the active font lacks
+                        // those variants, the colour contrast carries
+                        // the visual distinction on its own — Inazuma
+                        // does not synthesise italics, see
+                        // zed-industries/zed#28569.
+                        let ui_font = carrot_theme::theme_settings(cx).ui_font(cx);
+                        let prefix_font = inazuma::Font {
+                            family: ui_font.family.clone(),
+                            features: ui_font.features.clone(),
+                            fallbacks: ui_font.fallbacks.clone(),
+                            weight: inazuma::FontWeight::BOLD,
+                            style: inazuma::FontStyle::Italic,
+                            stretch: ui_font.stretch,
+                        };
+                        div()
+                            .text_color(accent)
+                            .font(prefix_font)
+                            .child(SharedString::from(cat.prefix()))
+                            .into_any_element()
+                    }
+                    None => Icon::new(IconName::MagnifyingGlass)
+                        .size_5()
+                        .color(Color::Muted)
+                        .into_any_element(),
+                };
                 h_flex()
                     .pl_5()
                     .pr_4()
                     .py_3()
-                    .gap_2()
                     .items_center()
                     .border_b_1()
                     .border_color(border)
                     .child(
-                        Icon::new(IconName::MagnifyingGlass)
-                            .size_5()
-                            .color(Color::Muted),
-                    )
-                    .when_some(filter_badge, |el, badge| el.child(badge))
-                    .child(
+                        // Anchor the prefix inside the Input's own
+                        // prefix slot so it inherits the input's text
+                        // style scope and shares the size/baseline of
+                        // the placeholder/value rendered next to it.
+                        // The previous wrapper-div approach pushed the
+                        // label into a parent whose text styles didn't
+                        // cascade into the input's render context.
                         Input::new(&self.search)
                             .appearance(false)
                             .bordered(false)
-                            .with_size(carrot_ui::Size::Medium),
+                            .with_size(carrot_ui::Size::Medium)
+                            .prefix(prefix_element),
                     )
+                    .when_some(pending_completion, |row, cat| {
+                        // Tab-hint chip: shows up the moment the typed
+                        // input matches a unique category-prefix stem.
+                        // Pressing Tab — or clicking the chip — commits
+                        // the completion.
+                        row.child(
+                            div()
+                                .id("command-palette-tab-hint")
+                                .px_2()
+                                .py_0p5()
+                                .rounded(px(4.))
+                                .border_1()
+                                .border_color(border)
+                                .text_size(px(11.))
+                                .text_color(text_muted)
+                                .child(SharedString::from("tab"))
+                                .cursor_pointer()
+                                .hover(|el| el.text_color(cx.theme().colors().text))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.set_filter(Some(cat), window, cx);
+                                    this.has_interacted = true;
+                                })),
+                        )
+                    })
             })
             .child({
-                // When the user is actively typing, the chip strip and
-                // the section headers would only get in the way.
-                // Collapse down to just the result list so the full
-                // panel height is devoted to matches — the Warp
-                // behaviour. The chips come back as soon as the input
-                // is cleared.
+                // Three layouts share the result body:
+                //  * universal + empty query  → chip discovery grid + Suggested
+                //  * universal + typed query  → just results
+                //  * compact (prefix active)  → just results, no chips
+                // The chip grid only ever appears in the first case; in
+                // compact mode it would re-show the very category the
+                // user already locked in.
                 let body = v_flex().px_4().py_4().gap_4();
-                let body = if query_is_empty {
+                let body = if query_is_empty && !in_compact_mode {
+                    let chips = SearchCategory::all()
+                        .iter()
+                        .map(|cat| self.render_chip(*cat, cx).into_any_element())
+                        .collect::<Vec<_>>();
                     body.child(h_flex().flex_wrap().gap_2().children(chips))
                 } else {
                     body

@@ -91,6 +91,7 @@ fn main() {
             let font_paths = [
                 "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Regular.otf",
                 "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Bold.otf",
+                "fonts/dankmono-nerd-font-mono/DankMonoNerdFontMono-Italic.otf",
             ];
             let bundled_fonts: Vec<Cow<'static, [u8]>> = font_paths
                 .iter()

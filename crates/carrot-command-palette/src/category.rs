@@ -75,6 +75,25 @@ impl SearchCategory {
         }
     }
 
+    /// Placeholder shown inside the search input when this category is the
+    /// active filter. Empty queries display this so the user always sees
+    /// what they're searching for.
+    pub fn search_placeholder(self) -> &'static str {
+        match self {
+            Self::Workflows => "Search workflows",
+            Self::Prompts => "Search prompts",
+            Self::Notebooks => "Search notebooks",
+            Self::EnvironmentVariables => "Search environment variables",
+            Self::Files => "Search files",
+            Self::Drive => "Search drive",
+            Self::Actions => "Search actions",
+            Self::Sessions => "Search sessions",
+            Self::LaunchConfigurations => "Search launch configurations",
+            Self::Conversations => "Search conversations",
+            Self::History => "Search history",
+        }
+    }
+
     /// Prefix a user can type to restrict the search to this category, e.g.
     /// `sessions:` or `env:`. Matched case-sensitively on ASCII letters with
     /// a trailing colon.
