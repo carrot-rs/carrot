@@ -158,12 +158,10 @@ fn active_view(
 
 fn snapshot_rows(block: &ActiveBlock) -> Vec<Vec<Cell>> {
     let grid = block.grid();
-    let total = grid.total_rows();
-    let mut rows = Vec::with_capacity(total);
-    for ix in 0..total {
-        if let Some(row) = grid.row(ix) {
-            rows.push(row.to_vec());
-        }
+    let bounds = carrot_grid::GridBounds::from_pages(grid);
+    let mut rows = Vec::with_capacity(bounds.total_rows());
+    for (_, row) in bounds.iter(grid) {
+        rows.push(row.to_vec());
     }
     rows
 }

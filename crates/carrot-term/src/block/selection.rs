@@ -30,7 +30,7 @@
 //! Phase-G UI concern and happens in Layer 5. The backend treats
 //! `Semantic` the same as `Simple` for range + contains purposes.
 
-use carrot_grid::{Cell, CellId, CellTag, GraphemeStore, PageList};
+use carrot_grid::{Cell, CellId, CellTag, GraphemeStore, GridBounds, PageList};
 
 use super::active::ActiveBlock;
 
@@ -135,14 +135,15 @@ impl BlockSelection {
     /// docs. Row breaks are inserted between rows at both `Simple`
     /// and `Lines` boundaries; `Block` inserts a break per row.
     pub fn to_string(&self, grid: &PageList, graphemes: &GraphemeStore) -> String {
+        let bounds = GridBounds::from_pages(grid);
         let (start, end) = self.range();
         let mut out = String::new();
         match self.kind {
             SelectionKind::Simple | SelectionKind::Semantic => {
-                self.extract_linear(grid, graphemes, start, end, &mut out);
+                self.extract_linear(grid, &bounds, graphemes, start, end, &mut out);
             }
             SelectionKind::Lines => {
-                self.extract_lines(grid, graphemes, start.origin, end.origin, &mut out);
+                self.extract_lines(grid, &bounds, graphemes, start.origin, end.origin, &mut out);
             }
             SelectionKind::Block => {
                 let (lo_col, hi_col) = if start.col <= end.col {
@@ -152,6 +153,7 @@ impl BlockSelection {
                 };
                 self.extract_block(
                     grid,
+                    &bounds,
                     graphemes,
                     start.origin,
                     end.origin,
@@ -167,13 +169,14 @@ impl BlockSelection {
     fn extract_linear(
         &self,
         grid: &PageList,
+        bounds: &GridBounds,
         graphemes: &GraphemeStore,
         start: CellId,
         end: CellId,
         out: &mut String,
     ) {
         for origin in start.origin..=end.origin {
-            let Some(row_ix) = resolve_row(grid, origin) else {
+            let Some(row_ix) = bounds.origin_to_row(origin) else {
                 continue;
             };
             let Some(row) = grid.row(row_ix) else {
@@ -195,13 +198,14 @@ impl BlockSelection {
     fn extract_lines(
         &self,
         grid: &PageList,
+        bounds: &GridBounds,
         graphemes: &GraphemeStore,
         start_origin: u64,
         end_origin: u64,
         out: &mut String,
     ) {
         for origin in start_origin..=end_origin {
-            let Some(row_ix) = resolve_row(grid, origin) else {
+            let Some(row_ix) = bounds.origin_to_row(origin) else {
                 continue;
             };
             let Some(row) = grid.row(row_ix) else {
@@ -219,6 +223,7 @@ impl BlockSelection {
     fn extract_block(
         &self,
         grid: &PageList,
+        bounds: &GridBounds,
         graphemes: &GraphemeStore,
         start_origin: u64,
         end_origin: u64,
@@ -227,7 +232,7 @@ impl BlockSelection {
         out: &mut String,
     ) {
         for origin in start_origin..=end_origin {
-            let Some(row_ix) = resolve_row(grid, origin) else {
+            let Some(row_ix) = bounds.origin_to_row(origin) else {
                 continue;
             };
             let Some(row) = grid.row(row_ix) else {
@@ -240,11 +245,6 @@ impl BlockSelection {
             }
         }
     }
-}
-
-fn resolve_row(grid: &PageList, origin: u64) -> Option<usize> {
-    let first = grid.first_row_offset();
-    origin.checked_sub(first).map(|d| d as usize)
 }
 
 fn append_row_range(

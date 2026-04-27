@@ -78,9 +78,9 @@ impl RenderSnapshot {
     /// source `PageList` exactly — no soft-wrap here, that's the
     /// element's job.
     pub fn from_grid(pages: &PageList, atlas: &[CellStyle]) -> Self {
-        let total = pages.total_rows();
-        let mut rows = Vec::with_capacity(total);
-        for row in pages.rows(0, total) {
+        let bounds = carrot_grid::GridBounds::from_pages(pages);
+        let mut rows = Vec::with_capacity(bounds.total_rows());
+        for (_, row) in bounds.iter(pages) {
             rows.push(row.to_vec());
         }
         Self {

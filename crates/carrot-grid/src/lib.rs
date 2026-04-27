@@ -16,6 +16,7 @@ pub mod cell;
 pub mod cell_id;
 pub mod color;
 pub mod compress;
+pub mod coordinates;
 pub mod custom_render;
 pub mod grapheme;
 pub mod hyperlink;
@@ -31,6 +32,7 @@ pub use cell::{Cell, CellFlags, CellStyleId, CellTag, GraphemeIndex, ImageIndex,
 pub use cell_id::{CellId, CellIdRow, CellIdSpan};
 pub use color::{Color, NamedColor, rgb_to_oklch};
 pub use compress::{CompressError, CompressedCells, compress, decompress};
+pub use coordinates::{GridBounds, RowAddr};
 pub use custom_render::{
     CustomDraw, CustomRenderIndex, CustomRenderRect, CustomRenderRegistry, CustomRenderer,
 };

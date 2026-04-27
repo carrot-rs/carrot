@@ -92,17 +92,10 @@ pub fn search_cells(pages: &PageList, needle: &str, options: SearchOptions) -> V
     let needle_chars: Vec<(char, char)> = needle.chars().map(|c| (c, ascii_lower(c))).collect();
 
     let mut out = Vec::new();
-    let first_origin = pages.first_row_offset();
-    let total_rows = pages.total_rows();
-
-    for row_ix in 0..total_rows {
-        let Some(row) = pages.row(row_ix) else {
-            continue;
-        };
-        let origin = first_origin + row_ix as u64;
-        search_row(row, origin, &needle_chars, options, &mut out);
+    let bounds = crate::GridBounds::from_pages(pages);
+    for (addr, row) in bounds.iter(pages) {
+        search_row(row, addr.origin, &needle_chars, options, &mut out);
     }
-
     out
 }
 

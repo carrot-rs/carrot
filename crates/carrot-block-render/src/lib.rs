@@ -159,14 +159,15 @@ pub fn render_block_with_signatures(
         viewport_cols,
     } = input;
 
-    let data_cols = pages.capacity().cols;
+    let bounds = carrot_grid::GridBounds::from_pages(pages);
+    let data_cols = bounds.columns();
     let effective_cols = viewport_cols.max(1);
 
     let mut draws = Vec::new();
     let mut signatures = Vec::new();
     let mut visual_row: u32 = 0;
 
-    for row in pages.rows(visible_rows.start, visible_rows.end) {
+    for (_, row) in bounds.iter_range(pages, visible_rows) {
         // Wide-char-aware segmentation: never splits a Wide1st/Wide2nd
         // pair across a visual-row boundary. See `soft_wrap::segment`.
         let segments = soft_wrap::segment(row, effective_cols);
