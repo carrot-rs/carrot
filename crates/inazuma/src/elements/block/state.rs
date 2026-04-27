@@ -244,6 +244,9 @@ impl BlockState {
     }
 
     /// Remove the block with the given id. No-op if the id is not known.
+    /// If the removed block was the pinned footer, the pin is cleared
+    /// — leaving a stale `pinned_footer` id pointing at a removed entry
+    /// would resolve to garbage in `layout::compute()`.
     pub fn remove(&self, id: BlockId) {
         let mut state = self.0.borrow_mut();
         let Some(&ix) = state.id_to_ix.get(&id) else {
@@ -255,6 +258,9 @@ impl BlockState {
             if *stored_ix > ix {
                 *stored_ix -= 1;
             }
+        }
+        if state.pinned_footer == Some(id) {
+            state.pinned_footer = None;
         }
     }
 

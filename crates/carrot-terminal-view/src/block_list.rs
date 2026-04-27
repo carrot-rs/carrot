@@ -254,6 +254,11 @@ struct RenderEntry {
     snapshot: BlockSnapshot,
     viewport_cols: u16,
     selection: Option<GridSelection>,
+    /// Lifecycle marker pulled from the corresponding `ActiveBlockView`
+    /// / `FrozenView`. Drives the pin-as-footer routing — `Tui` blocks
+    /// get pinned at the bottom of the viewport, `Shell` blocks scroll
+    /// in the normal flow.
+    kind: carrot_term::block::BlockKind,
 }
 
 impl RenderEntry {
@@ -277,6 +282,7 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
             snapshot,
             viewport_cols: view.grid_dims.0,
             selection: None,
+            kind: frozen.kind,
         });
     }
     if let Some(active) = &view.active {
@@ -313,6 +319,7 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
             snapshot,
             viewport_cols,
             selection,
+            kind: active.kind,
         });
     }
     out
@@ -327,6 +334,25 @@ impl Render for BlockListView {
         let mut entries = build_entries(&view);
         self.memoize_active_snapshot(&view, &mut entries);
         self.sync_block_count(entries.len());
+
+        // Pin the most-recent `BlockKind::Tui` entry as the viewport
+        // footer so its live frame stays anchored at the bottom while
+        // earlier shell blocks scroll above it. Walk in reverse so an
+        // active TUI block wins over older frozen TUI blocks. If no
+        // TUI block is present we explicitly unpin — a previously
+        // pinned TUI block that's now Shell (impossible by sticky
+        // promotion, but defensive) or pruned would otherwise leave a
+        // stale pin.
+        let pinned_tui = entries.iter().enumerate().rev().find_map(|(i, e)| {
+            e.kind
+                .is_tui()
+                .then_some(())
+                .and_then(|_| self.list_ids.get(i).copied())
+        });
+        match pinned_tui {
+            Some(id) => self.list_state.pin(id),
+            None => self.list_state.unpin(),
+        }
 
         // Cache the v2 id mapping + layout per entry.
         self.router_ids = entries.iter().map(|e| e.router_id).collect();
