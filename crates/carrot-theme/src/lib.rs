@@ -59,8 +59,11 @@ pub use theme::{
     SystemAppearance, Theme, ThemeBackgroundImage, ThemeFamily, ThemeStyles,
 };
 pub use theme_settings_provider::{
-    ThemeSettingsProvider, set_theme_settings_provider, theme_settings,
+    FontRole, ThemeSettingsProvider, body_font, body_font_size, code_font, code_font_size,
+    set_theme_settings_provider, symbol_map_for, terminal_font, terminal_font_size,
+    theme_settings,
 };
+pub use inazuma_settings_content::ResolvedSymbolMap;
 pub use ui_density::UiDensity;
 
 /// The name of the default dark theme.

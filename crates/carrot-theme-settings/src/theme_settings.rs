@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use carrot_theme::{
-    Appearance, DEFAULT_DARK_THEME, FontFamilyCache, GlobalTheme, LoadThemes, SystemAppearance,
-    ThemeRegistry, ThemeSettingsProvider, UiDensity, icon_theme::default_icon_theme,
-    set_theme_settings_provider,
+    Appearance, DEFAULT_DARK_THEME, FontFamilyCache, FontRole, GlobalTheme, LoadThemes,
+    ResolvedSymbolMap, SystemAppearance, ThemeRegistry, ThemeSettingsProvider, UiDensity,
+    icon_theme::default_icon_theme, set_theme_settings_provider,
 };
 use inazuma::{App, AssetSource, Font, Pixels};
 use inazuma_settings_framework::{Settings, SettingsStore};
@@ -13,20 +13,57 @@ use crate::settings::{ThemeSettings, default_theme, reset_buffer_font_size, rese
 struct ThemeSettingsProviderImpl;
 
 impl ThemeSettingsProvider for ThemeSettingsProviderImpl {
+    fn font<'a>(&'a self, role: FontRole, cx: &'a App) -> &'a Font {
+        let settings = ThemeSettings::get_global(cx);
+        match role {
+            FontRole::Body => &settings.fonts.ui.font,
+            FontRole::Code | FontRole::Terminal => &settings.fonts.mono.font,
+        }
+    }
+
+    fn font_size(&self, role: FontRole, cx: &App) -> Pixels {
+        match role {
+            FontRole::Body => ThemeSettings::get_global(cx).ui_font_size(cx),
+            FontRole::Code | FontRole::Terminal => {
+                ThemeSettings::get_global(cx).buffer_font_size(cx)
+            }
+        }
+    }
+
+    fn line_height(&self, role: FontRole, cx: &App) -> f32 {
+        match role {
+            FontRole::Body => 1.3,
+            FontRole::Code | FontRole::Terminal => {
+                ThemeSettings::get_global(cx).fonts.mono.line_height.value()
+            }
+        }
+    }
+
+    fn symbol_map_for<'a>(&'a self, role: FontRole, cx: &'a App) -> &'a [ResolvedSymbolMap] {
+        match role {
+            FontRole::Body => &[],
+            FontRole::Code | FontRole::Terminal => {
+                &ThemeSettings::get_global(cx).fonts.mono.symbol_map
+            }
+        }
+    }
+
+    // ── Legacy shims (delegated to the role-based methods above) ───────
+
     fn ui_font<'a>(&'a self, cx: &'a App) -> &'a Font {
-        &ThemeSettings::get_global(cx).ui_font
+        self.font(FontRole::Body, cx)
     }
 
     fn buffer_font<'a>(&'a self, cx: &'a App) -> &'a Font {
-        &ThemeSettings::get_global(cx).buffer_font
+        self.font(FontRole::Code, cx)
     }
 
     fn ui_font_size(&self, cx: &App) -> Pixels {
-        ThemeSettings::get_global(cx).ui_font_size(cx)
+        self.font_size(FontRole::Body, cx)
     }
 
     fn buffer_font_size(&self, cx: &App) -> Pixels {
-        ThemeSettings::get_global(cx).buffer_font_size(cx)
+        self.font_size(FontRole::Code, cx)
     }
 
     fn ui_density(&self, cx: &App) -> UiDensity {
