@@ -270,7 +270,7 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
     for frozen in &view.frozen {
         let snapshot = BlockSnapshot::from_pages(frozen.block.grid(), frozen.block.atlas());
         out.push(RenderEntry {
-            block_id: BlockId(frozen.id.0 as usize),
+            block_id: BlockId::from(frozen.id),
             router_id: frozen.id,
             command: frozen.metadata.command.clone().unwrap_or_default(),
             header: BlockHeaderView::from_metadata(&frozen.metadata, false, None),
@@ -302,7 +302,7 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
         });
         let viewport_cols = snapshot.columns();
         out.push(RenderEntry {
-            block_id: BlockId(active.id.0 as usize),
+            block_id: BlockId::from(active.id),
             router_id: active.id,
             command: active.metadata.command.clone().unwrap_or_default(),
             header: BlockHeaderView::from_metadata(
