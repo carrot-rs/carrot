@@ -25,6 +25,7 @@ pub mod page;
 pub mod page_list;
 pub mod reflow;
 pub mod search;
+pub mod snapshot;
 pub mod style;
 pub mod tabstops;
 
@@ -46,5 +47,6 @@ pub use reflow::{
     ThreadedReflowDriver,
 };
 pub use search::{SearchMatch, SearchOptions, search_cells};
+pub use snapshot::BlockSnapshot;
 pub use style::{CellStyle, CellStyleAtlas, CellStyleFlags};
 pub use tabstops::{INITIAL_TABSTOPS, TabStops};

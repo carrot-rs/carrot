@@ -35,9 +35,12 @@ pub mod soft_wrap;
 pub use palette::{DefaultSlot, TerminalPalette};
 
 pub use block_element::{
-    BlockElement, BlockPrepaintState, GridOriginStore, GridSelection, RenderSnapshot,
-    SearchHighlight,
+    BlockElement, BlockPrepaintState, GridOriginStore, GridSelection, SearchHighlight,
 };
+// `BlockSnapshot` lives in carrot-grid (Layer 1) — it's pure cell +
+// atlas + bounds data with no rendering knowledge. Re-exported here for
+// callers that already pull `carrot-block-render` for the block element.
+pub use carrot_grid::BlockSnapshot;
 pub use cursor::{CursorDraw, CursorShape, CursorState, render_cursor};
 pub use damage::{CellSignature, Damage, FrameState, compute_damage};
 pub use decoration::{

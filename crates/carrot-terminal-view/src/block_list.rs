@@ -14,7 +14,8 @@ mod pointer;
 
 use std::sync::Arc;
 
-use carrot_block_render::{BlockElement, GridSelection, RenderSnapshot, SearchHighlight};
+use carrot_block_render::{BlockElement, GridSelection, SearchHighlight};
+use carrot_grid::BlockSnapshot;
 use carrot_term::BlockId;
 use carrot_term::block::{BlockId as RouterBlockId, SelectionKind};
 use carrot_terminal::TerminalHandle;
@@ -69,7 +70,7 @@ pub struct BlockListView {
     /// skip a full row-extract when the active block hasn't advanced
     /// (DEC 2026 sync update or between PTY chunks). Cleared when
     /// either key component changes.
-    pub(crate) last_active_render: Option<(RouterBlockId, u64, RenderSnapshot)>,
+    pub(crate) last_active_render: Option<(RouterBlockId, u64, BlockSnapshot)>,
 }
 
 impl BlockListView {
@@ -186,7 +187,7 @@ impl BlockListView {
         (cell_width, cell_height)
     }
 
-    /// Reuse the last-frame's active-block `RenderSnapshot` when the
+    /// Reuse the last-frame's active-block `BlockSnapshot` when the
     /// router's `sync_update_frame_id` hasn't advanced. Frozen blocks
     /// are `Arc`-shared and don't need memoize; only the active block
     /// carries a per-frame row-copy that benefits from caching.
@@ -250,39 +251,47 @@ struct RenderEntry {
     router_id: RouterBlockId,
     command: String,
     header: BlockHeaderView,
-    snapshot: RenderSnapshot,
-    content_rows: usize,
+    snapshot: BlockSnapshot,
     viewport_cols: u16,
     selection: Option<GridSelection>,
+}
+
+impl RenderEntry {
+    /// Convenience — `BlockSnapshot.bounds.total_rows()`. Avoids
+    /// duplicating the row count on `RenderEntry` (Plan 31 G3
+    /// invariant: only one source of truth for `content_rows`).
+    fn content_rows(&self) -> usize {
+        self.snapshot.total_rows()
+    }
 }
 
 fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
     let mut out = Vec::with_capacity(view.frozen.len() + 1);
     for frozen in &view.frozen {
-        let rows = frozen_rows(frozen);
-        let content_rows = rows.len();
-        let atlas_vec: Vec<_> = frozen.block.atlas().iter().copied().collect();
-        let snapshot = RenderSnapshot::from_owned(rows, atlas_vec);
+        let snapshot = BlockSnapshot::from_pages(frozen.block.grid(), frozen.block.atlas());
         out.push(RenderEntry {
             block_id: BlockId(frozen.id.0 as usize),
             router_id: frozen.id,
             command: frozen.metadata.command.clone().unwrap_or_default(),
             header: BlockHeaderView::from_metadata(&frozen.metadata, false, None),
             snapshot,
-            content_rows,
             viewport_cols: view.grid_dims.0,
             selection: None,
         });
     }
     if let Some(active) = &view.active {
-        let content_rows = active.rows.len();
-        let snapshot =
-            RenderSnapshot::from_owned(active.rows.clone(), active.atlas.iter().copied().collect());
+        let snapshot = active.snapshot.clone();
         let selection = active.selection.as_ref().map(|sel| {
+            // The snapshot's bounds expose `first_row_offset` directly,
+            // so selection mapping uses the canonical conversion
+            // instead of guessing zero — keeps selections correct after
+            // scrollback prune events.
             let (s, e) = sel.range();
-            let first = first_origin(active);
-            let start_row = s.origin.saturating_sub(first) as usize;
-            let end_row = e.origin.saturating_sub(first) as usize;
+            let bounds = snapshot.bounds;
+            let start_row = bounds.origin_to_row(s.origin).unwrap_or(0);
+            let end_row = bounds.origin_to_row(e.origin).unwrap_or_else(|| {
+                bounds.total_rows().saturating_sub(1)
+            });
             GridSelection {
                 start_row,
                 start_col: s.col,
@@ -291,6 +300,7 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
                 block: matches!(sel.kind, SelectionKind::Block),
             }
         });
+        let viewport_cols = snapshot.columns();
         out.push(RenderEntry {
             block_id: BlockId(active.id.0 as usize),
             router_id: active.id,
@@ -301,35 +311,11 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
                 active.live_frame.as_ref(),
             ),
             snapshot,
-            content_rows,
-            viewport_cols: active.cols,
+            viewport_cols,
             selection,
         });
     }
     out
-}
-
-fn frozen_rows(frozen: &carrot_term::block::FrozenView) -> Vec<Vec<carrot_grid::Cell>> {
-    let grid = frozen.block.grid();
-    let total = grid.total_rows();
-    let mut rows = Vec::with_capacity(total);
-    for ix in 0..total {
-        if let Some(row) = grid.row(ix) {
-            rows.push(row.to_vec());
-        }
-    }
-    rows
-}
-
-fn first_origin(active: &carrot_term::block::ActiveBlockView) -> u64 {
-    // The view is a row-copy; the first row's origin is 0 relative
-    // to this view, so selection origins expressed as
-    // `CellId::origin` subtract by 0 and become direct row indices.
-    // When the backing PageList has pruned, the view rows start
-    // later — but we don't currently expose that offset through
-    // the view, so the conservative choice is zero.
-    let _ = active;
-    0
 }
 
 impl Render for BlockListView {
@@ -350,7 +336,7 @@ impl Render for BlockListView {
             .map(|(i, e)| BlockLayoutEntry {
                 block_id: e.block_id,
                 block_index: i,
-                content_rows: e.content_rows,
+                content_rows: e.content_rows(),
                 command_row_count: 0,
                 grid_history_size: 0,
                 grid_origin_store: fresh_origin_store(),
@@ -556,7 +542,7 @@ fn render_block_entry(
         line_height_multiplier,
         carrot_block_render::TerminalPalette::from_theme(theme.colors()),
         terminal_bg(theme),
-        0..entry.content_rows,
+        0..entry.content_rows(),
         entry.viewport_cols,
     );
     if let Some(store) = grid_origin_store {
