@@ -383,34 +383,6 @@ pub fn reset_body_font_size(cx: &mut App) {
     }
 }
 
-// ── Legacy shims (delegate to the role-based functions above) ────────
-
-pub fn adjust_mono_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    adjust_mono_font_size(cx, f)
-}
-
-pub fn observe_mono_font_size_adjustment<V: 'static>(
-    cx: &mut inazuma::Context<V>,
-    f: impl 'static + Fn(&mut V, &mut inazuma::Context<V>),
-) -> inazuma::Subscription {
-    observe_mono_font_size_adjustment(cx, f)
-}
-
-pub fn reset_mono_font_size(cx: &mut App) {
-    reset_mono_font_size(cx)
-}
-
-pub fn setup_body_font(window: &mut Window, cx: &App) -> Font {
-    setup_body_font(window, cx)
-}
-
-pub fn adjust_body_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    adjust_body_font_size(cx, f)
-}
-
-pub fn reset_body_font_size(cx: &mut App) {
-    reset_body_font_size(cx)
-}
 
 /// Sets the adjusted font size of agent responses in the agent panel.
 pub fn adjust_agent_ui_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
