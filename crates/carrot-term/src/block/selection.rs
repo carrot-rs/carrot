@@ -30,7 +30,7 @@
 //! Phase-G UI concern and happens in Layer 5. The backend treats
 //! `Semantic` the same as `Simple` for range + contains purposes.
 
-use carrot_grid::{Cell, CellId, CellTag, GraphemeStore, GridBounds, PageList};
+use carrot_grid::{CellId, GraphemeStore, GridBounds, PageList};
 
 use super::active::ActiveBlock;
 
@@ -247,47 +247,11 @@ impl BlockSelection {
     }
 }
 
-fn append_row_range(
-    row: &[Cell],
-    graphemes: &GraphemeStore,
-    first_col: u16,
-    last_col: u16,
-    out: &mut String,
-) {
-    let end = (last_col as usize + 1).min(row.len());
-    let start = (first_col as usize).min(end);
-    for cell in &row[start..end] {
-        cell_text(*cell, graphemes, out);
-    }
-}
-
-fn cell_text(cell: Cell, graphemes: &GraphemeStore, out: &mut String) {
-    match cell.tag() {
-        CellTag::Ascii => {
-            let b = cell.content() as u8;
-            if b != 0 {
-                out.push(b as char);
-            } else {
-                out.push(' ');
-            }
-        }
-        CellTag::Codepoint => {
-            if let Some(c) = char::from_u32(cell.content()) {
-                out.push(c);
-            }
-        }
-        CellTag::Grapheme => {
-            let id = carrot_grid::GraphemeIndex(cell.content());
-            if let Some(s) = graphemes.get(id) {
-                out.push_str(s);
-            }
-        }
-        // Ghost cells / image cells / shaped runs / custom / reserved
-        // contribute nothing textually. Wide2nd is already covered by
-        // the preceding primary cell.
-        _ => {}
-    }
-}
+// Row / cell text rendering lives in `super::text`. Selection
+// materialisation just calls those helpers — keeps the cell-text
+// contract in one place for selection, full-block extraction, AI
+// context and copy-as-text.
+use super::text::append_row_range;
 
 // ─── ActiveBlock selection API ───────────────────────────────────
 
