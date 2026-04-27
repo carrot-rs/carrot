@@ -88,15 +88,26 @@ pub fn default_theme(appearance: Appearance) -> &'static str {
     }
 }
 
+// In-memory zoom adjustments. The role-based `MonoFontSize` /
+// `BodyFontSize` are the canonical zoom state — legacy
+// `adjust_buffer_font_size` / `adjust_ui_font_size` are thin shims
+// that delegate to them, so both APIs share one piece of global
+// state.
+
+/// In-memory override for the resolved [`FontRole::Code`] /
+/// [`FontRole::Terminal`] font size (set via `adjust_mono_font_size`,
+/// cleared via `reset_mono_font_size`). Persists across reloads of
+/// settings until explicitly reset.
 #[derive(Default)]
-struct BufferFontSize(Pixels);
+pub(crate) struct MonoFontSize(Pixels);
 
-impl Global for BufferFontSize {}
+impl Global for MonoFontSize {}
 
+/// In-memory override for the resolved [`FontRole::Body`] font size.
 #[derive(Default)]
-pub(crate) struct UiFontSize(Pixels);
+pub(crate) struct BodyFontSize(Pixels);
 
-impl Global for UiFontSize {}
+impl Global for BodyFontSize {}
 
 /// In-memory override for the font size in the agent panel.
 #[derive(Default)]
@@ -234,7 +245,7 @@ impl BufferLineHeight {
 impl ThemeSettings {
     pub fn buffer_font_size(&self, cx: &App) -> Pixels {
         let font_size = cx
-            .try_global::<BufferFontSize>()
+            .try_global::<MonoFontSize>()
             .map(|size| size.0)
             .unwrap_or(self.buffer_font_size);
         clamp_font_size(font_size)
@@ -242,7 +253,7 @@ impl ThemeSettings {
 
     pub fn ui_font_size(&self, cx: &App) -> Pixels {
         let font_size = cx
-            .try_global::<UiFontSize>()
+            .try_global::<BodyFontSize>()
             .map(|size| size.0)
             .unwrap_or(self.ui_font_size);
         clamp_font_size(font_size)
@@ -320,54 +331,85 @@ impl ThemeSettings {
     }
 }
 
-pub fn adjust_buffer_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    let buffer_font_size = ThemeSettings::get_global(cx).buffer_font_size;
+// ── Role-based zoom controls (preferred entry-points) ────────────────
+
+pub fn adjust_mono_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+    let base = ThemeSettings::get_global(cx).buffer_font_size;
     let adjusted_size = cx
-        .try_global::<BufferFontSize>()
-        .map_or(buffer_font_size, |adjusted_size| adjusted_size.0);
-    cx.set_global(BufferFontSize(clamp_font_size(f(adjusted_size))));
+        .try_global::<MonoFontSize>()
+        .map_or(base, |s| s.0);
+    cx.set_global(MonoFontSize(clamp_font_size(f(adjusted_size))));
     cx.refresh_windows();
+}
+
+pub fn observe_mono_font_size_adjustment<V: 'static>(
+    cx: &mut inazuma::Context<V>,
+    f: impl 'static + Fn(&mut V, &mut inazuma::Context<V>),
+) -> inazuma::Subscription {
+    cx.observe_global::<MonoFontSize>(f)
+}
+
+pub fn reset_mono_font_size(cx: &mut App) {
+    if cx.has_global::<MonoFontSize>() {
+        cx.remove_global::<MonoFontSize>();
+        cx.refresh_windows();
+    }
+}
+
+pub fn setup_body_font(window: &mut Window, cx: &App) -> Font {
+    let (body_font, body_font_size) = {
+        let theme_settings = ThemeSettings::get_global(cx);
+        let font = theme_settings.fonts.ui.font.clone();
+        (font, theme_settings.ui_font_size(cx))
+    };
+
+    window.set_rem_size(body_font_size);
+    body_font
+}
+
+pub fn adjust_body_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+    let base = ThemeSettings::get_global(cx).ui_font_size(cx);
+    let adjusted_size = cx
+        .try_global::<BodyFontSize>()
+        .map_or(base, |s| s.0);
+    cx.set_global(BodyFontSize(clamp_font_size(f(adjusted_size))));
+    cx.refresh_windows();
+}
+
+pub fn reset_body_font_size(cx: &mut App) {
+    if cx.has_global::<BodyFontSize>() {
+        cx.remove_global::<BodyFontSize>();
+        cx.refresh_windows();
+    }
+}
+
+// ── Legacy shims (delegate to the role-based functions above) ────────
+
+pub fn adjust_buffer_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+    adjust_mono_font_size(cx, f)
 }
 
 pub fn observe_buffer_font_size_adjustment<V: 'static>(
     cx: &mut inazuma::Context<V>,
     f: impl 'static + Fn(&mut V, &mut inazuma::Context<V>),
 ) -> inazuma::Subscription {
-    cx.observe_global::<BufferFontSize>(f)
+    observe_mono_font_size_adjustment(cx, f)
 }
 
 pub fn reset_buffer_font_size(cx: &mut App) {
-    if cx.has_global::<BufferFontSize>() {
-        cx.remove_global::<BufferFontSize>();
-        cx.refresh_windows();
-    }
+    reset_mono_font_size(cx)
 }
 
 pub fn setup_ui_font(window: &mut Window, cx: &App) -> Font {
-    let (ui_font, ui_font_size) = {
-        let theme_settings = ThemeSettings::get_global(cx);
-        let font = theme_settings.ui_font.clone();
-        (font, theme_settings.ui_font_size(cx))
-    };
-
-    window.set_rem_size(ui_font_size);
-    ui_font
+    setup_body_font(window, cx)
 }
 
 pub fn adjust_ui_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    let ui_font_size = ThemeSettings::get_global(cx).ui_font_size(cx);
-    let adjusted_size = cx
-        .try_global::<UiFontSize>()
-        .map_or(ui_font_size, |adjusted_size| adjusted_size.0);
-    cx.set_global(UiFontSize(clamp_font_size(f(adjusted_size))));
-    cx.refresh_windows();
+    adjust_body_font_size(cx, f)
 }
 
 pub fn reset_ui_font_size(cx: &mut App) {
-    if cx.has_global::<UiFontSize>() {
-        cx.remove_global::<UiFontSize>();
-        cx.refresh_windows();
-    }
+    reset_body_font_size(cx)
 }
 
 /// Sets the adjusted font size of agent responses in the agent panel.
