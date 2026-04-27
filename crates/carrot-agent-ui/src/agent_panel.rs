@@ -1614,28 +1614,14 @@ impl AgentPanel {
         self.handle_font_size_action(action.persist, px(-1.0), cx);
     }
 
-    fn handle_font_size_action(&mut self, persist: bool, delta: Pixels, cx: &mut Context<Self>) {
+    fn handle_font_size_action(&mut self, _persist: bool, delta: Pixels, cx: &mut Context<Self>) {
         match self.active_view.which_font_size_used() {
             WhichFontSize::AgentFont => {
-                if persist {
-                    update_settings_file(self.fs.clone(), cx, move |settings, cx| {
-                        let agent_ui_font_size =
-                            ThemeSettings::get_global(cx).agent_ui_font_size(cx) + delta;
-                        let agent_buffer_font_size =
-                            ThemeSettings::get_global(cx).agent_buffer_font_size(cx) + delta;
-
-                        let _ = settings.theme.agent_ui_font_size.insert(
-                            f32::from(carrot_theme_settings::clamp_font_size(agent_ui_font_size)).into(),
-                        );
-                        let _ = settings.theme.agent_buffer_font_size.insert(
-                            f32::from(carrot_theme_settings::clamp_font_size(agent_buffer_font_size))
-                                .into(),
-                        );
-                    });
-                } else {
-                    carrot_theme_settings::adjust_agent_ui_font_size(cx, |size| size + delta);
-                    carrot_theme_settings::adjust_agent_buffer_font_size(cx, |size| size + delta);
-                }
+                // Agent panel zoom is in-memory only — there's no schema slot
+                // for agent-specific font sizes (the panel inherits from the
+                // role-based body / mono fonts).
+                carrot_theme_settings::adjust_agent_ui_font_size(cx, |size| size + delta);
+                carrot_theme_settings::adjust_agent_buffer_font_size(cx, |size| size + delta);
             }
             WhichFontSize::BufferFont => {
                 // Prompt editor uses the buffer font size, so allow the action to propagate to the
@@ -1648,19 +1634,12 @@ impl AgentPanel {
 
     pub fn reset_font_size(
         &mut self,
-        action: &ResetBufferFontSize,
+        _action: &ResetBufferFontSize,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if action.persist {
-            update_settings_file(self.fs.clone(), cx, move |settings, _| {
-                settings.theme.agent_ui_font_size = None;
-                settings.theme.agent_buffer_font_size = None;
-            });
-        } else {
-            carrot_theme_settings::reset_agent_ui_font_size(cx);
-            carrot_theme_settings::reset_agent_buffer_font_size(cx);
-        }
+        carrot_theme_settings::reset_agent_ui_font_size(cx);
+        carrot_theme_settings::reset_agent_buffer_font_size(cx);
     }
 
     pub fn reset_agent_zoom(&mut self, _window: &mut Window, cx: &mut Context<Self>) {

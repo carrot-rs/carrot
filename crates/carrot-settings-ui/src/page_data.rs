@@ -6555,7 +6555,12 @@ fn terminal_page() -> SettingsPage {
                             .terminal
                             .as_ref()
                             .and_then(|terminal| terminal.font_size.as_ref())
-                            .or(settings_content.theme.buffer_font_size.as_ref())
+                            .or(settings_content
+                                .theme
+                                .fonts
+                                .as_ref()
+                                .and_then(|f| f.mono.as_ref())
+                                .and_then(|m| m.size.as_ref()))
                     },
                     write: |settings_content, value| {
                         settings_content.terminal.get_or_insert_default().font_size = value;
@@ -6574,7 +6579,12 @@ fn terminal_page() -> SettingsPage {
                             .terminal
                             .as_ref()
                             .and_then(|terminal| terminal.font_family.as_ref())
-                            .or(settings_content.theme.buffer_font_family.as_ref())
+                            .or(settings_content
+                                .theme
+                                .fonts
+                                .as_ref()
+                                .and_then(|f| f.mono.as_ref())
+                                .and_then(|m| m.family.as_ref()))
                     },
                     write: |settings_content, value| {
                         settings_content
@@ -6597,7 +6607,12 @@ fn terminal_page() -> SettingsPage {
                                 .terminal
                                 .as_ref()
                                 .and_then(|terminal| terminal.font_fallbacks.as_ref())
-                                .or(settings_content.theme.buffer_font_fallbacks.as_ref())
+                                .or(settings_content
+                                    .theme
+                                    .fonts
+                                    .as_ref()
+                                    .and_then(|f| f.mono.as_ref())
+                                    .and_then(|m| m.fallbacks.as_ref()))
                         },
                         write: |settings_content, value| {
                             settings_content
@@ -6640,7 +6655,12 @@ fn terminal_page() -> SettingsPage {
                                 .terminal
                                 .as_ref()
                                 .and_then(|terminal| terminal.font_features.as_ref())
-                                .or(settings_content.theme.buffer_font_features.as_ref())
+                                .or(settings_content
+                                    .theme
+                                    .fonts
+                                    .as_ref()
+                                    .and_then(|f| f.mono.as_ref())
+                                    .and_then(|m| m.features.as_ref()))
                         },
                         write: |settings_content, value| {
                             settings_content

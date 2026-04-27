@@ -107,39 +107,6 @@ impl JsonSchema for FontFeaturesContent {
 #[with_fallible_options]
 #[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct ThemeSettingsContent {
-    /// The default font size for text in the UI.
-    pub ui_font_size: Option<FontSize>,
-    /// The name of a font to use for rendering in the UI.
-    pub ui_font_family: Option<FontFamilyName>,
-    /// The font fallbacks to use for rendering in the UI.
-    #[schemars(default = "default_font_fallbacks")]
-    #[schemars(extend("uniqueItems" = true))]
-    pub ui_font_fallbacks: Option<Vec<FontFamilyName>>,
-    /// The OpenType features to enable for text in the UI.
-    #[schemars(default = "default_font_features")]
-    pub ui_font_features: Option<FontFeaturesContent>,
-    /// The weight of the UI font in CSS units from 100 to 900.
-    #[schemars(default = "default_buffer_font_weight")]
-    pub ui_font_weight: Option<FontWeightContent>,
-    /// The name of a font to use for rendering in text buffers.
-    pub buffer_font_family: Option<FontFamilyName>,
-    /// The font fallbacks to use for rendering in text buffers.
-    #[schemars(extend("uniqueItems" = true))]
-    pub buffer_font_fallbacks: Option<Vec<FontFamilyName>>,
-    /// The default font size for rendering in text buffers.
-    pub buffer_font_size: Option<FontSize>,
-    /// The weight of the editor font in CSS units from 100 to 900.
-    #[schemars(default = "default_buffer_font_weight")]
-    pub buffer_font_weight: Option<FontWeightContent>,
-    /// The buffer's line height.
-    pub buffer_line_height: Option<BufferLineHeight>,
-    /// The OpenType features to enable for rendering in text buffers.
-    #[schemars(default = "default_font_features")]
-    pub buffer_font_features: Option<FontFeaturesContent>,
-    /// The font size for agent responses in the agent panel. Falls back to the UI font size if unset.
-    pub agent_ui_font_size: Option<FontSize>,
-    /// The font size for user messages in the agent panel.
-    pub agent_buffer_font_size: Option<FontSize>,
     /// Role-based font configuration.
     ///
     /// Two slots — `ui` for proportional UI text (palette, sidebar, chrome)
@@ -233,14 +200,6 @@ impl From<f32> for CodeFade {
 
 fn default_font_features() -> Option<FontFeaturesContent> {
     Some(FontFeaturesContent::default())
-}
-
-fn default_font_fallbacks() -> Option<Vec<FontFamilyName>> {
-    Some(Vec::new())
-}
-
-fn default_buffer_font_weight() -> Option<FontWeightContent> {
-    Some(FontWeightContent::NORMAL)
 }
 
 /// Represents the selection of a theme, which can be either static or dynamic.
@@ -1527,27 +1486,11 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_font_weight_schema_has_default() {
+    fn test_font_weight_schema_bounds() {
         use schemars::schema_for;
 
         let schema = schema_for!(ThemeSettingsContent);
         let schema_value = serde_json::to_value(&schema).unwrap();
-
-        let properties = &schema_value["properties"];
-        let buffer_font_weight = &properties["buffer_font_weight"];
-
-        assert!(
-            buffer_font_weight.get("default").is_some(),
-            "buffer_font_weight should have a default value in the schema"
-        );
-
-        let default_value = &buffer_font_weight["default"];
-        assert_eq!(
-            default_value.as_f64(),
-            Some(FontWeightContent::NORMAL.0 as f64),
-            "buffer_font_weight default should be 400.0 (FontWeightContent::NORMAL)"
-        );
-
         let defs = &schema_value["$defs"];
         let font_weight_def = &defs["FontWeightContent"];
 
