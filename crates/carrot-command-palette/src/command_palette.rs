@@ -715,28 +715,26 @@ impl Render for CommandPalette {
             .child({
                 let pending_completion = self.pending_prefix_completion(cx);
                 let active_prefix = self.active_prefix;
-                let accent = cx.theme().colors().text_accent;
+                let text_color = cx.theme().colors().text;
                 let prefix_element: AnyElement = match active_prefix {
                     Some(cat) => {
                         // Build the prefix face explicitly from the
-                        // user's UI font so this works regardless of
-                        // which family is configured. Italic and Bold
-                        // are best-effort: when the active font lacks
-                        // those variants, the colour contrast carries
-                        // the visual distinction on its own — Inazuma
-                        // does not synthesise italics, see
-                        // zed-industries/zed#28569.
-                        let ui_font = carrot_theme::theme_settings(cx).ui_font(cx);
+                        // user's UI font. Comic Stack ships a real
+                        // BoldItalic face so this renders heavy +
+                        // slanted; user-configured families that lack
+                        // it fall back to the closest available
+                        // variant via Inazuma's font matcher.
+                        let ui_font = carrot_theme::body_font(cx);
                         let prefix_font = inazuma::Font {
                             family: ui_font.family.clone(),
                             features: ui_font.features.clone(),
                             fallbacks: ui_font.fallbacks.clone(),
-                            weight: inazuma::FontWeight::BOLD,
+                            weight: inazuma::FontWeight::BLACK,
                             style: inazuma::FontStyle::Italic,
                             stretch: ui_font.stretch,
                         };
                         div()
-                            .text_color(accent)
+                            .text_color(text_color)
                             .font(prefix_font)
                             .child(SharedString::from(cat.prefix()))
                             .into_any_element()
