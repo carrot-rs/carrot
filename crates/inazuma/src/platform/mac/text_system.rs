@@ -200,6 +200,7 @@ impl PlatformTextSystem for MacTextSystem {
             // Match against candidates using swash attributes
             let target_weight = font.weight.0;
             let target_italic = matches!(font.style, FontStyle::Italic | FontStyle::Oblique);
+            let target_stretch = font.stretch.0;
 
             let mut best_ix = 0;
             let mut best_score = f32::MAX;
@@ -222,7 +223,8 @@ impl PlatformTextSystem for MacTextSystem {
                         100.0
                     }
                 };
-                let score = weight_diff + italic_diff;
+                let stretch_diff = (attrs.stretch().to_percentage() - target_stretch).abs();
+                let score = weight_diff + italic_diff + stretch_diff;
                 if score < best_score {
                     best_score = score;
                     best_ix = ix;

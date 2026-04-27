@@ -15,8 +15,8 @@ use carrot_multi_buffer::{MultiBufferOffset, ToPoint};
 use carrot_project::{Project, project_settings::DiagnosticSeverity};
 use carrot_ui::{App, BorrowAppContext, IntoElement, px};
 use inazuma::{
-    AppContext as _, Context, Entity, EntityId, Font, FontFeatures, FontStyle, FontWeight, Pixels,
-    VisualTestContext, Window, font, size,
+    AppContext as _, Context, Entity, EntityId, Font, FontFeatures, FontStretch, FontStyle,
+    FontWeight, Pixels, VisualTestContext, Window, font, size,
 };
 use inazuma_collections::HashMap;
 use inazuma_util::test::{generate_marked_text, marked_text_offsets, marked_text_ranges};
@@ -58,6 +58,7 @@ pub fn marked_display_snapshot(
         fallbacks: None,
         weight: FontWeight::default(),
         style: FontStyle::default(),
+        stretch: FontStretch::default(),
     };
     let font_size: Pixels = 14usize.into();
 

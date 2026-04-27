@@ -1,6 +1,6 @@
 use crate::schema::{status_colors_refinement, syntax_overrides, theme_colors_refinement};
 use carrot_theme::{Appearance, SyntaxTheme, Theme, UiDensity};
-use inazuma::{App, Font, FontFallbacks, FontStyle, Global, Pixels, Window, px};
+use inazuma::{App, Font, FontFallbacks, FontStretch, FontStyle, Global, Pixels, Window, px};
 use inazuma_collections::HashMap;
 use inazuma_refineable::Refineable;
 use inazuma_settings_framework::{IntoInazuma, RegisterSetting, Settings, SettingsContent};
@@ -486,6 +486,7 @@ impl Settings for ThemeSettings {
                     .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
                     .into_inazuma(),
                 style: Default::default(),
+                stretch: Default::default(),
             },
             buffer_font: Font {
                 family: content
@@ -504,6 +505,7 @@ impl Settings for ThemeSettings {
                     .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
                     .into_inazuma(),
                 style: FontStyle::default(),
+                stretch: FontStretch::default(),
             },
             buffer_font_size: clamp_font_size(
                 content

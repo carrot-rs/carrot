@@ -381,7 +381,10 @@ impl Boundary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Font, FontFeatures, FontStyle, FontWeight, TestAppContext, TestDispatcher, font};
+    use crate::{
+        Font, FontFeatures, FontStretch, FontStyle, FontWeight, TestAppContext, TestDispatcher,
+        font,
+    };
     #[cfg(target_os = "macos")]
     use crate::{TextRun, WindowTextSystem, WrapBoundary};
 
@@ -403,6 +406,7 @@ mod tests {
                     fallbacks: None,
                     weight: FontWeight::default(),
                     style: FontStyle::Normal,
+                    stretch: FontStretch::default(),
                 },
                 ..Default::default()
             })

@@ -549,10 +549,12 @@ fn find_best_match(
         inazuma::FontStyle::Oblique => cosmic_text::fontdb::Style::Oblique,
     };
 
+    let query_stretch = inazuma_stretch_to_fontdb(font.stretch);
+
     let matched_id = state.font_system.db().query(&cosmic_text::fontdb::Query {
         families: &[cosmic_text::fontdb::Family::Name(family_name)],
         weight: cosmic_text::fontdb::Weight(font.weight.0 as u16),
-        stretch: cosmic_text::fontdb::Stretch::Normal,
+        stretch: query_stretch,
         style: query_style,
     });
 
@@ -568,6 +570,21 @@ fn find_best_match(
 
     // Fallback: return first candidate if fontdb match isn't in our candidate list.
     Ok(0)
+}
+
+fn inazuma_stretch_to_fontdb(stretch: inazuma::FontStretch) -> cosmic_text::fontdb::Stretch {
+    use cosmic_text::fontdb::Stretch;
+    match stretch.0 {
+        v if v <= 50.0 => Stretch::UltraCondensed,
+        v if v <= 62.5 => Stretch::ExtraCondensed,
+        v if v <= 75.0 => Stretch::Condensed,
+        v if v <= 87.5 => Stretch::SemiCondensed,
+        v if v <= 100.0 => Stretch::Normal,
+        v if v <= 112.5 => Stretch::SemiExpanded,
+        v if v <= 125.0 => Stretch::Expanded,
+        v if v <= 150.0 => Stretch::ExtraExpanded,
+        _ => Stretch::UltraExpanded,
+    }
 }
 
 fn cosmic_font_features(features: &FontFeatures) -> Result<CosmicFontFeatures> {
