@@ -144,17 +144,19 @@ pub struct BlockElement {
     search_match_color: Oklch,
     search_active_color: Oklch,
     /// Optional slot into which the element's actual paint-time
-    /// origin Y is written during prepaint. Consumers install one per
-    /// block so hit-testing can map mouse-y → data-row with zero
-    /// sub-pixel drift (no re-derivation from layout).
+    /// origin (both x and y) is written during prepaint. Consumers
+    /// install one per block so hit-testing can map mouse coordinates
+    /// → data row + column with zero sub-pixel drift and without
+    /// re-deriving positions from the layout tree.
     origin_store: Option<GridOriginStore>,
 }
 
 /// Shared cell into which [`BlockElement`] writes its actual paint-
-/// time origin Y coordinate. Used by the owning list view for
-/// pixel-accurate mouse-to-row hit testing — avoids recomputing
-/// positions from the layout tree after the frame paints.
-pub type GridOriginStore = std::rc::Rc<std::cell::Cell<Option<Pixels>>>;
+/// time origin. Used by the owning list view for pixel-accurate
+/// mouse-to-row/column hit testing — the stored point reflects the
+/// real painted origin after every layout pass, so hit-test never
+/// re-applies layout-side padding tokens itself.
+pub type GridOriginStore = std::rc::Rc<std::cell::Cell<Option<Point<Pixels>>>>;
 
 impl BlockElement {
     pub fn new(
@@ -275,11 +277,13 @@ impl Element for BlockElement {
         let font_id = window.text_system().resolve_font(&self.font);
         let effective_cols = self.viewport_cols.max(1);
 
-        // Stash the actual paint origin Y for the owning view's hit
+        // Stash the actual paint origin for the owning view's hit
         // tester. Writing it here (in prepaint) captures the
-        // post-layout coordinate — no sub-pixel drift later.
+        // post-layout coordinate, including any inset applied by the
+        // parent envelope — no sub-pixel drift later, no constants to
+        // re-apply downstream.
         if let Some(ref store) = self.origin_store {
-            store.set(Some(bounds.origin.y));
+            store.set(Some(bounds.origin));
         }
 
         let mut glyphs = Vec::new();

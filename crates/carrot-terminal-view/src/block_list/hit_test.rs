@@ -9,7 +9,7 @@ use carrot_term::index::{Column, Line, Point, Side};
 use inazuma::{Pixels, Point as GpuiPoint, px};
 
 use crate::block_list::BlockListView;
-use crate::constants::*;
+use crate::constants::BLOCK_BODY_PAD_BOTTOM;
 
 impl BlockListView {
     /// Convert a pixel position (relative to this view) to a
@@ -27,21 +27,17 @@ impl BlockListView {
             if let Some(bounds) = self.list_state.bounds_for_block(inazuma_id)
                 && bounds.contains(&pos)
             {
+                // Grid origin: prefer the value the grid element wrote
+                // during prepaint (post-layout, includes any envelope
+                // padding). Fall back to a geometric estimate only when
+                // the element hasn't laid out yet — first-frame race.
                 let grid_height = cell_height * entry.content_rows as f32;
-                let grid_start_y = entry.grid_origin_store.get().unwrap_or_else(|| {
-                    bounds.origin.y + bounds.size.height - px(BLOCK_BODY_PAD_BOTTOM) - grid_height
-                });
-                let y_in_grid = pos.y - grid_start_y;
-
-                log::debug!(
-                    "hit_test: pos.y={:.1} grid_origin={:.1} y_in_grid={:.1} \
-                     cell_h={:.1} visual_row={}",
-                    f32::from(pos.y),
-                    f32::from(grid_start_y),
-                    f32::from(y_in_grid),
-                    f32::from(cell_height),
-                    (f32::from(y_in_grid) / f32::from(cell_height)) as i32,
-                );
+                let grid_origin = entry.grid_origin_store.get().unwrap_or(GpuiPoint::new(
+                    bounds.origin.x,
+                    bounds.origin.y + bounds.size.height - px(BLOCK_BODY_PAD_BOTTOM) - grid_height,
+                ));
+                let y_in_grid = pos.y - grid_origin.y;
+                let x_in_grid = pos.x - grid_origin.x;
 
                 // Click above grid = header area → block selection.
                 if y_in_grid < px(0.0) {
@@ -59,7 +55,7 @@ impl BlockListView {
 
                 let row =
                     visual_row - entry.command_row_count as i32 - entry.grid_history_size as i32;
-                let col_f = (f32::from(pos.x) - BLOCK_HEADER_PAD_X) / f32::from(cell_width);
+                let col_f = f32::from(x_in_grid) / f32::from(cell_width);
                 let col = col_f.max(0.0) as usize;
                 let side = if col_f.fract() < 0.5 {
                     Side::Left
