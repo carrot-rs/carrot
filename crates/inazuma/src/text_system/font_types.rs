@@ -113,6 +113,90 @@ impl schemars::JsonSchema for FontWeight {
     }
 }
 
+/// The proportional width of a font face. CSS-konform: 50.0 (ultra-condensed)
+/// to 200.0 (ultra-expanded), with 100.0 as normal width.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Serialize, Deserialize, Add, Sub, FromStr)]
+#[serde(transparent)]
+pub struct FontStretch(pub f32);
+
+impl Display for FontStretch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<f32> for FontStretch {
+    fn from(stretch: f32) -> Self {
+        FontStretch(stretch)
+    }
+}
+
+impl Default for FontStretch {
+    #[inline]
+    fn default() -> FontStretch {
+        FontStretch::NORMAL
+    }
+}
+
+impl Hash for FontStretch {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u32(u32::from_be_bytes(self.0.to_be_bytes()));
+    }
+}
+
+impl Eq for FontStretch {}
+
+impl FontStretch {
+    /// Ultra-condensed (50.0), the narrowest value.
+    pub const ULTRA_CONDENSED: FontStretch = FontStretch(50.0);
+    /// Extra-condensed (62.5).
+    pub const EXTRA_CONDENSED: FontStretch = FontStretch(62.5);
+    /// Condensed (75.0).
+    pub const CONDENSED: FontStretch = FontStretch(75.0);
+    /// Semi-condensed (87.5).
+    pub const SEMI_CONDENSED: FontStretch = FontStretch(87.5);
+    /// Normal width (100.0).
+    pub const NORMAL: FontStretch = FontStretch(100.0);
+    /// Semi-expanded (112.5).
+    pub const SEMI_EXPANDED: FontStretch = FontStretch(112.5);
+    /// Expanded (125.0).
+    pub const EXPANDED: FontStretch = FontStretch(125.0);
+    /// Extra-expanded (150.0).
+    pub const EXTRA_EXPANDED: FontStretch = FontStretch(150.0);
+    /// Ultra-expanded (200.0), the widest value.
+    pub const ULTRA_EXPANDED: FontStretch = FontStretch(200.0);
+
+    /// All of the font stretches, in order from narrowest to widest.
+    pub const ALL: [FontStretch; 9] = [
+        Self::ULTRA_CONDENSED,
+        Self::EXTRA_CONDENSED,
+        Self::CONDENSED,
+        Self::SEMI_CONDENSED,
+        Self::NORMAL,
+        Self::SEMI_EXPANDED,
+        Self::EXPANDED,
+        Self::EXTRA_EXPANDED,
+        Self::ULTRA_EXPANDED,
+    ];
+}
+
+impl schemars::JsonSchema for FontStretch {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "FontStretch".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        use schemars::json_schema;
+        json_schema!({
+            "type": "number",
+            "minimum": Self::ULTRA_CONDENSED,
+            "maximum": Self::ULTRA_EXPANDED,
+            "default": Self::default(),
+            "description": "Font stretch (width) value between 50 (ultra-condensed) and 200 (ultra-expanded). 100 is normal."
+        })
+    }
+}
+
 /// Allows italic or oblique faces to be selected.
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Default, Serialize, Deserialize, JsonSchema)]
 pub enum FontStyle {
@@ -150,6 +234,9 @@ pub struct Font {
 
     /// The font style.
     pub style: FontStyle,
+
+    /// The font stretch (width axis). Defaults to `NORMAL`.
+    pub stretch: FontStretch,
 }
 
 impl Default for Font {
@@ -165,6 +252,7 @@ pub fn font(family: impl Into<SharedString>) -> Font {
         features: FontFeatures::default(),
         weight: FontWeight::default(),
         style: FontStyle::default(),
+        stretch: FontStretch::default(),
         fallbacks: None,
     }
 }
@@ -322,12 +410,15 @@ impl Hash for RenderGlyphParams {
 }
 
 /// Maps well-known virtual font names to their concrete equivalents.
+/// Future default-font swaps happen here — touch this map and the
+/// rest of the resolver picks up the new family without a config
+/// migration for users who stayed on `.CarrotSans` / `.CarrotMono`.
 #[allow(unused)]
 pub fn font_name_with_fallbacks<'a>(name: &'a str, system: &'a str) -> &'a str {
     match name {
         ".SystemUIFont" => system,
-        ".CarrotSans" => "IBM Plex Sans",
-        ".CarrotMono" => "Lilex",
+        ".CarrotSans" => "Comic Stack",
+        ".CarrotMono" => "CRT-02",
         _ => name,
     }
 }
@@ -340,8 +431,8 @@ pub fn font_name_with_fallbacks_shared<'a>(
 ) -> &'a SharedString {
     match name.as_str() {
         ".SystemUIFont" => system,
-        ".CarrotSans" => const { &SharedString::new_static("IBM Plex Sans") },
-        ".CarrotMono" => const { &SharedString::new_static("Lilex") },
+        ".CarrotSans" => const { &SharedString::new_static("Comic Stack") },
+        ".CarrotMono" => const { &SharedString::new_static("CRT-02") },
         _ => name,
     }
 }

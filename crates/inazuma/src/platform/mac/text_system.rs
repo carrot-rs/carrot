@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use fontique::{Collection, CollectionOptions, QueryFamily, QueryFont, QueryStatus, SourceCache};
+use fontique::{Collection, CollectionOptions, SourceCache};
 use inazuma::{
     Bounds, DevicePixels, Font, FontFallbacks, FontFeatures, FontId, FontMetrics, FontRun,
     FontStyle, GlyphId, LineLayout, Pixels, PlatformTextSystem, RenderGlyphParams, Result,
@@ -200,6 +200,7 @@ impl PlatformTextSystem for MacTextSystem {
             // Match against candidates using swash attributes
             let target_weight = font.weight.0;
             let target_italic = matches!(font.style, FontStyle::Italic | FontStyle::Oblique);
+            let target_stretch = font.stretch.0;
 
             let mut best_ix = 0;
             let mut best_score = f32::MAX;
@@ -222,7 +223,8 @@ impl PlatformTextSystem for MacTextSystem {
                         100.0
                     }
                 };
-                let score = weight_diff + italic_diff;
+                let stretch_diff = (attrs.stretch().to_percentage() - target_stretch).abs();
+                let score = weight_diff + italic_diff + stretch_diff;
                 if score < best_score {
                     best_score = score;
                     best_ix = ix;
@@ -455,29 +457,34 @@ impl MacTextSystemState {
 
         let mut font_ids = SmallVec::new();
 
-        // Try fontique collection query first
+        // Enumerate every face registered for this family. fontique's
+        // `Query::matches_with` only yields the single best match for the
+        // current attributes — using `family_by_name` + `fonts()` returns
+        // the full set of registered faces (Regular / Bold / Italic /
+        // Bold Italic / Light / Medium / …), which is what the matcher
+        // in `font_id` needs to score against.
+        let face_blobs: Vec<(Arc<Vec<u8>>, u32)> =
+            if let Some(family_info) = self.collection.family_by_name(name) {
+                family_info
+                    .fonts()
+                    .iter()
+                    .filter_map(|font_info| {
+                        let blob = font_info.load(Some(&mut self.source_cache))?;
+                        Some((Arc::new(blob.as_ref().to_vec()), font_info.index()))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
         let mut found_via_fontique = false;
-        // Collect matched fonts first, then release the query borrow before registering
-        let matched_fonts: Vec<QueryFont> = {
-            let mut query = self.collection.query(&mut self.source_cache);
-            query.set_families([QueryFamily::Named(name)]);
-
-            let mut fonts: Vec<QueryFont> = Vec::new();
-            query.matches_with(|font| {
-                fonts.push(font.clone());
-                QueryStatus::Continue
-            });
-            fonts
-        };
-
-        for qfont in matched_fonts {
-            let data = Arc::new(qfont.blob.as_ref().to_vec());
+        for (data, index) in face_blobs {
             if let Some(font_data) = swash::FontDataRef::new(&data) {
-                if let Some(swash_ref) = font_data.get(qfont.index as usize) {
+                if let Some(swash_ref) = font_data.get(index as usize) {
                     match self.register_font_with_features(
                         data.clone(),
                         swash_ref.offset,
-                        qfont.index,
+                        index,
                         swash_ref.key,
                         features,
                         fallbacks,

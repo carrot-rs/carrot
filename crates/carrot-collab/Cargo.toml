@@ -89,6 +89,7 @@ carrot-client = { workspace = true, features = ["test-support"] }
 carrot-collab = { workspace = true, features = ["test-support"] }
 carrot-collab-ui = { workspace = true, features = ["test-support"] }
 inazuma-collections = { workspace = true, features = ["test-support"] }
+carrot-command-palette.workspace = true
 carrot-command-palette-hooks.workspace = true
 
 ctor.workspace = true
@@ -98,7 +99,6 @@ carrot-dap-adapters = { workspace = true, features = ["test-support"] }
 carrot-debugger-ui = { workspace = true, features = ["test-support"] }
 carrot-editor = { workspace = true, features = ["test-support"] }
 carrot-extension.workspace = true
-carrot-file-finder.workspace = true
 carrot-fs = { workspace = true, features = ["test-support"] }
 carrot-git = { workspace = true, features = ["test-support"] }
 carrot-git-hosting-providers.workspace = true

@@ -178,7 +178,6 @@ impl RenderOnce for Chip {
                 Label::new(self.label.clone())
                     .size(self.label_size)
                     .color(label_color)
-                    .buffer_font(cx)
                     .truncate(),
             )
             .id(self.label.clone())

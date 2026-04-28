@@ -876,6 +876,10 @@ pub struct PrettierSettingsContent {
 
     /// Default Prettier options, in the format as in package.json section for Prettier.
     /// If project installs Prettier via its package.json, these options will be ignored.
+    /// Additional Prettier-only keys (e.g. `tabWidth`, `semi`, `singleQuote`) flow into
+    /// this map automatically — `#[serde(flatten)]` collects every JSON key that is not
+    /// `allowed` / `parser` / `plugins`.
+    #[serde(flatten)]
     pub options: Option<HashMap<String, serde_json::Value>>,
 }
 

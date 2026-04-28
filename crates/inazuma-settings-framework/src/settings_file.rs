@@ -68,18 +68,27 @@ pub const EMPTY_THEME_NAME: &str = "empty-theme";
 #[cfg(any(test, feature = "test-support"))]
 pub fn visual_test_settings() -> String {
     use inazuma_settings_content::{
-        FontFamilyName, FontFeaturesContent, FontSize, ThemeName, ThemeSelection,
+        FontFamilyName, FontFeaturesContent, FontSize, MonoFontContent, ThemeFontsContent,
+        ThemeName, ThemeSelection, UiFontContent,
     };
     let mut content: SettingsContent =
         toml::from_str(&crate::default_settings()).unwrap_or_default();
-    content.theme.ui_font_family = Some(FontFamilyName(".SystemUIFont".into()));
-    content.theme.ui_font_features = Some(FontFeaturesContent::new());
-    content.theme.ui_font_size = Some(FontSize(14.0));
-    content.theme.ui_font_fallbacks = Some(vec![]);
-    content.theme.buffer_font_family = Some(FontFamilyName("Menlo".into()));
-    content.theme.buffer_font_features = Some(FontFeaturesContent::new());
-    content.theme.buffer_font_size = Some(FontSize(14.0));
-    content.theme.buffer_font_fallbacks = Some(vec![]);
+    content.theme.fonts = Some(ThemeFontsContent {
+        ui: Some(UiFontContent {
+            family: Some(FontFamilyName(".SystemUIFont".into())),
+            features: Some(FontFeaturesContent::new()),
+            size: Some(FontSize(14.0)),
+            fallbacks: Some(vec![]),
+            ..Default::default()
+        }),
+        mono: Some(MonoFontContent {
+            family: Some(FontFamilyName("Menlo".into())),
+            features: Some(FontFeaturesContent::new()),
+            size: Some(FontSize(14.0)),
+            fallbacks: Some(vec![]),
+            ..Default::default()
+        }),
+    });
     content.theme.theme = Some(ThemeSelection::Static(ThemeName(EMPTY_THEME_NAME.into())));
     toml::to_string_pretty(&content).unwrap()
 }
@@ -87,7 +96,8 @@ pub fn visual_test_settings() -> String {
 #[cfg(any(test, feature = "test-support"))]
 pub fn test_settings() -> String {
     use inazuma_settings_content::{
-        FontFamilyName, FontFeaturesContent, FontSize, ThemeName, ThemeSelection,
+        FontFamilyName, FontFeaturesContent, FontSize, MonoFontContent, ThemeFontsContent,
+        ThemeName, ThemeSelection, UiFontContent,
     };
     let mut content: SettingsContent =
         toml::from_str(&crate::default_settings()).unwrap_or_default();
@@ -97,14 +107,22 @@ pub fn test_settings() -> String {
     #[cfg(target_os = "windows")]
     let font_family = "Courier New";
 
-    content.theme.ui_font_family = Some(FontFamilyName(font_family.into()));
-    content.theme.ui_font_features = Some(FontFeaturesContent::new());
-    content.theme.ui_font_size = Some(FontSize(14.0));
-    content.theme.ui_font_fallbacks = Some(vec![]);
-    content.theme.buffer_font_family = Some(FontFamilyName(font_family.into()));
-    content.theme.buffer_font_features = Some(FontFeaturesContent::new());
-    content.theme.buffer_font_size = Some(FontSize(14.0));
-    content.theme.buffer_font_fallbacks = Some(vec![]);
+    content.theme.fonts = Some(ThemeFontsContent {
+        ui: Some(UiFontContent {
+            family: Some(FontFamilyName(font_family.into())),
+            features: Some(FontFeaturesContent::new()),
+            size: Some(FontSize(14.0)),
+            fallbacks: Some(vec![]),
+            ..Default::default()
+        }),
+        mono: Some(MonoFontContent {
+            family: Some(FontFamilyName(font_family.into())),
+            features: Some(FontFeaturesContent::new()),
+            size: Some(FontSize(14.0)),
+            fallbacks: Some(vec![]),
+            ..Default::default()
+        }),
+    });
     content.theme.theme = Some(ThemeSelection::Static(ThemeName(EMPTY_THEME_NAME.into())));
     toml::to_string_pretty(&content).unwrap()
 }

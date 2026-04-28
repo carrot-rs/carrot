@@ -70,7 +70,7 @@ impl KeyValueStore {
     }
 
     pub async fn write_kvp(&self, key: String, value: String) -> anyhow::Result<()> {
-        log::debug!("Writing key-value pair for key {key}");
+        log::trace!("Writing key-value pair for key {key}");
         self.write_kvp_inner(key, value).await
     }
 

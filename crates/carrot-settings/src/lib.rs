@@ -88,31 +88,24 @@ impl GeneralSettings {
     }
 }
 
-/// Resolved appearance settings — font, cursor, contrast, colorspace, symbol maps.
+/// Resolved appearance settings — cursor, contrast, colorspace.
+///
+/// Fonts and symbol maps are not here — they live on the theme-fonts
+/// roles. Read them via `terminal_font(cx)` / `code_font(cx)` /
+/// `body_font(cx)` and `symbol_map_for(role, cx)`.
 ///
 /// Access via `AppearanceSettings::get_global(cx)`.
 #[derive(Debug, Clone, RegisterSetting)]
 pub struct AppearanceSettings {
-    pub font_family: String,
-    pub font_size: f32,
-    pub line_height: f32,
     pub cursor_style: CursorShapeContent,
     pub cursor_blink: TerminalBlink,
     pub minimum_contrast: f32,
     pub window_colorspace: WindowColorspace,
-    pub symbol_map: Vec<ResolvedSymbolMap>,
 }
 
 impl Settings for AppearanceSettings {
     fn from_settings(content: &inazuma_settings_content::SettingsContent) -> Self {
         let appearance = content.appearance.clone().unwrap_or_default();
-
-        let symbol_map = appearance
-            .symbol_map
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|entry| entry.resolve())
-            .collect();
 
         let window_colorspace = match appearance.window_colorspace.unwrap_or_default() {
             AppearanceColorspace::Srgb => WindowColorspace::Srgb,
@@ -121,23 +114,12 @@ impl Settings for AppearanceSettings {
         };
 
         AppearanceSettings {
-            font_family: appearance
-                .font_family
-                .map(|f| f.0.to_string())
-                .unwrap_or_else(|| "DankMono Nerd Font Mono".to_string()),
-            font_size: appearance.font_size.map(|s| s.0).unwrap_or(15.0),
-            // Terminal default is 1.0 (no extra vertical padding per row).
-            // A higher default makes the grid look "too big" because every
-            // block-drawing glyph (used by TUI logos / boxes) scales with
-            // the cell, not just the text.
-            line_height: appearance.line_height.unwrap_or(1.0),
             cursor_style: appearance.cursor_style.unwrap_or(CursorShapeContent::Bar),
             cursor_blink: appearance
                 .cursor_blink
                 .unwrap_or(TerminalBlink::TerminalControlled),
             minimum_contrast: appearance.minimum_contrast.unwrap_or(45.0),
             window_colorspace,
-            symbol_map,
         }
     }
 }
@@ -295,17 +277,12 @@ pub struct PackageChipConfig {
 // Worktree scope / auto-track policy
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AutoTrackPolicy {
     Never,
+    #[default]
     Ask,
     Always,
-}
-
-impl Default for AutoTrackPolicy {
-    fn default() -> Self {
-        AutoTrackPolicy::Ask
-    }
 }
 
 impl From<inazuma_settings_content::AutoTrackPolicyContent> for AutoTrackPolicy {
@@ -485,19 +462,14 @@ impl Settings for FileFinderSettings {
 
 /// What `Workspace::add_item_to_active_pane` does when the active pane is a
 /// Terminal and no editor pane exists yet in the current session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WhenTerminalActive {
+    #[default]
     SplitRight,
     SplitLeft,
     SplitDown,
     SplitUp,
     NewSession,
-}
-
-impl Default for WhenTerminalActive {
-    fn default() -> Self {
-        WhenTerminalActive::SplitRight
-    }
 }
 
 impl From<inazuma_settings_content::WhenTerminalActiveContent> for WhenTerminalActive {
@@ -523,20 +495,12 @@ impl From<inazuma_settings_content::WhenTerminalActiveContent> for WhenTerminalA
 
 /// What `Workspace::add_item_to_active_pane` does when at least one editor
 /// pane already exists in the current session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WhenEditorOpen {
     ReuseLast,
+    #[default]
     NewSplit,
     NewSession,
-}
-
-impl Default for WhenEditorOpen {
-    fn default() -> Self {
-        // Warp-flavour default: every opened file gets its own pane next
-        // to the Terminal and any previously-opened files. User can flip
-        // to `ReuseLast` for Zed / VSCode-style single-slot behaviour.
-        WhenEditorOpen::NewSplit
-    }
 }
 
 impl From<inazuma_settings_content::WhenEditorOpenContent> for WhenEditorOpen {

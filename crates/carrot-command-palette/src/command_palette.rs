@@ -1,37 +1,670 @@
+//! Global command palette modal.
+//!
+//! A single floating panel that unifies search across the workspace —
+//! sessions, agents, files, workflows, prompts, notebooks, environment
+//! variables, drive items, actions, launch configurations and conversations.
+//! Triggered by the title bar search field or a global keyboard shortcut.
+//!
+//! Typed filter prefixes (e.g. `env: HOME`, `sessions: foo`) restrict the
+//! result set to one category. Clicking a chip toggles the same filter
+//! visually. When no filter is active, results span all registered sources.
+
+mod action_name;
+mod category;
 mod persistence;
+mod source;
 
-use std::{
-    cmp::{self, Reverse},
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-    time::Duration,
-};
+use std::sync::Arc;
 
-use carrot_client::parse_carrot_link;
 use carrot_command_palette_hooks::{
-    CommandInterceptItem, CommandInterceptResult, CommandPaletteFilter,
-    GlobalCommandPaletteInterceptor,
+    CommandInterceptItem, CommandInterceptResult, GlobalCommandPaletteInterceptor,
 };
-
-use carrot_actions::{OpenCarrotUrl, command_palette::Toggle};
-use carrot_ui::{HighlightedLabel, KeyBinding, ListItem, ListItemSpacing, prelude::*};
-use carrot_workspace::{ModalView, Workspace, WorkspaceSettings};
+use carrot_ui::{
+    Color, HighlightedLabel, Icon, IconName, IconSize, KeyBinding,
+    input::{Input, InputEvent, InputState},
+    prelude::*,
+};
+use carrot_workspace::{ModalView, Workspace};
 use inazuma::{
-    Action, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
-    ParentElement, Render, Styled, Task, WeakEntity, Window,
+    Action, AnyElement, App, Context, DismissEvent, EventEmitter, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Render, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, div, px,
 };
-use inazuma_fuzzy::{StringMatch, StringMatchCandidate};
-use inazuma_picker::Direction;
-use inazuma_picker::{Picker, PickerDelegate};
-use inazuma_settings_framework::Settings;
-use inazuma_util::ResultExt;
-use persistence::CommandPaletteDB;
-use postage::{sink::Sink, stream::Stream};
+use inazuma_fuzzy::{StringMatchCandidate, match_strings};
+use schemars::JsonSchema;
+use serde::Deserialize;
 
+/// Per-source row cap for the empty-query "Suggested" mix. Low enough
+/// that Actions don't drown Sessions/Files, high enough that the user
+/// sees useful entries from each category at a glance.
+const SUGGESTED_PER_SOURCE: usize = 8;
+
+pub use action_name::{humanize_action_name, normalize_action_query};
+pub use carrot_actions::command_palette::Toggle;
+pub use category::{SearchCategory, parse_filter_prefix};
+pub use persistence::CommandPaletteDB;
+pub use source::{SearchAction, SearchResult, SearchSource, default_sources};
+
+use source::FilesSource;
+
+/// Opens the command palette with a pre-selected category filter.
+///
+/// Keybinds like `Cmd+O`, `Cmd+Shift+P`, `Cmd+R` all dispatch this action
+/// with a different `category_filter`, so the user sees the same modal
+/// with the matching chip already active instead of a separate per-category
+/// panel.
+#[derive(Clone, Default, Debug, PartialEq, Deserialize, JsonSchema, Action)]
+#[action(namespace = command_palette)]
+#[serde(deny_unknown_fields)]
+pub struct ToggleWithFilter {
+    /// Category chip to mark as active on open. `None` is equivalent to
+    /// dispatching `Toggle` — the universal (no-filter) mode.
+    #[serde(default)]
+    pub category_filter: Option<SearchCategory>,
+}
+
+/// Register the global toggle actions so any focused element can open the
+/// command palette modal.
 pub fn init(cx: &mut App) {
     carrot_command_palette_hooks::init(cx);
-    cx.observe_new(CommandPalette::register).detach();
+    source::files_init(cx);
+    cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
+        workspace.register_action(|workspace, _: &Toggle, window, cx| {
+            CommandPalette::toggle_or_retarget(workspace, None, window, cx);
+        });
+        workspace.register_action(|workspace, action: &ToggleWithFilter, window, cx| {
+            CommandPalette::toggle_or_retarget(workspace, action.category_filter, window, cx);
+        });
+    })
+    .detach();
 }
+
+/// One row in the result list. Keeps the underlying source data together
+/// with the fuzzy match's character positions so the modal can render
+/// highlighted matches inline.
+struct ResultRow {
+    result: SearchResult,
+    positions: Vec<usize>,
+}
+
+pub struct CommandPalette {
+    workspace: WeakEntity<Workspace>,
+    focus_handle: FocusHandle,
+    search: inazuma::Entity<InputState>,
+    /// Active filter category — derived from the typed prefix in the
+    /// search input. Single source of truth: chip clicks, action
+    /// shortcuts (`Cmd+O`/etc.) and direct typing all funnel through the
+    /// input value, so there is no separate "selected via chip" vs
+    /// "typed prefix" state to keep in sync.
+    active_prefix: Option<SearchCategory>,
+    sources: Vec<Arc<dyn SearchSource>>,
+    /// Separate handle to the `FilesSource` so the modal can flip the
+    /// include-ignored toggle without having to downcast through the
+    /// generic source list.
+    files_source: Arc<FilesSource>,
+    include_ignored: bool,
+    results: Vec<ResultRow>,
+    selected_index: usize,
+    /// `selected_index` exists from first frame so Enter always has a
+    /// target, but the visual selection highlight is suppressed until the
+    /// user either types or navigates with the arrow keys. Avoids a
+    /// confusing pre-highlighted row at modal open.
+    has_interacted: bool,
+    _search_task: Option<Task<()>>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl CommandPalette {
+    /// Opens the modal, or — if it is already mounted — re-targets its
+    /// filter without closing. Pressing `Cmd+O` while the universal
+    /// `Cmd+P` view is open should switch to the Files filter in place,
+    /// not slam the modal shut so the user has to reopen it.
+    pub fn toggle_or_retarget(
+        workspace: &mut Workspace,
+        category_filter: Option<SearchCategory>,
+        window: &mut Window,
+        cx: &mut Context<Workspace>,
+    ) {
+        if let Some(palette) = workspace.active_modal::<CommandPalette>(cx) {
+            palette.update(cx, |modal, cx| {
+                modal.set_filter(category_filter, window, cx);
+            });
+            return;
+        }
+        Self::open_with_filter(workspace, "", category_filter, window, cx);
+    }
+
+    /// Open the modal pre-loaded with `query` and `category_filter`.
+    /// The filter is stored as a chip-style UI element on the modal
+    /// itself, not as text in the input — that's what gives it the
+    /// italic-bold rendering and the "backspace at empty clears the
+    /// chip" behaviour.
+    pub fn open_with_filter(
+        workspace: &mut Workspace,
+        query: &str,
+        category_filter: Option<SearchCategory>,
+        window: &mut Window,
+        cx: &mut Context<Workspace>,
+    ) {
+        let weak = workspace.weak_handle();
+        let query: SharedString = query.to_string().into();
+        workspace.toggle_modal(window, cx, move |window, cx| {
+            let mut modal = CommandPalette::new(weak, window, cx);
+            modal.active_prefix = category_filter;
+            if !query.is_empty() {
+                modal.search.update(cx, |state, cx| {
+                    state.set_value(query, window, cx);
+                });
+            }
+            modal
+        });
+    }
+
+    /// Replace the active filter with `category_filter`, clearing the
+    /// search input so the user types into a fresh query under the new
+    /// scope. Used by chip clicks, the `Cmd+O`/etc. retarget path, and
+    /// the Tab autocomplete commit.
+    pub fn set_filter(
+        &mut self,
+        category_filter: Option<SearchCategory>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.active_prefix = category_filter;
+        self.search.update(cx, |state, cx| {
+            state.set_value(SharedString::default(), window, cx);
+        });
+    }
+
+    pub fn new(
+        workspace: WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let focus_handle = cx.focus_handle();
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search for a command"));
+
+        let input_subscription = cx.subscribe_in(
+            &search,
+            window,
+            |this: &mut Self, _, ev: &InputEvent, window, cx| match ev {
+                InputEvent::Change => {
+                    this.has_interacted = true;
+                    this.refresh_results(window, cx);
+                }
+                InputEvent::PressEnter { .. } => this.activate_selected(window, cx),
+                InputEvent::Escape => cx.emit(DismissEvent),
+                InputEvent::HistoryUp => {
+                    this.has_interacted = true;
+                    this.move_selection_up(cx);
+                }
+                InputEvent::HistoryDown => {
+                    this.has_interacted = true;
+                    this.move_selection_down(cx);
+                }
+                _ => {}
+            },
+        );
+
+        // Initial refresh is deferred: `CommandPalette::new` runs inside
+        // `workspace.toggle_modal`, which is itself inside a
+        // `workspace.update` frame — calling `workspace.read(cx)`
+        // synchronously here would panic. `defer_in` schedules the
+        // refresh for the end of the current effect cycle, after the
+        // workspace update has returned control.
+        cx.defer_in(window, |this, window, cx| {
+            this.refresh_results(window, cx);
+        });
+
+        let files_source = Arc::new(FilesSource::new());
+        let sources: Vec<Arc<dyn SearchSource>> = vec![
+            Arc::new(source::ActionsSource),
+            Arc::new(source::SessionsSource),
+            files_source.clone(),
+            Arc::new(source::HistorySource::new()),
+            Arc::new(source::EnvVarsSource),
+        ];
+
+        Self {
+            workspace,
+            focus_handle,
+            search,
+            active_prefix: None,
+            sources,
+            files_source,
+            include_ignored: false,
+            results: Vec::new(),
+            selected_index: 0,
+            has_interacted: false,
+            _search_task: None,
+            _subscriptions: vec![input_subscription],
+        }
+    }
+
+    fn toggle_include_ignored(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.include_ignored = !self.include_ignored;
+        self.files_source.set_include_ignored(self.include_ignored);
+        self.refresh_results(window, cx);
+    }
+
+    /// Find the unique [`SearchCategory`] whose prefix starts with the
+    /// current input (case-insensitive). Returns `None` when the input
+    /// is empty, already a complete prefix, ambiguous, or unrelated.
+    /// Used both by the Tab key handler and by the hint chip rendered
+    /// next to the search input.
+    fn pending_prefix_completion(&self, cx: &App) -> Option<SearchCategory> {
+        let raw = self.search.read(cx).value().to_string();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || trimmed.contains(':') {
+            return None;
+        }
+        let needle = trimmed.to_ascii_lowercase();
+        let mut iter = SearchCategory::all()
+            .iter()
+            .copied()
+            .filter(|c| c.prefix().starts_with(&needle));
+        let first = iter.next()?;
+        // Ambiguous (multiple prefixes share this stem) → no completion.
+        if iter.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
+
+    fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event.keystroke.key.as_str() {
+            "tab" => {
+                if let Some(cat) = self.pending_prefix_completion(cx) {
+                    self.set_filter(Some(cat), window, cx);
+                    self.has_interacted = true;
+                }
+            }
+            "backspace" => {
+                // Chip-style: backspace on an already-empty input
+                // discards the active prefix and falls back to the
+                // universal Cmd+P view, exposing the discovery chip
+                // strip again.
+                if self.active_prefix.is_some() && self.search.read(cx).value().is_empty() {
+                    self.set_filter(None, window, cx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Recompute `results` from the current query + filter state. Uses
+    /// `inazuma_fuzzy::match_strings` on a background executor so large
+    /// env var lists don't block the UI thread.
+    fn refresh_results(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Auto-promote: if the user typed `files:` literally into the
+        // input, lift it to a proper chip and strip the prefix from the
+        // query text. Tab and the chip strip are the friendlier paths,
+        // but typing the prefix has to keep working.
+        let raw = self.search.read(cx).value().to_string();
+        let (typed_prefix, rest) = parse_filter_prefix(&raw);
+        if let Some(cat) = typed_prefix {
+            self.active_prefix = Some(cat);
+            let rest_value: SharedString = rest.to_string().into();
+            self.search.update(cx, |state, cx| {
+                state.set_value(rest_value, window, cx);
+            });
+        }
+        let effective_cat = self.active_prefix;
+        let query = if typed_prefix.is_some() {
+            rest.to_string()
+        } else {
+            raw.clone()
+        };
+
+        // Placeholder follows the active filter so an empty input under
+        // a `files:` chip reads "Search files" instead of the universal
+        // "Search for a command".
+        let placeholder: SharedString = match effective_cat {
+            Some(cat) => cat.search_placeholder().into(),
+            None => "Search for a command".into(),
+        };
+        self.search.update(cx, |state, cx| {
+            state.set_placeholder(placeholder, window, cx);
+        });
+
+        let Some(workspace) = self.workspace.upgrade() else {
+            self.results.clear();
+            self.selected_index = 0;
+            cx.notify();
+            return;
+        };
+
+        // Three routing modes for the source loop:
+        //  1. explicit category (chip or `prefix:`) → only that source
+        //  2. universal + empty query → Suggested: only `default_visible`
+        //  3. universal + typed query → wide search: only `searchable`
+        // Rules 2 and 3 are independent gates, so History can stay out
+        // of Suggested while still matching typed queries, and EnvVars
+        // can be chip-only without polluting the live-search results.
+        let is_default_view = effective_cat.is_none() && query.is_empty();
+        let raw_results: Vec<SearchResult> = {
+            let mut collected = Vec::new();
+            let sources = self.sources.clone();
+            for src in &sources {
+                let include = if let Some(cat) = effective_cat {
+                    src.category() == cat
+                } else if query.is_empty() {
+                    src.default_visible()
+                } else {
+                    src.searchable()
+                };
+                if !include {
+                    continue;
+                }
+                let mut from_source = src.collect(&workspace, &query, window, cx);
+                if is_default_view {
+                    from_source.truncate(SUGGESTED_PER_SOURCE);
+                }
+                collected.extend(from_source);
+            }
+            collected
+        };
+
+        let candidates: Vec<StringMatchCandidate> = raw_results
+            .iter()
+            .enumerate()
+            .map(|(ix, r)| {
+                let haystack = match &r.subtitle {
+                    Some(sub) => format!("{} {}", r.title, sub),
+                    None => r.title.to_string(),
+                };
+                StringMatchCandidate::new(ix, &haystack)
+            })
+            .collect();
+
+        // Dynamic action discovery: crates like carrot-vim register an
+        // interceptor so user-typed text can produce synthetic actions
+        // (`:q`, `:wq`, carrot://…). Only consulted when Actions is in
+        // scope, otherwise we'd leak vim commands into a files search.
+        let interceptor_task = if matches!(effective_cat, None | Some(SearchCategory::Actions)) {
+            GlobalCommandPaletteInterceptor::intercept(&query, self.workspace.clone(), cx)
+        } else {
+            None
+        };
+
+        let executor = cx.background_executor().clone();
+        let task = cx.spawn_in(window, async move |this, cx| {
+            let matches = match_strings(
+                &candidates,
+                &query,
+                false,
+                true,
+                200,
+                &Default::default(),
+                executor,
+            )
+            .await;
+            let intercept_result = match interceptor_task {
+                Some(task) => task.await,
+                None => CommandInterceptResult::default(),
+            };
+
+            let mut slot: Vec<Option<SearchResult>> = raw_results.into_iter().map(Some).collect();
+            let mut ordered: Vec<ResultRow> = Vec::new();
+
+            // Intercepted items come first — they're typically exact matches
+            // for the exact query the user typed (e.g. `:q` → `vim::Quit`).
+            for CommandInterceptItem {
+                action,
+                string,
+                positions,
+            } in intercept_result.results
+            {
+                ordered.push(ResultRow {
+                    result: SearchResult {
+                        id: format!("intercepted:{}", action.name()).into(),
+                        category: SearchCategory::Actions,
+                        title: SharedString::from(string),
+                        subtitle: None,
+                        icon: SearchCategory::Actions.icon(),
+                        action: SearchAction::DispatchAction(action),
+                    },
+                    positions,
+                });
+            }
+
+            if !intercept_result.exclusive {
+                for m in matches {
+                    if let Some(spot) = slot.get_mut(m.candidate_id)
+                        && let Some(result) = spot.take()
+                    {
+                        ordered.push(ResultRow {
+                            result,
+                            positions: m.positions,
+                        });
+                    }
+                }
+            }
+
+            this.update(cx, |this, cx| {
+                this.results = ordered;
+                this.selected_index = 0;
+                cx.notify();
+            })
+            .ok();
+        });
+        self._search_task = Some(task);
+    }
+
+    fn move_selection_up(&mut self, cx: &mut Context<Self>) {
+        if self.results.is_empty() {
+            return;
+        }
+        if self.selected_index == 0 {
+            self.selected_index = self.results.len() - 1;
+        } else {
+            self.selected_index -= 1;
+        }
+        cx.notify();
+    }
+
+    fn move_selection_down(&mut self, cx: &mut Context<Self>) {
+        if self.results.is_empty() {
+            return;
+        }
+        self.selected_index = (self.selected_index + 1) % self.results.len();
+        cx.notify();
+    }
+
+    fn activate_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_index >= self.results.len() {
+            return;
+        }
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let row = self.results.swap_remove(self.selected_index);
+        // Frecency: record Actions invocations so the most-used entries
+        // float to the top on subsequent opens. Other categories manage
+        // their own ranking (sessions by order, files by recency).
+        match (&row.result.category, &row.result.action) {
+            (SearchCategory::Actions, SearchAction::DispatchAction(action)) => {
+                let raw_name = action.name().to_string();
+                let query = self.search.read(cx).value().to_string();
+                let db = CommandPaletteDB::global(cx);
+                cx.background_spawn(async move {
+                    db.write_command_invocation(raw_name, query).await.ok();
+                })
+                .detach();
+            }
+            (SearchCategory::Files, SearchAction::OpenPath(path)) => {
+                // Bubble the open to the top of the frecency list so the
+                // next Cmd+O surfaces it without a fuzzy match.
+                self.files_source.record_open(path.clone());
+            }
+            _ => {}
+        }
+        row.result.action.run(workspace, window, cx);
+        cx.emit(DismissEvent);
+    }
+
+    fn render_chip(&self, category: SearchCategory, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let is_selected = self.active_prefix == Some(category);
+        let accent = colors.text_accent;
+        let icon_color = category
+            .icon_color()
+            .map(|name| Color::Custom(name.scale(400)))
+            .unwrap_or(Color::Muted);
+
+        let (border_color, label_color) = if is_selected {
+            (accent, accent)
+        } else {
+            (colors.border_variant, colors.text)
+        };
+
+        h_flex()
+            .id(("command-palette-chip", category as usize))
+            .px_3p5()
+            .py_1p5()
+            .gap_2()
+            .items_center()
+            .rounded(px(999.))
+            .border_1()
+            .border_color(border_color)
+            .bg(inazuma::transparent_black())
+            .cursor_pointer()
+            .hover(|el| el.border_color(accent).text_color(accent))
+            .child(
+                div()
+                    .text_size(px(13.))
+                    .text_color(label_color)
+                    .child(category.label()),
+            )
+            .child(
+                Icon::new(category.icon())
+                    .size(IconSize::Small)
+                    .color(icon_color),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                let next = if this.active_prefix == Some(category) {
+                    None
+                } else {
+                    Some(category)
+                };
+                this.set_filter(next, window, cx);
+            }))
+    }
+
+    fn render_result_row(
+        &self,
+        index: usize,
+        row: &ResultRow,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors();
+        // A row is considered "selected" only once the user has engaged
+        // with the modal (typed or pressed an arrow key). Before that the
+        // row with `selected_index == 0` gets no visual treatment, so the
+        // list doesn't look pre-highlighted on open.
+        let is_selected = self.has_interacted && index == self.selected_index;
+        // Theme-aware highlight: `element_hover` / `element_selected`
+        // adapt to whatever accent the active theme defines, where
+        // `text_accent` was locked to the default palette's blue.
+        let hover_bg = colors.element_hover;
+        let selected_bg = colors.element_selected;
+        let bg = if is_selected {
+            selected_bg
+        } else {
+            inazuma::transparent_black()
+        };
+        let subtitle_fg = colors.text_muted;
+        let icon_color = row
+            .result
+            .category
+            .icon_color()
+            .map(|n| Color::Custom(n.scale(400)))
+            .unwrap_or(Color::Muted);
+
+        let title = row.result.title.clone();
+        let subtitle = row.result.subtitle.clone();
+        let icon = row.result.icon;
+        // Positions come from the concatenated haystack (`title + " " +
+        // subtitle`). Split them back into per-label offsets so
+        // `HighlightedLabel` can bold the matched bytes in each segment
+        // independently — important for file rows where the match may
+        // hit the filename, the parent path, or both.
+        let (title_positions, subtitle_positions) =
+            crate::source::split_path_positions(&row.positions, title.len());
+
+        let mut item = h_flex()
+            .id(("command-palette-result", index))
+            .px_3()
+            .py_2()
+            .gap_3()
+            .items_center()
+            .rounded(px(6.))
+            .bg(bg)
+            .cursor_pointer()
+            .hover(move |el| el.bg(hover_bg))
+            .child(Icon::new(icon).size(IconSize::Small).color(icon_color))
+            .child(
+                v_flex().gap_0p5().flex_1().min_w_0().child(
+                    div()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .child(HighlightedLabel::new(title, title_positions).color(Color::Default)),
+                ),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.selected_index = index;
+                this.activate_selected(window, cx);
+            }));
+        if let Some(subtitle_text) = subtitle {
+            item = item.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(subtitle_fg)
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .max_w(px(240.))
+                    .child(
+                        HighlightedLabel::new(subtitle_text, subtitle_positions)
+                            .color(Color::Muted)
+                            .size(carrot_ui::LabelSize::XSmall),
+                    ),
+            );
+        }
+        // Actions with a bound key get a trailing glyph so the user can
+        // see the shortcut without invoking `which-key`.
+        if row.result.category == SearchCategory::Actions
+            && let Some(action) = row.result.action_ref()
+        {
+            let binding = KeyBinding::for_action(action, cx);
+            if binding.has_binding(window) {
+                item = item.child(binding);
+            }
+        }
+        item.into_any_element()
+    }
+
+    fn empty_state_label(&self) -> &'static str {
+        match self.active_prefix {
+            Some(SearchCategory::Sessions) => "No sessions match.",
+            Some(SearchCategory::EnvironmentVariables) => "No environment variables match.",
+            Some(_) => "No results — this category has no source registered yet.",
+            None => "Type to search. Use prefixes like sessions: or env: to filter.",
+        }
+    }
+}
+
+impl Focusable for CommandPalette {
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        // Delegate to the search input so that opening the modal puts the
+        // caret straight into the search field — without this delegation
+        // the modal grabs focus itself and typing/backspace never reach
+        // the input.
+        self.search.focus_handle(cx)
+    }
+}
+
+impl EventEmitter<DismissEvent> for CommandPalette {}
 
 impl ModalView for CommandPalette {
     fn is_command_palette(&self) -> bool {
@@ -39,1176 +672,284 @@ impl ModalView for CommandPalette {
     }
 }
 
-pub struct CommandPalette {
-    picker: Entity<Picker<CommandPaletteDelegate>>,
-}
+impl Render for CommandPalette {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let elevated_surface = cx.theme().colors().elevated_surface;
+        let border = cx.theme().colors().border;
+        let text_muted = cx.theme().colors().text_muted;
 
-/// Removes subsequent whitespace characters and double colons from the query.
-///
-/// This improves the likelihood of a match by either humanized name or keymap-style name.
-pub fn normalize_action_query(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut last_char = None;
+        let result_elements: Vec<AnyElement> = self
+            .results
+            .iter()
+            .enumerate()
+            .map(|(ix, row)| self.render_result_row(ix, row, window, cx))
+            .collect();
+        let has_results = !result_elements.is_empty();
+        let empty_label = SharedString::from(self.empty_state_label());
+        let query_is_empty = self.search.read(cx).value().is_empty();
+        // Compact view when a category is locked in (typed prefix or
+        // chip click). The discovery chip grid would just take up space
+        // and re-shows the very category the user already picked.
+        let in_compact_mode = self.active_prefix.is_some();
+        let show_suggested_header = query_is_empty && self.active_prefix.is_none();
 
-    for char in input.trim().chars() {
-        match (last_char, char) {
-            (Some(':'), ':') => continue,
-            (Some(last_char), char) if last_char.is_whitespace() && char.is_whitespace() => {
-                continue;
-            }
-            _ => {
-                last_char = Some(char);
-            }
-        }
-        result.push(char);
+        v_flex()
+            .key_context("CommandPalette")
+            .track_focus(&self.focus_handle)
+            .w(px(640.))
+            .max_h(px(560.))
+            .rounded(px(10.))
+            .bg(elevated_surface)
+            .overflow_hidden()
+            // Tab → commit a pending category-prefix completion.
+            // Backspace on an empty input → drop the active prefix
+            // chip and return to universal Cmd+P.
+            .on_key_down(cx.listener(Self::on_key_down))
+            .child({
+                let pending_completion = self.pending_prefix_completion(cx);
+                let active_prefix = self.active_prefix;
+                let text_color = cx.theme().colors().text;
+                let prefix_element: AnyElement = match active_prefix {
+                    Some(cat) => {
+                        // Build the prefix face explicitly from the
+                        // user's UI font. Comic Stack ships a real
+                        // BoldItalic face so this renders heavy +
+                        // slanted; user-configured families that lack
+                        // it fall back to the closest available
+                        // variant via Inazuma's font matcher.
+                        let ui_font = carrot_theme::body_font(cx);
+                        let prefix_font = inazuma::Font {
+                            family: ui_font.family.clone(),
+                            features: ui_font.features.clone(),
+                            fallbacks: ui_font.fallbacks.clone(),
+                            weight: inazuma::FontWeight::BLACK,
+                            style: inazuma::FontStyle::Italic,
+                            stretch: ui_font.stretch,
+                        };
+                        div()
+                            .text_color(text_color)
+                            .font(prefix_font)
+                            .child(SharedString::from(cat.prefix()))
+                            .into_any_element()
+                    }
+                    None => Icon::new(IconName::MagnifyingGlass)
+                        .size_5()
+                        .color(Color::Muted)
+                        .into_any_element(),
+                };
+                h_flex()
+                    .pl_5()
+                    .pr_4()
+                    .py_3()
+                    .items_center()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(
+                        // Anchor the prefix inside the Input's own
+                        // prefix slot so it inherits the input's text
+                        // style scope and shares the size/baseline of
+                        // the placeholder/value rendered next to it.
+                        // The previous wrapper-div approach pushed the
+                        // label into a parent whose text styles didn't
+                        // cascade into the input's render context.
+                        Input::new(&self.search)
+                            .appearance(false)
+                            .bordered(false)
+                            .with_size(carrot_ui::Size::Medium)
+                            .prefix(prefix_element),
+                    )
+                    .when_some(pending_completion, |row, cat| {
+                        // Tab-hint chip: shows up the moment the typed
+                        // input matches a unique category-prefix stem.
+                        // Pressing Tab — or clicking the chip — commits
+                        // the completion.
+                        row.child(
+                            div()
+                                .id("command-palette-tab-hint")
+                                .px_2()
+                                .py_0p5()
+                                .rounded(px(4.))
+                                .border_1()
+                                .border_color(border)
+                                .text_size(px(11.))
+                                .text_color(text_muted)
+                                .child(SharedString::from("tab"))
+                                .cursor_pointer()
+                                .hover(|el| el.text_color(cx.theme().colors().text))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.set_filter(Some(cat), window, cx);
+                                    this.has_interacted = true;
+                                })),
+                        )
+                    })
+            })
+            .child({
+                // Three layouts share the result body:
+                //  * universal + empty query  → chip discovery grid + Suggested
+                //  * universal + typed query  → just results
+                //  * compact (prefix active)  → just results, no chips
+                // The chip grid only ever appears in the first case; in
+                // compact mode it would re-show the very category the
+                // user already locked in.
+                let body = v_flex().px_4().py_4().gap_4();
+                let body = if query_is_empty && !in_compact_mode {
+                    let chips = SearchCategory::all()
+                        .iter()
+                        .map(|cat| self.render_chip(*cat, cx).into_any_element())
+                        .collect::<Vec<_>>();
+                    body.child(h_flex().flex_wrap().gap_2().children(chips))
+                } else {
+                    body
+                };
+                body.child(if has_results {
+                    if show_suggested_header {
+                        self.render_grouped_results(window, cx).into_any_element()
+                    } else {
+                        v_flex()
+                            .gap_0p5()
+                            .children(result_elements)
+                            .into_any_element()
+                    }
+                } else {
+                    div()
+                        .text_size(px(11.))
+                        .text_color(text_muted)
+                        .child(empty_label)
+                        .into_any_element()
+                })
+            })
+            .child(self.render_footer(cx))
     }
-
-    result
 }
 
 impl CommandPalette {
-    fn register(
-        workspace: &mut Workspace,
-        _window: Option<&mut Window>,
-        _: &mut Context<Workspace>,
-    ) {
-        workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            Self::toggle(workspace, "", window, cx)
-        });
-    }
-
-    pub fn toggle(
-        workspace: &mut Workspace,
-        query: &str,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
-        let Some(previous_focus_handle) = window.focused(cx) else {
-            return;
-        };
-
-        let entity = cx.weak_entity();
-        workspace.toggle_modal(window, cx, move |window, cx| {
-            CommandPalette::new(previous_focus_handle, query, entity, window, cx)
-        });
-    }
-
-    fn new(
-        previous_focus_handle: FocusHandle,
-        query: &str,
-        entity: WeakEntity<Workspace>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let filter = CommandPaletteFilter::try_global(cx);
-
-        let commands = window
-            .available_actions(cx)
-            .into_iter()
-            .filter_map(|action| {
-                if filter.is_some_and(|filter| filter.is_hidden(&*action)) {
-                    return None;
-                }
-
-                Some(Command {
-                    name: humanize_action_name(action.name()),
-                    action,
-                })
-            })
-            .collect();
-
-        let delegate = CommandPaletteDelegate::new(
-            cx.entity().downgrade(),
-            entity,
-            commands,
-            previous_focus_handle,
-        );
-
-        let picker = cx.new(|cx| {
-            let picker = Picker::uniform_list(delegate, window, cx);
-            picker.set_query(query, window, cx);
-            picker
-        });
-        Self { picker }
-    }
-
-    pub fn set_query(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.picker
-            .update(cx, |picker, cx| picker.set_query(query, window, cx))
-    }
-}
-
-impl EventEmitter<DismissEvent> for CommandPalette {}
-
-impl Focusable for CommandPalette {
-    fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.picker.focus_handle(cx)
-    }
-}
-
-impl Render for CommandPalette {
-    fn render(&mut self, _window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
-            .key_context("CommandPalette")
-            .w(rems(34.))
-            .child(self.picker.clone())
-    }
-}
-
-pub struct CommandPaletteDelegate {
-    latest_query: String,
-    command_palette: WeakEntity<CommandPalette>,
-    workspace: WeakEntity<Workspace>,
-    all_commands: Vec<Command>,
-    commands: Vec<Command>,
-    matches: Vec<StringMatch>,
-    selected_ix: usize,
-    previous_focus_handle: FocusHandle,
-    updating_matches: Option<(
-        Task<()>,
-        postage::dispatch::Receiver<(Vec<Command>, Vec<StringMatch>, CommandInterceptResult)>,
-    )>,
-    query_history: QueryHistory,
-}
-
-struct Command {
-    name: String,
-    action: Box<dyn Action>,
-}
-
-#[derive(Default)]
-struct QueryHistory {
-    history: Option<VecDeque<String>>,
-    cursor: Option<usize>,
-    prefix: Option<String>,
-}
-
-impl QueryHistory {
-    fn history(&mut self, cx: &App) -> &mut VecDeque<String> {
-        self.history.get_or_insert_with(|| {
-            CommandPaletteDB::global(cx)
-                .list_recent_queries()
-                .unwrap_or_default()
-                .into_iter()
-                .collect()
-        })
-    }
-
-    fn add(&mut self, query: String, cx: &App) {
-        if let Some(pos) = self.history(cx).iter().position(|h| h == &query) {
-            self.history(cx).remove(pos);
-        }
-        self.history(cx).push_back(query);
-        self.cursor = None;
-        self.prefix = None;
-    }
-
-    fn validate_cursor(&mut self, current_query: &str, cx: &App) -> Option<usize> {
-        if let Some(pos) = self.cursor {
-            if self.history(cx).get(pos).map(|s| s.as_str()) != Some(current_query) {
-                self.cursor = None;
-                self.prefix = None;
+    /// Empty-query rendering. Splits the result list into labeled
+    /// sections — Actions become "Suggested", Files become "Recent",
+    /// anything else uses the category's own label. Matches Warp's
+    /// empty-state behaviour where a handful of curated shortcuts and a
+    /// short history of recent files live in distinct groups.
+    fn render_grouped_results(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let text_muted = cx.theme().colors().text_muted;
+        let mut groups: Vec<(SearchCategory, Vec<usize>)> = Vec::new();
+        for (ix, row) in self.results.iter().enumerate() {
+            let cat = row.result.category;
+            match groups.last_mut() {
+                Some((last_cat, list)) if *last_cat == cat => list.push(ix),
+                _ => groups.push((cat, vec![ix])),
             }
         }
-        self.cursor
-    }
 
-    fn previous(&mut self, current_query: &str, cx: &App) -> Option<&str> {
-        if self.validate_cursor(current_query, cx).is_none() {
-            self.prefix = Some(current_query.to_string());
-        }
-
-        let prefix = self.prefix.clone().unwrap_or_default();
-        let start_index = self.cursor.unwrap_or(self.history(cx).len());
-
-        for i in (0..start_index).rev() {
-            if self
-                .history(cx)
-                .get(i)
-                .is_some_and(|e| e.starts_with(&prefix))
-            {
-                self.cursor = Some(i);
-                return self.history(cx).get(i).map(|s| s.as_str());
-            }
-        }
-        None
-    }
-
-    fn next(&mut self, current_query: &str, cx: &App) -> Option<&str> {
-        let selected = self.validate_cursor(current_query, cx)?;
-        let prefix = self.prefix.clone().unwrap_or_default();
-
-        for i in (selected + 1)..self.history(cx).len() {
-            if self
-                .history(cx)
-                .get(i)
-                .is_some_and(|e| e.starts_with(&prefix))
-            {
-                self.cursor = Some(i);
-                return self.history(cx).get(i).map(|s| s.as_str());
-            }
-        }
-        None
-    }
-
-    fn reset_cursor(&mut self) {
-        self.cursor = None;
-        self.prefix = None;
-    }
-
-    fn is_navigating(&self) -> bool {
-        self.cursor.is_some()
-    }
-}
-
-impl Clone for Command {
-    fn clone(&self) -> Self {
-        Self {
-            name: self.name.clone(),
-            action: self.action.boxed_clone(),
-        }
-    }
-}
-
-impl CommandPaletteDelegate {
-    fn new(
-        command_palette: WeakEntity<CommandPalette>,
-        workspace: WeakEntity<Workspace>,
-        commands: Vec<Command>,
-        previous_focus_handle: FocusHandle,
-    ) -> Self {
-        Self {
-            command_palette,
-            workspace,
-            all_commands: commands.clone(),
-            matches: vec![],
-            commands,
-            selected_ix: 0,
-            previous_focus_handle,
-            latest_query: String::new(),
-            updating_matches: None,
-            query_history: Default::default(),
-        }
-    }
-
-    fn matches_updated(
-        &mut self,
-        query: String,
-        mut commands: Vec<Command>,
-        mut matches: Vec<StringMatch>,
-        intercept_result: CommandInterceptResult,
-        _: &mut Context<Picker<Self>>,
-    ) {
-        self.updating_matches.take();
-        self.latest_query = query;
-
-        let mut new_matches = Vec::new();
-
-        for CommandInterceptItem {
-            action,
-            string,
-            positions,
-        } in intercept_result.results
-        {
-            if let Some(idx) = matches
-                .iter()
-                .position(|m| commands[m.candidate_id].action.partial_eq(&*action))
-            {
-                matches.remove(idx);
-            }
-            commands.push(Command {
-                name: string.clone(),
-                action,
-            });
-            new_matches.push(StringMatch {
-                candidate_id: commands.len() - 1,
-                string,
-                positions,
-                score: 0.0,
-            })
-        }
-        if !intercept_result.exclusive {
-            new_matches.append(&mut matches);
-        }
-        self.commands = commands;
-        self.matches = new_matches;
-        if self.matches.is_empty() {
-            self.selected_ix = 0;
-        } else {
-            self.selected_ix = cmp::min(self.selected_ix, self.matches.len() - 1);
-        }
-    }
-
-    /// Hit count for each command in the palette.
-    /// We only account for commands triggered directly via command palette and not by e.g. keystrokes because
-    /// if a user already knows a keystroke for a command, they are unlikely to use a command palette to look for it.
-    fn hit_counts(&self, cx: &App) -> HashMap<String, u16> {
-        if let Ok(commands) = CommandPaletteDB::global(cx).list_commands_used() {
-            commands
-                .into_iter()
-                .map(|command| (command.command_name, command.invocations))
-                .collect()
-        } else {
-            HashMap::new()
-        }
-    }
-
-    fn selected_command(&self) -> Option<&Command> {
-        let action_ix = self
-            .matches
-            .get(self.selected_ix)
-            .map(|m| m.candidate_id)
-            .unwrap_or(self.selected_ix);
-        // this gets called in headless tests where there are no commands loaded
-        // so we need to return an Option here
-        self.commands.get(action_ix)
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn seed_history(&mut self, queries: &[&str]) {
-        self.query_history.history = Some(queries.iter().map(|s| s.to_string()).collect());
-    }
-}
-
-impl PickerDelegate for CommandPaletteDelegate {
-    type ListItem = ListItem;
-
-    fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
-        "Execute a command...".into()
-    }
-
-    fn select_history(
-        &mut self,
-        direction: Direction,
-        query: &str,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Option<String> {
-        match direction {
-            Direction::Up => {
-                let should_use_history =
-                    self.selected_ix == 0 || self.query_history.is_navigating();
-                if should_use_history {
-                    if let Some(query) = self
-                        .query_history
-                        .previous(query, cx)
-                        .map(|s| s.to_string())
-                    {
-                        return Some(query);
-                    }
-                }
-            }
-            Direction::Down => {
-                if self.query_history.is_navigating() {
-                    if let Some(query) = self.query_history.next(query, cx).map(|s| s.to_string()) {
-                        return Some(query);
-                    } else {
-                        let prefix = self.query_history.prefix.take().unwrap_or_default();
-                        self.query_history.reset_cursor();
-                        return Some(prefix);
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn match_count(&self) -> usize {
-        self.matches.len()
-    }
-
-    fn selected_index(&self) -> usize {
-        self.selected_ix
-    }
-
-    fn set_selected_index(
-        &mut self,
-        ix: usize,
-        _window: &mut Window,
-        _: &mut Context<Picker<Self>>,
-    ) {
-        self.selected_ix = ix;
-    }
-
-    fn update_matches(
-        &mut self,
-        mut query: String,
-        window: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) -> inazuma::Task<()> {
-        let settings = WorkspaceSettings::get_global(cx);
-        if let Some(alias) = settings.command_aliases.get(&query) {
-            query = alias.to_string();
-        }
-
-        let workspace = self.workspace.clone();
-
-        let intercept_task = GlobalCommandPaletteInterceptor::intercept(&query, workspace, cx);
-
-        let (mut tx, mut rx) = postage::dispatch::channel(1);
-
-        let query_str = query.as_str();
-        let is_carrot_link = parse_carrot_link(query_str, cx).is_some();
-
-        let task = cx.background_spawn({
-            let mut commands = self.all_commands.clone();
-            let hit_counts = self.hit_counts(cx);
-            let executor = cx.background_executor().clone();
-            let query = normalize_action_query(query_str);
-            let query_for_link = query_str.to_string();
-            async move {
-                commands.sort_by_key(|action| {
-                    (
-                        Reverse(hit_counts.get(&action.name).cloned()),
-                        action.name.clone(),
-                    )
-                });
-
-                let candidates = commands
-                    .iter()
-                    .enumerate()
-                    .map(|(ix, command)| StringMatchCandidate::new(ix, &command.name))
-                    .collect::<Vec<_>>();
-
-                let matches = inazuma_fuzzy::match_strings(
-                    &candidates,
-                    &query,
-                    true,
-                    true,
-                    10000,
-                    &Default::default(),
-                    executor,
-                )
-                .await;
-
-                let intercept_result = if is_carrot_link {
-                    CommandInterceptResult {
-                        results: vec![CommandInterceptItem {
-                            action: OpenCarrotUrl {
-                                url: query_for_link.clone(),
-                            }
-                            .boxed_clone(),
-                            string: query_for_link,
-                            positions: vec![],
-                        }],
-                        exclusive: false,
-                    }
-                } else if let Some(task) = intercept_task {
-                    task.await
-                } else {
-                    CommandInterceptResult::default()
-                };
-
-                tx.send((commands, matches, intercept_result))
-                    .await
-                    .log_err();
-            }
-        });
-
-        self.updating_matches = Some((task, rx.clone()));
-
-        cx.spawn_in(window, async move |picker, cx| {
-            let Some((commands, matches, intercept_result)) = rx.recv().await else {
-                return;
+        let mut root = v_flex().gap_3();
+        for (cat, indices) in groups {
+            let label = match cat {
+                SearchCategory::Actions => "Suggested",
+                SearchCategory::Files => "Recent",
+                other => other.label(),
             };
-
-            picker
-                .update(cx, |picker, cx| {
-                    picker
-                        .delegate
-                        .matches_updated(query, commands, matches, intercept_result, cx)
-                })
-                .ok();
-        })
-    }
-
-    fn finalize_update_matches(
-        &mut self,
-        query: String,
-        duration: Duration,
-        _: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) -> bool {
-        let Some((task, rx)) = self.updating_matches.take() else {
-            return true;
-        };
-
-        match cx
-            .foreground_executor()
-            .block_with_timeout(duration, rx.clone().recv())
-        {
-            Ok(Some((commands, matches, interceptor_result))) => {
-                self.matches_updated(query, commands, matches, interceptor_result, cx);
-                true
-            }
-            _ => {
-                self.updating_matches = Some((task, rx));
-                false
-            }
-        }
-    }
-
-    fn dismissed(&mut self, _window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        self.command_palette
-            .update(cx, |_, cx| cx.emit(DismissEvent))
-            .ok();
-    }
-
-    fn confirm(&mut self, secondary: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        if secondary {
-            let Some(selected_command) = self.selected_command() else {
-                return;
-            };
-            let action_name = selected_command.action.name();
-            let open_keymap = Box::new(carrot_actions::ChangeKeybinding {
-                action: action_name.to_string(),
-            });
-            window.dispatch_action(open_keymap, cx);
-            self.dismissed(window, cx);
-            return;
-        }
-
-        if self.matches.is_empty() {
-            self.dismissed(window, cx);
-            return;
-        }
-
-        if !self.latest_query.is_empty() {
-            self.query_history.add(self.latest_query.clone(), cx);
-            self.query_history.reset_cursor();
-        }
-
-        let action_ix = self.matches[self.selected_ix].candidate_id;
-        let command = self.commands.swap_remove(action_ix);
-        carrot_telemetry::event!(
-            "Action Invoked",
-            source = "command palette",
-            action = command.name
-        );
-        self.matches.clear();
-        self.commands.clear();
-        let command_name = command.name.clone();
-        let latest_query = self.latest_query.clone();
-        let db = CommandPaletteDB::global(cx);
-        cx.background_spawn(async move {
-            db.write_command_invocation(command_name, latest_query)
-                .await
-        })
-        .detach_and_log_err(cx);
-        let action = command.action;
-        window.focus(&self.previous_focus_handle, cx);
-        self.dismissed(window, cx);
-        window.dispatch_action(action, cx);
-    }
-
-    fn render_match(
-        &self,
-        ix: usize,
-        selected: bool,
-        _: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) -> Option<Self::ListItem> {
-        let matching_command = self.matches.get(ix)?;
-        let command = self.commands.get(matching_command.candidate_id)?;
-
-        Some(
-            ListItem::new(ix)
-                .inset(true)
-                .spacing(ListItemSpacing::Sparse)
-                .toggle_state(selected)
-                .child(
-                    h_flex()
-                        .w_full()
-                        .py_px()
-                        .justify_between()
-                        .child(HighlightedLabel::new(
-                            command.name.clone(),
-                            matching_command.positions.clone(),
-                        ))
-                        .child(KeyBinding::for_action_in(
-                            &*command.action,
-                            &self.previous_focus_handle,
-                            cx,
-                        )),
-                ),
-        )
-    }
-
-    fn render_footer(
-        &self,
-        window: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) -> Option<AnyElement> {
-        let selected_command = self.selected_command()?;
-        let keybind =
-            KeyBinding::for_action_in(&*selected_command.action, &self.previous_focus_handle, cx);
-
-        let focus_handle = &self.previous_focus_handle;
-        let keybinding_buttons = if keybind.has_binding(window) {
-            Button::new("change", "Change Keybinding…")
-                .key_binding(
-                    KeyBinding::for_action_in(&inazuma_menu::SecondaryConfirm, focus_handle, cx)
-                        .map(|kb| kb.size(rems_from_px(12.))),
-                )
-                .on_click(move |_, window, cx| {
-                    window.dispatch_action(inazuma_menu::SecondaryConfirm.boxed_clone(), cx);
-                })
-        } else {
-            Button::new("add", "Add Keybinding…")
-                .key_binding(
-                    KeyBinding::for_action_in(&inazuma_menu::SecondaryConfirm, focus_handle, cx)
-                        .map(|kb| kb.size(rems_from_px(12.))),
-                )
-                .on_click(move |_, window, cx| {
-                    window.dispatch_action(inazuma_menu::SecondaryConfirm.boxed_clone(), cx);
-                })
-        };
-
-        Some(
-            h_flex()
-                .w_full()
-                .p_1p5()
-                .gap_1()
-                .justify_end()
-                .border_t_1()
-                .border_color(cx.theme().colors().border_variant)
-                .child(keybinding_buttons)
-                .child(
-                    Button::new("run-action", "Run")
-                        .key_binding(
-                            KeyBinding::for_action_in(&inazuma_menu::Confirm, &focus_handle, cx)
-                                .map(|kb| kb.size(rems_from_px(12.))),
-                        )
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(inazuma_menu::Confirm.boxed_clone(), cx)
-                        }),
-                )
-                .into_any(),
-        )
-    }
-}
-
-pub fn humanize_action_name(name: &str) -> String {
-    let capacity = name.len() + name.chars().filter(|c| c.is_uppercase()).count();
-    let mut result = String::with_capacity(capacity);
-    for char in name.chars() {
-        if char == ':' {
-            if result.ends_with(':') {
-                result.push(' ');
-            } else {
-                result.push(':');
-            }
-        } else if char == '_' {
-            result.push(' ');
-        } else if char.is_uppercase() {
-            if !result.ends_with(' ') {
-                result.push(' ');
-            }
-            result.extend(char.to_lowercase());
-        } else {
-            result.push(char);
-        }
-    }
-    result
-}
-
-impl std::fmt::Debug for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Command")
-            .field("name", &self.name)
-            .finish_non_exhaustive()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-    use carrot_editor::Editor;
-    use carrot_go_to_line::GoToLine;
-    use carrot_language::Point;
-    use carrot_project::Project;
-    use carrot_workspace::{AppState, Workspace};
-    use inazuma::{TestAppContext, VisualTestContext};
-    use inazuma_settings_framework::KeymapFile;
-
-    #[test]
-    fn test_humanize_action_name() {
-        assert_eq!(
-            humanize_action_name("editor::GoToDefinition"),
-            "editor: go to definition"
-        );
-        assert_eq!(
-            humanize_action_name("editor::Backspace"),
-            "editor: backspace"
-        );
-        assert_eq!(
-            humanize_action_name("go_to_line::Deploy"),
-            "go to line: deploy"
-        );
-    }
-
-    #[test]
-    fn test_normalize_query() {
-        assert_eq!(
-            normalize_action_query("editor: backspace"),
-            "editor: backspace"
-        );
-        assert_eq!(
-            normalize_action_query("editor:  backspace"),
-            "editor: backspace"
-        );
-        assert_eq!(
-            normalize_action_query("editor:    backspace"),
-            "editor: backspace"
-        );
-        assert_eq!(
-            normalize_action_query("editor::GoToDefinition"),
-            "editor:GoToDefinition"
-        );
-        assert_eq!(
-            normalize_action_query("editor::::GoToDefinition"),
-            "editor:GoToDefinition"
-        );
-        assert_eq!(
-            normalize_action_query("editor: :GoToDefinition"),
-            "editor: :GoToDefinition"
-        );
-    }
-
-    #[inazuma::test]
-    async fn test_command_palette(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let db = cx.update(|cx| persistence::CommandPaletteDB::global(cx));
-        db.clear_all().await.unwrap();
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let editor = cx.new_window_entity(|window, cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_text("abc", window, cx);
-            editor
-        });
-
-        workspace.update_in(cx, |workspace, window, cx| {
-            workspace.add_item_to_active_pane(Box::new(editor.clone()), None, true, window, cx);
-            editor.update(cx, |editor, cx| window.focus(&editor.focus_handle(cx), cx))
-        });
-
-        cx.simulate_keystrokes("cmd-shift-p");
-
-        let palette = workspace.update(cx, |workspace, cx| {
-            workspace
-                .active_modal::<CommandPalette>(cx)
-                .unwrap()
-                .read(cx)
-                .picker
-                .clone()
-        });
-
-        palette.read_with(cx, |palette, _| {
-            assert!(palette.delegate.commands.len() > 5);
-            let is_sorted =
-                |actions: &[Command]| actions.windows(2).all(|pair| pair[0].name <= pair[1].name);
-            assert!(is_sorted(&palette.delegate.commands));
-        });
-
-        cx.simulate_input("bcksp");
-
-        palette.read_with(cx, |palette, _| {
-            assert_eq!(palette.delegate.matches[0].string, "editor: backspace");
-        });
-
-        cx.simulate_keystrokes("enter");
-
-        workspace.update(cx, |workspace, cx| {
-            assert!(workspace.active_modal::<CommandPalette>(cx).is_none());
-            assert_eq!(editor.read(cx).text(cx), "ab")
-        });
-
-        // Add namespace filter, and redeploy the palette
-        cx.update(|_window, cx| {
-            CommandPaletteFilter::update_global(cx, |filter, _| {
-                filter.hide_namespace("editor");
-            });
-        });
-
-        cx.simulate_keystrokes("cmd-shift-p");
-        cx.simulate_input("bcksp");
-
-        let palette = workspace.update(cx, |workspace, cx| {
-            workspace
-                .active_modal::<CommandPalette>(cx)
-                .unwrap()
-                .read(cx)
-                .picker
-                .clone()
-        });
-        palette.read_with(cx, |palette, _| {
-            assert!(palette.delegate.matches.is_empty())
-        });
-    }
-    #[inazuma::test]
-    async fn test_normalized_matches(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let editor = cx.new_window_entity(|window, cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_text("abc", window, cx);
-            editor
-        });
-
-        workspace.update_in(cx, |workspace, window, cx| {
-            workspace.add_item_to_active_pane(Box::new(editor.clone()), None, true, window, cx);
-            editor.update(cx, |editor, cx| window.focus(&editor.focus_handle(cx), cx))
-        });
-
-        // Test normalize (trimming whitespace and double colons)
-        cx.simulate_keystrokes("cmd-shift-p");
-
-        let palette = workspace.update(cx, |workspace, cx| {
-            workspace
-                .active_modal::<CommandPalette>(cx)
-                .unwrap()
-                .read(cx)
-                .picker
-                .clone()
-        });
-
-        cx.simulate_input("Editor::    Backspace");
-        palette.read_with(cx, |palette, _| {
-            assert_eq!(palette.delegate.matches[0].string, "editor: backspace");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_go_to_line(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        cx.simulate_keystrokes("cmd-n");
-
-        let editor = workspace.update(cx, |workspace, cx| {
-            workspace.active_item_as::<Editor>(cx).unwrap()
-        });
-        editor.update_in(cx, |editor, window, cx| {
-            editor.set_text("1\n2\n3\n4\n5\n6\n", window, cx)
-        });
-
-        cx.simulate_keystrokes("cmd-shift-p");
-        cx.simulate_input("go to line: Toggle");
-        cx.simulate_keystrokes("enter");
-
-        workspace.update(cx, |workspace, cx| {
-            assert!(workspace.active_modal::<GoToLine>(cx).is_some())
-        });
-
-        cx.simulate_keystrokes("3 enter");
-
-        editor.update_in(cx, |editor, window, cx| {
-            assert!(editor.focus_handle(cx).is_focused(window));
-            assert_eq!(
-                editor
-                    .selections
-                    .last::<Point>(&editor.display_snapshot(cx))
-                    .range()
-                    .start,
-                Point::new(2, 0)
+            let mut section = v_flex().gap_1();
+            section = section.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(text_muted)
+                    .child(SharedString::from(label)),
             );
-        });
+            for ix in indices {
+                let row = &self.results[ix];
+                section = section.child(self.render_result_row(ix, row, window, cx));
+            }
+            root = root.child(section);
+        }
+        root
     }
 
-    fn init_test(cx: &mut TestAppContext) -> Arc<AppState> {
-        cx.update(|cx| {
-            let app_state = AppState::test(cx);
-            carrot_theme_settings::init(carrot_theme::LoadThemes::JustBase, cx);
-            carrot_editor::init(cx);
-            inazuma_menu::init();
-            carrot_go_to_line::init(cx);
-            carrot_workspace::init(app_state.clone(), cx);
-            init(cx);
-            cx.bind_keys(KeymapFile::load_panic_on_failure(
-                r#"[
-                    {
-                        "bindings": {
-                            "cmd-n": "workspace::NewFile",
-                            "enter": "inazuma_menu::Confirm",
-                            "cmd-shift-p": "command_palette::Toggle",
-                            "up": "menu::SelectPrevious",
-                            "down": "menu::SelectNext"
-                        }
-                    }
-                ]"#,
-                cx,
-            ));
-            app_state
-        })
-    }
+    /// Footer combining two rows: the active source's status line
+    /// (scope breadcrumb + scanned counter, when a stateful source like
+    /// [`FilesSource`] has something to report) and the global pre-filter
+    /// shortcut hints.
+    fn render_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let border = colors.border;
+        let accent = colors.text_accent;
+        let text_muted = colors.text_muted;
 
-    fn open_palette_with_history(
-        workspace: &Entity<Workspace>,
-        history: &[&str],
-        cx: &mut VisualTestContext,
-    ) -> Entity<Picker<CommandPaletteDelegate>> {
-        cx.simulate_keystrokes("cmd-shift-p");
-        cx.run_until_parked();
+        // Surface the FilesSource status when a files-oriented scope is
+        // active, so users know how big their project is and whether the
+        // walker truncated.
+        let files_status = self
+            .sources
+            .iter()
+            .find(|s| s.category() == SearchCategory::Files)
+            .and_then(|s| s.footer_status(cx));
 
-        let palette = workspace.update(cx, |workspace, cx| {
-            workspace
-                .active_modal::<CommandPalette>(cx)
-                .unwrap()
-                .read(cx)
-                .picker
-                .clone()
+        let include_ignored = self.include_ignored;
+        let toggle_label = if include_ignored {
+            "ignored on"
+        } else {
+            "ignored off"
+        };
+        let toggle_color = if include_ignored { accent } else { text_muted };
+
+        let status_row = files_status.map(|status| {
+            let scope = status.scope_root.to_string_lossy().into_owned();
+            let counter = if status.done {
+                format!("{} files scanned", status.scanned)
+            } else {
+                format!("{} files scanned · scanning…", status.scanned)
+            };
+            let trunc = if status.truncated {
+                " · truncated"
+            } else {
+                ""
+            };
+            h_flex()
+                .px_4()
+                .py_1()
+                .gap_3()
+                .border_t_1()
+                .border_color(border)
+                .text_size(px(10.))
+                .text_color(text_muted)
+                .child(
+                    div()
+                        .max_w(px(360.))
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .child(format!("scope · {scope}")),
+                )
+                .child(div().child(format!("· {counter}{trunc}")))
+                .child(
+                    div()
+                        .id("include-ignored-toggle")
+                        .ml_auto()
+                        .px_2()
+                        .py_0p5()
+                        .rounded(px(4.))
+                        .border_1()
+                        .border_color(toggle_color)
+                        .text_color(toggle_color)
+                        .cursor_pointer()
+                        .child(format!("· {toggle_label}"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.toggle_include_ignored(window, cx);
+                        })),
+                )
         });
 
-        palette.update(cx, |palette, _cx| {
-            palette.delegate.seed_history(history);
-        });
-
-        palette
-    }
-
-    #[inazuma::test]
-    async fn test_history_navigation_basic(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette = open_palette_with_history(&workspace, &["backspace", "select all"], cx);
-
-        // Query should be empty initially
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "");
-        });
-
-        // Press up - should load most recent query "select all"
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select all");
-        });
-
-        // Press up again - should load "backspace"
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "backspace");
-        });
-
-        // Press down - should go back to "select all"
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select all");
-        });
-
-        // Press down again - should clear query (exit history mode)
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_history_mode_exit_on_typing(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette = open_palette_with_history(&workspace, &["backspace"], cx);
-
-        // Press up to enter history mode
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "backspace");
-        });
-
-        // Type something - should append to the history query
-        cx.simulate_input("x");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "backspacex");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_history_navigation_with_suggestions(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette = open_palette_with_history(&workspace, &["editor: close", "editor: open"], cx);
-
-        // Open palette with a query that has multiple matches
-        cx.simulate_input("editor");
-        cx.background_executor.run_until_parked();
-
-        // Should have multiple matches, selected_ix should be 0
-        palette.read_with(cx, |palette, _| {
-            assert!(palette.delegate.matches.len() > 1);
-            assert_eq!(palette.delegate.selected_ix, 0);
-        });
-
-        // Press down - should navigate to next suggestion (not history)
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, _| {
-            assert_eq!(palette.delegate.selected_ix, 1);
-        });
-
-        // Press up - should go back to first suggestion
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, _| {
-            assert_eq!(palette.delegate.selected_ix, 0);
-        });
-
-        // Press up again at top - should enter history mode and show previous query
-        // that matches the "editor" prefix
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "editor: open");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_history_prefix_search(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette = open_palette_with_history(
-            &workspace,
-            &["open file", "select all", "select line", "backspace"],
-            cx,
-        );
-
-        // Type "sel" as a prefix
-        cx.simulate_input("sel");
-        cx.background_executor.run_until_parked();
-
-        // Press up - should get "select line" (most recent matching "sel")
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select line");
-        });
-
-        // Press up again - should get "select all" (next matching "sel")
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select all");
-        });
-
-        // Press up again - should stay at "select all" (no more matches for "sel")
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select all");
-        });
-
-        // Press down - should go back to "select line"
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "select line");
-        });
-
-        // Press down again - should return to original prefix "sel"
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "sel");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_history_prefix_search_no_matches(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette =
-            open_palette_with_history(&workspace, &["open file", "backspace", "select all"], cx);
-
-        // Type "xyz" as a prefix that doesn't match anything
-        cx.simulate_input("xyz");
-        cx.background_executor.run_until_parked();
-
-        // Press up - should stay at "xyz" (no matches)
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "xyz");
-        });
-    }
-
-    #[inazuma::test]
-    async fn test_history_empty_prefix_searches_all(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-        let project = Project::test(app_state.fs.clone(), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        let palette = open_palette_with_history(&workspace, &["alpha", "beta", "gamma"], cx);
-
-        // With empty query, press up - should get "gamma" (most recent)
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "gamma");
-        });
-
-        // Press up - should get "beta"
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "beta");
-        });
-
-        // Press up - should get "alpha"
-        cx.simulate_keystrokes("up");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "alpha");
-        });
-
-        // Press down - should get "beta"
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "beta");
-        });
-
-        // Press down - should get "gamma"
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "gamma");
-        });
-
-        // Press down - should return to empty string (exit history mode)
-        cx.simulate_keystrokes("down");
-        cx.background_executor.run_until_parked();
-        palette.read_with(cx, |palette, cx| {
-            assert_eq!(palette.query(cx), "");
-        });
+        v_flex()
+            .when_some(status_row, |el, row| el.child(row))
+            .child(
+                h_flex()
+                    .px_4()
+                    .py_2()
+                    .gap_4()
+                    .border_t_1()
+                    .border_color(border)
+                    .text_size(px(10.))
+                    .text_color(text_muted)
+                    .child(div().child("⌘P · all"))
+                    .child(div().child("⌘O · files"))
+                    .child(div().child("⌘⇧P · sessions"))
+                    .child(div().child("⌘R · history")),
+            )
     }
 }

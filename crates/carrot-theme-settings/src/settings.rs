@@ -1,12 +1,14 @@
 use crate::schema::{status_colors_refinement, syntax_overrides, theme_colors_refinement};
 use carrot_theme::{Appearance, SyntaxTheme, Theme, UiDensity};
-use inazuma::{App, Font, FontFallbacks, FontStyle, Global, Pixels, Window, px};
+use inazuma::{App, Font, FontFallbacks, FontStretch, FontStyle, Global, Pixels, Window, px};
 use inazuma_collections::HashMap;
 use inazuma_refineable::Refineable;
 use inazuma_settings_framework::{IntoInazuma, RegisterSetting, Settings, SettingsContent};
 use std::sync::Arc;
 
-pub use inazuma_settings_content::{FontFamilyName, IconThemeName, ThemeAppearanceMode, ThemeName};
+pub use inazuma_settings_content::{
+    FontFamilyName, IconThemeName, ResolvedSymbolMap, ThemeAppearanceMode, ThemeName,
+};
 
 const MIN_FONT_SIZE: Pixels = px(6.0);
 const MAX_FONT_SIZE: Pixels = px(100.0);
@@ -30,21 +32,52 @@ pub fn appearance_to_mode(appearance: Appearance) -> ThemeAppearanceMode {
 /// Customizable settings for the UI and theme system.
 #[derive(Clone, PartialEq, RegisterSetting)]
 pub struct ThemeSettings {
-    ui_font_size: Pixels,
+    /// Role-based font configuration — single source of truth. Drives the
+    /// `body_font(cx)` / `code_font(cx)` / `terminal_font(cx)` accessors
+    /// in `carrot_theme`.
+    pub fonts: ThemeFonts,
+    /// Derived from `fonts.ui.font`. Kept as a transitional field while
+    /// call-sites migrate to `body_font(cx)`.
     pub ui_font: Font,
-    buffer_font_size: Pixels,
+    /// Derived from `fonts.mono.font`. Kept as a transitional field while
+    /// call-sites migrate to `code_font(cx)` / `terminal_font(cx)`.
     pub buffer_font: Font,
-    /// The agent font size. Falls back to the UI font size if unset.
-    agent_ui_font_size: Option<Pixels>,
-    /// The agent buffer font size. Falls back to the buffer font size if unset.
-    agent_buffer_font_size: Option<Pixels>,
+    /// Derived from `fonts.mono.line_height`. Transitional alias.
     pub buffer_line_height: BufferLineHeight,
+    ui_font_size: Pixels,
+    buffer_font_size: Pixels,
     pub theme: ThemeSelection,
     pub experimental_theme_overrides: Option<inazuma_settings_content::ThemeStyleContent>,
     pub theme_overrides: HashMap<String, inazuma_settings_content::ThemeStyleContent>,
     pub icon_theme: IconThemeSelection,
     pub ui_density: UiDensity,
     pub unnecessary_code_fade: f32,
+}
+
+/// Two-slot resolved font configuration. Drives the
+/// `body_font` / `code_font` / `terminal_font` convenience accessors.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ThemeFonts {
+    pub ui: ResolvedUiFont,
+    pub mono: ResolvedMonoFont,
+}
+
+/// Resolved UI font role — proportional surfaces (palette, sidebar,
+/// tabs, notifications, settings panels).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedUiFont {
+    pub font: Font,
+    pub size: Pixels,
+}
+
+/// Resolved mono font role — every monospace surface (terminal grid,
+/// editor, REPL, markdown code, hover popovers).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedMonoFont {
+    pub font: Font,
+    pub size: Pixels,
+    pub line_height: BufferLineHeight,
+    pub symbol_map: Vec<ResolvedSymbolMap>,
 }
 
 /// Returns the name of the default theme for the given [`Appearance`].
@@ -55,15 +88,26 @@ pub fn default_theme(appearance: Appearance) -> &'static str {
     }
 }
 
+// In-memory zoom adjustments. The role-based `MonoFontSize` /
+// `BodyFontSize` are the canonical zoom state — legacy
+// `adjust_mono_font_size` / `adjust_body_font_size` are thin shims
+// that delegate to them, so both APIs share one piece of global
+// state.
+
+/// In-memory override for the resolved [`FontRole::Code`] /
+/// [`FontRole::Terminal`] font size (set via `adjust_mono_font_size`,
+/// cleared via `reset_mono_font_size`). Persists across reloads of
+/// settings until explicitly reset.
 #[derive(Default)]
-struct BufferFontSize(Pixels);
+pub(crate) struct MonoFontSize(Pixels);
 
-impl Global for BufferFontSize {}
+impl Global for MonoFontSize {}
 
+/// In-memory override for the resolved [`FontRole::Body`] font size.
 #[derive(Default)]
-pub(crate) struct UiFontSize(Pixels);
+pub(crate) struct BodyFontSize(Pixels);
 
-impl Global for UiFontSize {}
+impl Global for BodyFontSize {}
 
 /// In-memory override for the font size in the agent panel.
 #[derive(Default)]
@@ -201,7 +245,7 @@ impl BufferLineHeight {
 impl ThemeSettings {
     pub fn buffer_font_size(&self, cx: &App) -> Pixels {
         let font_size = cx
-            .try_global::<BufferFontSize>()
+            .try_global::<MonoFontSize>()
             .map(|size| size.0)
             .unwrap_or(self.buffer_font_size);
         clamp_font_size(font_size)
@@ -209,44 +253,35 @@ impl ThemeSettings {
 
     pub fn ui_font_size(&self, cx: &App) -> Pixels {
         let font_size = cx
-            .try_global::<UiFontSize>()
+            .try_global::<BodyFontSize>()
             .map(|size| size.0)
             .unwrap_or(self.ui_font_size);
         clamp_font_size(font_size)
     }
 
-    /// Returns the agent panel font size. Falls back to the UI font size if unset.
-    pub fn agent_ui_font_size(&self, cx: &App) -> Pixels {
-        cx.try_global::<AgentFontSize>()
-            .map(|size| size.0)
-            .or(self.agent_ui_font_size)
-            .map(clamp_font_size)
-            .unwrap_or_else(|| self.ui_font_size(cx))
-    }
-
-    /// Returns the agent panel buffer font size. Falls back to the buffer font size if unset.
-    pub fn agent_buffer_font_size(&self, cx: &App) -> Pixels {
-        cx.try_global::<AgentFontSize>()
-            .map(|size| size.0)
-            .or(self.agent_buffer_font_size)
-            .map(clamp_font_size)
-            .unwrap_or_else(|| self.buffer_font_size(cx))
-    }
-
-    pub fn buffer_font_size_settings(&self) -> Pixels {
+    pub fn mono_font_size_settings(&self) -> Pixels {
         self.buffer_font_size
     }
 
-    pub fn ui_font_size_settings(&self) -> Pixels {
+    pub fn body_font_size_settings(&self) -> Pixels {
         self.ui_font_size
     }
 
-    pub fn agent_ui_font_size_settings(&self) -> Option<Pixels> {
-        self.agent_ui_font_size
+    /// Agent-panel UI font size. Inherits from `body` font size unless
+    /// the in-memory [`AgentFontSize`] override is set (Cmd+/=/-).
+    pub fn agent_ui_font_size(&self, cx: &App) -> Pixels {
+        cx.try_global::<AgentFontSize>()
+            .map(|size| clamp_font_size(size.0))
+            .unwrap_or_else(|| self.ui_font_size(cx))
     }
 
-    pub fn agent_buffer_font_size_settings(&self) -> Option<Pixels> {
-        self.agent_buffer_font_size
+    /// Agent-panel monospace font size for user messages and code.
+    /// Inherits from `mono` font size unless the in-memory
+    /// [`AgentFontSize`] override is set.
+    pub fn agent_buffer_font_size(&self, cx: &App) -> Pixels {
+        cx.try_global::<AgentFontSize>()
+            .map(|size| clamp_font_size(size.0))
+            .unwrap_or_else(|| self.buffer_font_size(cx))
     }
 
     pub fn line_height(&self) -> f32 {
@@ -287,52 +322,50 @@ impl ThemeSettings {
     }
 }
 
-pub fn adjust_buffer_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    let buffer_font_size = ThemeSettings::get_global(cx).buffer_font_size;
-    let adjusted_size = cx
-        .try_global::<BufferFontSize>()
-        .map_or(buffer_font_size, |adjusted_size| adjusted_size.0);
-    cx.set_global(BufferFontSize(clamp_font_size(f(adjusted_size))));
+// ── Role-based zoom controls (preferred entry-points) ────────────────
+
+pub fn adjust_mono_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+    let base = ThemeSettings::get_global(cx).buffer_font_size;
+    let adjusted_size = cx.try_global::<MonoFontSize>().map_or(base, |s| s.0);
+    cx.set_global(MonoFontSize(clamp_font_size(f(adjusted_size))));
     cx.refresh_windows();
 }
 
-pub fn observe_buffer_font_size_adjustment<V: 'static>(
+pub fn observe_mono_font_size_adjustment<V: 'static>(
     cx: &mut inazuma::Context<V>,
     f: impl 'static + Fn(&mut V, &mut inazuma::Context<V>),
 ) -> inazuma::Subscription {
-    cx.observe_global::<BufferFontSize>(f)
+    cx.observe_global::<MonoFontSize>(f)
 }
 
-pub fn reset_buffer_font_size(cx: &mut App) {
-    if cx.has_global::<BufferFontSize>() {
-        cx.remove_global::<BufferFontSize>();
+pub fn reset_mono_font_size(cx: &mut App) {
+    if cx.has_global::<MonoFontSize>() {
+        cx.remove_global::<MonoFontSize>();
         cx.refresh_windows();
     }
 }
 
-pub fn setup_ui_font(window: &mut Window, cx: &App) -> Font {
-    let (ui_font, ui_font_size) = {
+pub fn setup_body_font(window: &mut Window, cx: &App) -> Font {
+    let (body_font, body_font_size) = {
         let theme_settings = ThemeSettings::get_global(cx);
-        let font = theme_settings.ui_font.clone();
+        let font = theme_settings.fonts.ui.font.clone();
         (font, theme_settings.ui_font_size(cx))
     };
 
-    window.set_rem_size(ui_font_size);
-    ui_font
+    window.set_rem_size(body_font_size);
+    body_font
 }
 
-pub fn adjust_ui_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    let ui_font_size = ThemeSettings::get_global(cx).ui_font_size(cx);
-    let adjusted_size = cx
-        .try_global::<UiFontSize>()
-        .map_or(ui_font_size, |adjusted_size| adjusted_size.0);
-    cx.set_global(UiFontSize(clamp_font_size(f(adjusted_size))));
+pub fn adjust_body_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
+    let base = ThemeSettings::get_global(cx).ui_font_size(cx);
+    let adjusted_size = cx.try_global::<BodyFontSize>().map_or(base, |s| s.0);
+    cx.set_global(BodyFontSize(clamp_font_size(f(adjusted_size))));
     cx.refresh_windows();
 }
 
-pub fn reset_ui_font_size(cx: &mut App) {
-    if cx.has_global::<UiFontSize>() {
-        cx.remove_global::<UiFontSize>();
+pub fn reset_body_font_size(cx: &mut App) {
+    if cx.has_global::<BodyFontSize>() {
+        cx.remove_global::<BodyFontSize>();
         cx.refresh_windows();
     }
 }
@@ -462,58 +495,23 @@ impl Settings for ThemeSettings {
                 IconThemeName(carrot_theme::DEFAULT_DARK_THEME.into()),
             ))
             .into();
+        let fonts = build_theme_fonts(content);
+        // The flat `ui_font` / `buffer_font` / `*_font_size` /
+        // `buffer_line_height` fields are derived from the canonical
+        // `fonts.{ui,mono}` slots — `body_font(cx)` / `code_font(cx)` /
+        // `terminal_font(cx)` are the preferred entry-points for new code.
+        let ui_font = fonts.ui.font.clone();
+        let buffer_font = fonts.mono.font.clone();
+        let ui_font_size = fonts.ui.size;
+        let buffer_font_size = fonts.mono.size;
+        let buffer_line_height = fonts.mono.line_height;
         Self {
-            ui_font_size: clamp_font_size(
-                content
-                    .ui_font_size
-                    .unwrap_or(inazuma_settings_content::FontSize(15.0))
-                    .into_inazuma(),
-            ),
-            ui_font: Font {
-                family: content
-                    .ui_font_family
-                    .as_ref()
-                    .map(|f| f.0.clone().into())
-                    .unwrap_or_else(|| "DankMono Nerd Font Mono".into()),
-                features: content
-                    .ui_font_features
-                    .clone()
-                    .unwrap_or_default()
-                    .into_inazuma(),
-                fallbacks: font_fallbacks_from_settings(content.ui_font_fallbacks.clone()),
-                weight: content
-                    .ui_font_weight
-                    .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
-                    .into_inazuma(),
-                style: Default::default(),
-            },
-            buffer_font: Font {
-                family: content
-                    .buffer_font_family
-                    .as_ref()
-                    .map(|f| f.0.clone().into())
-                    .unwrap_or_else(|| "DankMono Nerd Font Mono".into()),
-                features: content
-                    .buffer_font_features
-                    .clone()
-                    .unwrap_or_default()
-                    .into_inazuma(),
-                fallbacks: font_fallbacks_from_settings(content.buffer_font_fallbacks.clone()),
-                weight: content
-                    .buffer_font_weight
-                    .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
-                    .into_inazuma(),
-                style: FontStyle::default(),
-            },
-            buffer_font_size: clamp_font_size(
-                content
-                    .buffer_font_size
-                    .unwrap_or(inazuma_settings_content::FontSize(15.0))
-                    .into_inazuma(),
-            ),
-            agent_ui_font_size: content.agent_ui_font_size.map(|s| s.into_inazuma()),
-            agent_buffer_font_size: content.agent_buffer_font_size.map(|s| s.into_inazuma()),
-            buffer_line_height: content.buffer_line_height.unwrap_or_default().into(),
+            ui_font_size,
+            ui_font,
+            buffer_font,
+            buffer_font_size,
+            buffer_line_height,
+            fonts,
             theme: theme_selection,
             experimental_theme_overrides: content.experimental_theme_overrides.clone(),
             theme_overrides: content.theme_overrides.clone(),
@@ -525,4 +523,96 @@ impl Settings for ThemeSettings {
                 .unwrap_or(0.3),
         }
     }
+}
+
+/// Build the resolved [`ThemeFonts`] from settings content. The
+/// `theme.fonts.{ui,mono}` schema is the single source of truth — flat
+/// `ui_font_*` / `buffer_font_*` fields no longer exist.
+fn build_theme_fonts(theme: &inazuma_settings_content::ThemeSettingsContent) -> ThemeFonts {
+    let ui_content = theme.fonts.as_ref().and_then(|f| f.ui.as_ref());
+    let mono_content = theme.fonts.as_ref().and_then(|f| f.mono.as_ref());
+
+    let ui_family = ui_content
+        .and_then(|c| c.family.as_ref())
+        .map(|f| f.0.clone().into())
+        .unwrap_or_else(|| ".CarrotSans".into());
+    let ui_size = clamp_font_size(
+        ui_content
+            .and_then(|c| c.size)
+            .unwrap_or(inazuma_settings_content::FontSize(15.0))
+            .into_inazuma(),
+    );
+    let ui_weight = ui_content
+        .and_then(|c| c.weight)
+        .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
+        .into_inazuma();
+    let ui_stretch = font_stretch_from_content(ui_content.and_then(|c| c.stretch));
+    let ui_features = ui_content
+        .and_then(|c| c.features.clone())
+        .unwrap_or_default()
+        .into_inazuma();
+    let ui_fallbacks = font_fallbacks_from_settings(ui_content.and_then(|c| c.fallbacks.clone()));
+
+    let mono_family = mono_content
+        .and_then(|c| c.family.as_ref())
+        .map(|f| f.0.clone().into())
+        .unwrap_or_else(|| ".CarrotMono".into());
+    let mono_size = clamp_font_size(
+        mono_content
+            .and_then(|c| c.size)
+            .unwrap_or(inazuma_settings_content::FontSize(14.0))
+            .into_inazuma(),
+    );
+    let mono_weight = mono_content
+        .and_then(|c| c.weight)
+        .unwrap_or(inazuma_settings_content::FontWeightContent(400.0))
+        .into_inazuma();
+    let mono_stretch = font_stretch_from_content(mono_content.and_then(|c| c.stretch));
+    let mono_features = mono_content
+        .and_then(|c| c.features.clone())
+        .unwrap_or_default()
+        .into_inazuma();
+    let mono_fallbacks =
+        font_fallbacks_from_settings(mono_content.and_then(|c| c.fallbacks.clone()));
+    let mono_line_height = mono_content
+        .and_then(|c| c.line_height)
+        .unwrap_or_default()
+        .into();
+    let mono_symbol_map = mono_content
+        .and_then(|c| c.symbol_map.as_ref())
+        .map(|entries| entries.iter().filter_map(|e| e.resolve()).collect())
+        .unwrap_or_default();
+
+    ThemeFonts {
+        ui: ResolvedUiFont {
+            font: Font {
+                family: ui_family,
+                features: ui_features,
+                fallbacks: ui_fallbacks,
+                weight: ui_weight,
+                style: FontStyle::default(),
+                stretch: ui_stretch,
+            },
+            size: ui_size,
+        },
+        mono: ResolvedMonoFont {
+            font: Font {
+                family: mono_family,
+                features: mono_features,
+                fallbacks: mono_fallbacks,
+                weight: mono_weight,
+                style: FontStyle::default(),
+                stretch: mono_stretch,
+            },
+            size: mono_size,
+            line_height: mono_line_height,
+            symbol_map: mono_symbol_map,
+        },
+    }
+}
+
+fn font_stretch_from_content(
+    stretch: Option<inazuma_settings_content::FontStretchContent>,
+) -> FontStretch {
+    stretch.map(|s| FontStretch(s.0)).unwrap_or_default()
 }

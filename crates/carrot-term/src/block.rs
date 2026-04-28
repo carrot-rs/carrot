@@ -16,6 +16,7 @@
 pub mod active;
 pub mod display;
 pub mod frozen;
+pub mod kind;
 pub mod live_frame;
 pub mod mode;
 pub mod render_view;
@@ -24,6 +25,7 @@ pub mod router;
 pub mod search;
 pub mod selection;
 pub mod state;
+pub mod text;
 pub mod tui_detector;
 pub mod vt_color;
 pub mod vt_report;
@@ -35,16 +37,20 @@ pub mod tests;
 pub use active::ActiveBlock;
 pub use display::{DisplayState, Scroll};
 pub use frozen::FrozenBlock;
+pub use kind::BlockKind;
 pub use live_frame::{LiveFrameRegion, LiveFrameSource};
 pub use mode::TermMode;
 pub use render_view::{ActiveBlockView, FrozenView, RenderView};
-pub use replay::ReplayBuffer;
+pub use replay::{ReplayBuffer, replay_frozen_block};
 pub use router::{
     ActiveTarget, BlockId, BlockRouter, RouterBlockMetadata, RouterEntry, RouterLimits,
 };
 pub use search::BlockSearchMatch;
 pub use selection::{BlockSelection, SelectionKind, Side};
 pub use state::{BlockState, BlockVariant};
+pub use text::{
+    append_cell, append_row, append_row_range, extract_block_lines, extract_block_text,
+};
 pub use tui_detector::{TuiAwareness, TuiDetector, TuiEffect};
 pub use vt_report::{ModeReportState, REPORT_CHANNEL_CAPACITY, VtReport, VtReportSink};
 pub use vt_writer::{VtWriter, VtWriterState};

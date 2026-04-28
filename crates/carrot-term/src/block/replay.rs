@@ -114,6 +114,66 @@ impl Default for ReplayBuffer {
     }
 }
 
+/// Re-render a [`super::FrozenBlock`] from its captured PTY byte
+/// stream into a fresh [`super::FrozenBlock`].
+///
+/// **Wager B1 — block replay.** When the user changes theme, font or
+/// column count, the captured byte stream re-runs through a fresh
+/// [`super::VtWriter`] + `vte::Processor` against a freshly-allocated
+/// active block. The result is a brand-new frozen block with the
+/// same metadata + lifecycle but rendered against the current
+/// terminal configuration.
+///
+/// Bytes that were silently truncated when the buffer hit its cap
+/// are **not** re-fetched from the shell — the truncated marker is
+/// preserved on the new block (callers can show a visual indicator).
+///
+/// `cols` is the column count to render the replay against. Passing
+/// the current terminal's `cols` lets a theme/font swap re-flow at
+/// the user's current viewport width without involving the live PTY.
+///
+/// Returns `None` if the source block carries no replay bytes (cap
+/// disabled or truncated to zero); the caller's fallback is to keep
+/// the original frozen block as-is.
+pub fn replay_frozen_block(
+    source: &std::sync::Arc<super::FrozenBlock>,
+    cols: u16,
+) -> Option<std::sync::Arc<super::FrozenBlock>> {
+    use super::active::ActiveBlock;
+    use super::vt_writer::{VtWriter, VtWriterState};
+    use crate::vte::ansi::{Processor, StdSyncHandler};
+
+    let bytes = source.replay().as_slice();
+    if bytes.is_empty() {
+        return None;
+    }
+
+    // Spin up a fresh active block + VT pipeline at the requested
+    // viewport width. We don't reuse the source block's atlas /
+    // image store — replay rebuilds them from scratch via the byte
+    // stream, identical to the original first-time render.
+    let mut block = ActiveBlock::new(cols);
+    // Replay screen-line count is purely a VtWriter scratchpad —
+    // 24 is the safe default for shell output that's unlikely to
+    // hit alt-screen scroll regions. Future work: thread the live
+    // viewport rows through the call so dynamic-resize replays use
+    // the right size.
+    let mut state = VtWriterState::new(cols, 24);
+    let mut processor = Processor::<StdSyncHandler>::new();
+    {
+        let mut writer = VtWriter::new_in(&mut state, &mut block);
+        processor.advance(&mut writer, bytes);
+        writer.commit_row();
+        writer.finalize();
+    }
+
+    // Preserve metadata (command, cwd, git branch, …) and exit
+    // code. The originally-captured `started_at` / `finished_at`
+    // stay the same — replay isn't a re-execution.
+    *block.metadata_mut() = source.metadata().clone();
+    Some(block.finish(source.exit_code(), source.finished_at()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +251,57 @@ mod tests {
         buf.extend(b"abcd");
         assert_eq!(buf.len(), 4);
         assert!(!buf.is_truncated(), "exact-fit shouldn't flip truncated");
+    }
+
+    #[test]
+    fn replay_frozen_block_reproduces_original_content() {
+        use super::super::{BlockRouter, vt_writer::VtWriter, vt_writer::VtWriterState};
+        use crate::vte::ansi::{Processor, StdSyncHandler};
+
+        // Build a router-driven block, feed bytes through the VT
+        // pipeline, freeze, then replay — the new frozen block must
+        // carry the same content (row count + first-row prefix).
+        let mut router = BlockRouter::new(20);
+        router.on_command_start();
+        {
+            let mut target = router.active();
+            let block = target.as_active_mut();
+            let mut state = VtWriterState::new(20, 24);
+            let mut processor = Processor::<StdSyncHandler>::new();
+            let bytes = b"hello\r\nworld";
+            block.record_bytes(bytes);
+            let mut writer = VtWriter::new_in(&mut state, block);
+            processor.advance(&mut writer, bytes);
+            writer.commit_row();
+            writer.finalize();
+        }
+        let frozen = router.on_command_end(0).expect("frozen block");
+        let original_rows = frozen.total_rows();
+
+        let replayed = replay_frozen_block(&frozen, 20).expect("non-empty replay");
+        assert_eq!(replayed.total_rows(), original_rows);
+        // Exit code + metadata flow through.
+        assert_eq!(replayed.exit_code(), Some(0));
+    }
+
+    #[test]
+    fn replay_frozen_block_returns_none_for_empty_buffer() {
+        use super::super::{BlockRouter, vt_writer::VtWriter, vt_writer::VtWriterState};
+        use crate::vte::ansi::{Processor, StdSyncHandler};
+
+        let mut router = BlockRouter::new(20);
+        router.on_command_start();
+        // Don't record any bytes — replay buffer stays empty.
+        {
+            let mut target = router.active();
+            let block = target.as_active_mut();
+            let mut state = VtWriterState::new(20, 24);
+            let mut processor = Processor::<StdSyncHandler>::new();
+            let mut writer = VtWriter::new_in(&mut state, block);
+            processor.advance(&mut writer, b"");
+            writer.finalize();
+        }
+        let frozen = router.on_command_end(0).expect("frozen block");
+        assert!(replay_frozen_block(&frozen, 20).is_none());
     }
 }

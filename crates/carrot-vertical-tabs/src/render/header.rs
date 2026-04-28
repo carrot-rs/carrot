@@ -44,12 +44,12 @@ impl VerticalTabsPanel {
                 Input::new(&self.search_input)
                     .prefix(
                         carrot_ui::Icon::new(IconName::MagnifyingGlass)
-                            .size(IconSize::XSmall)
+                            .size(IconSize::Small)
                             .color(carrot_ui::Color::Muted),
                     )
                     .appearance(false)
                     .bordered(false)
-                    .with_size(carrot_ui::Size::Small),
+                    .with_size(carrot_ui::Size::XSmall),
             )
             .child(
                 // Inline settings popup — mirrors the sidebar control

@@ -326,7 +326,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>", window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>", None, window, cx,
+            );
         })
     });
 
@@ -335,7 +337,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>!", None, window, cx,
+            );
         })
     });
 
@@ -354,7 +358,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, "'<,'>!", window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>!", None, window, cx,
+            );
         })
     });
 
@@ -870,7 +876,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             ".".to_string()
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::toggle(workspace, &n, window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, &n, None, window, cx,
+            );
         })
     });
 
@@ -2392,7 +2400,9 @@ impl Vim {
         });
         if let Some(command) = command {
             workspace.update(cx, |workspace, cx| {
-                carrot_command_palette::CommandPalette::toggle(workspace, &command, window, cx);
+                carrot_command_palette::CommandPalette::open_with_filter(
+                    workspace, &command, None, window, cx,
+                );
             });
         }
     }
@@ -2431,7 +2441,9 @@ impl Vim {
         });
         if let Some(command) = command {
             workspace.update(cx, |workspace, cx| {
-                carrot_command_palette::CommandPalette::toggle(workspace, &command, window, cx);
+                carrot_command_palette::CommandPalette::open_with_filter(
+                    workspace, &command, None, window, cx,
+                );
             });
         }
     }

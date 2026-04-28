@@ -606,6 +606,31 @@ fn pin_unknown_id_is_noop(cx: &mut TestAppContext) {
 }
 
 #[inazuma::test]
+fn remove_clears_pin_when_pinned_block_goes_away(cx: &mut TestAppContext) {
+    let _ = cx.add_empty_window();
+    let state = BlockState::new(BlockConfig::default());
+    let a = state.push(BlockMetadata::default(), None);
+    let b = state.push(BlockMetadata::default(), None);
+
+    state.pin(a);
+    assert_eq!(state.pinned_id(), Some(a));
+
+    // Removing the pinned block clears the pin — otherwise layout
+    // resolves the stale id to garbage.
+    state.remove(a);
+    assert_eq!(state.pinned_id(), None);
+
+    // Pinning the surviving block still works.
+    state.pin(b);
+    assert_eq!(state.pinned_id(), Some(b));
+
+    // Removing a non-pinned block leaves the pin alone.
+    let c = state.push(BlockMetadata::default(), None);
+    state.remove(c);
+    assert_eq!(state.pinned_id(), Some(b));
+}
+
+#[inazuma::test]
 fn visible_entries_reports_ids_in_viewport(cx: &mut TestAppContext) {
     let mut cx = cx.add_empty_window();
     let state = BlockState::new(

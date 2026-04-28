@@ -1,0 +1,482 @@
+//! Image-protocol payload parsers — terminal-image bytes → [`DecodedImage`].
+//!
+//! Three terminal image protocols share this module:
+//!
+//! - **iTerm2 Inline Images** (OSC 1337) — `\e]1337;File=key=value,…:base64\a`
+//!   This module's [`parse_iterm2_payload`] handles the key-value header
+//!   plus base64 + format-autodetect via the `image` crate.
+//! - **Kitty Graphics** (APC `\e_G…`) — uses [`decode_image_bytes`] on the
+//!   reassembled chunked payload (see Plan 31 A7.2 caller).
+//! - **Sixel** (DCS) — owns its own state-machine-driven decoder (Plan 31
+//!   A7.1), so it doesn't go through this module — it builds the
+//!   `DecodedImage::Rgba8` pixel buffer directly.
+//!
+//! All three end up writing into the per-block [`ImageStore`].
+
+use std::sync::Arc;
+
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+
+use crate::image::{DecodedImage, ImageFormat, Placement};
+
+/// Parsed iTerm2 OSC 1337 `File=` payload — key/value header + decoded
+/// image. Built by [`parse_iterm2_payload`]; the caller pushes the
+/// `image` plus a synthesised [`Placement`] into the active block's
+/// [`crate::ImageStore`].
+#[derive(Debug)]
+pub struct ITerm2Image {
+    pub image: Arc<DecodedImage>,
+    /// `File=name=BASE64` — base64-encoded filename (informational; some
+    /// clients render it as alt-text).
+    pub name: Option<String>,
+    /// `inline=1` flag. Almost always `true`; iTerm2 honours it as a
+    /// hint to display the image rather than offering download. We
+    /// preserve it so a future "save as" UI can branch on it.
+    pub inline: bool,
+    /// Cell width hint from `width=N` / `width=Npx` / `width=Nch` /
+    /// `width=auto`. `None` if the header didn't specify it.
+    pub width_cells: Option<u16>,
+    /// Cell height hint from `height=…`. Same units as `width_cells`.
+    pub height_cells: Option<u16>,
+    /// `preserveAspectRatio=1` flag. Defaults to `true` when absent.
+    pub preserve_aspect_ratio: bool,
+}
+
+/// Parse an iTerm2 OSC 1337 `File=…:base64` payload.
+///
+/// `payload` is the OSC body **after** the `1337;File=` prefix has been
+/// stripped — i.e. the `key=value,key=value,…:base64` part. The OSC
+/// terminator (BEL or `\e\\`) must already be removed.
+///
+/// Returns `None` if the payload is malformed: missing `:` separator,
+/// invalid base64, unrecognisable image format, or the decoded buffer
+/// is too small to be an image.
+///
+/// Reference: <https://iterm2.com/documentation-images.html>
+pub fn parse_iterm2_payload(payload: &[u8]) -> Option<ITerm2Image> {
+    // Header / data split on the first `:` byte. Some clients emit
+    // bare `1337;File=base64` without any header; treat that as
+    // empty-header + payload.
+    let split = payload.iter().position(|&b| b == b':');
+    let (header, data) = match split {
+        Some(ix) => (&payload[..ix], &payload[ix + 1..]),
+        None => (&[][..], payload),
+    };
+
+    let mut name: Option<String> = None;
+    let mut inline = false;
+    let mut width_cells: Option<u16> = None;
+    let mut height_cells: Option<u16> = None;
+    let mut preserve_aspect_ratio = true;
+
+    if !header.is_empty() {
+        let header_str = std::str::from_utf8(header).ok()?;
+        for kv in header_str.split([',', ';']) {
+            let Some(eq) = kv.find('=') else {
+                continue;
+            };
+            let key = kv[..eq].trim();
+            let value = kv[eq + 1..].trim();
+            match key {
+                "name" => {
+                    if let Ok(decoded) = STANDARD.decode(value) {
+                        name = String::from_utf8(decoded).ok();
+                    }
+                }
+                "inline" => inline = matches!(value, "1" | "true" | "yes"),
+                "width" => width_cells = parse_dimension_hint(value),
+                "height" => height_cells = parse_dimension_hint(value),
+                "preserveAspectRatio" => {
+                    preserve_aspect_ratio = !matches!(value, "0" | "false" | "no");
+                }
+                // size, type and other keys are advisory and ignored.
+                _ => {}
+            }
+        }
+    }
+
+    // base64 decode then format-detect via the `image` crate. iTerm2
+    // sends PNG / JPEG / GIF / TIFF / BMP — `image::guess_format` covers
+    // them all from the magic bytes.
+    let bytes = STANDARD.decode(data).ok()?;
+    let image = decode_image_bytes(&bytes)?;
+
+    Some(ITerm2Image {
+        image: Arc::new(image),
+        name,
+        inline,
+        width_cells,
+        height_cells,
+        preserve_aspect_ratio,
+    })
+}
+
+/// Decode raw image-format bytes (PNG / JPEG / GIF / BMP / TIFF / WebP)
+/// into a [`DecodedImage`] with `Rgba8` pixels — the canonical format
+/// the GPU upload pipeline expects. Returns `None` on unsupported
+/// formats or decode errors.
+///
+/// Used by both iTerm2 and Kitty Graphics paths once the protocol's
+/// transport (base64 / chunked) has been unwrapped to the raw image
+/// bytes.
+pub fn decode_image_bytes(bytes: &[u8]) -> Option<DecodedImage> {
+    let dyn_img = image::load_from_memory(bytes).ok()?;
+    let rgba = dyn_img.into_rgba8();
+    let (width, height) = rgba.dimensions();
+    let pixels = rgba.into_raw();
+    Some(DecodedImage::new(width, height, ImageFormat::Rgba8, pixels))
+}
+
+/// Parse a Kitty Graphics APC payload (`G[key=value,...];[base64]`)
+/// into a [`DecodedImage`].
+///
+/// `payload` is the APC body **after** the `\e_` introducer and **before**
+/// the `\e\\` terminator. The `G` opcode that identifies the Kitty
+/// Graphics protocol must be the first byte; other APC opcodes (e.g.
+/// custom shell-integration extensions) are caller-rejected upstream.
+///
+/// **Scope**: this implementation handles single-chunk transfers
+/// (`m=0` or no `m=` key). Chunked transfers (`m=1` continuation
+/// payloads) need accumulation across multiple APC sequences and are
+/// tracked separately by the consumer (Plan 31 A7.2 follow-up).
+///
+/// Format detection: `f=24` (RGB), `f=32` (RGBA), `f=100` (PNG /
+/// auto-detect via `image` crate). Other formats return `None`.
+///
+/// Reference: <https://sw.kovidgoyal.net/kitty/graphics-protocol/>
+pub fn parse_kitty_payload(payload: &[u8]) -> Option<DecodedImage> {
+    // First byte must be the `G` opcode.
+    let body = payload.strip_prefix(b"G")?;
+    let split = body.iter().position(|&b| b == b';')?;
+    let (header, data) = (&body[..split], &body[split + 1..]);
+
+    let mut format: u32 = 32;
+    let mut width: Option<u32> = None;
+    let mut height: Option<u32> = None;
+    let mut more_chunks = false;
+    if let Ok(header_str) = std::str::from_utf8(header) {
+        for kv in header_str.split(',') {
+            let Some(eq) = kv.find('=') else {
+                continue;
+            };
+            let (k, v) = (kv[..eq].trim(), kv[eq + 1..].trim());
+            match k {
+                "f" => format = v.parse().unwrap_or(32),
+                "s" => width = v.parse().ok(),
+                "v" => height = v.parse().ok(),
+                "m" => more_chunks = matches!(v, "1"),
+                // Other keys (a, i, q, S, V, x, y, …) are advisory or
+                // out-of-scope for the single-chunk decode path.
+                _ => {}
+            }
+        }
+    }
+    if more_chunks {
+        // Chunked transfers need accumulation across APC sequences —
+        // the upstream consumer handles that. We can't decode a
+        // partial payload.
+        return None;
+    }
+
+    let decoded = STANDARD.decode(data).ok()?;
+    match format {
+        100 => {
+            // PNG / auto-detect via `image` crate magic-bytes.
+            decode_image_bytes(&decoded)
+        }
+        24 => {
+            // Raw RGB. Width / height are mandatory in the spec.
+            let w = width? as usize;
+            let h = height? as usize;
+            if decoded.len() != w * h * 3 {
+                return None;
+            }
+            let mut rgba = Vec::with_capacity(w * h * 4);
+            for px in decoded.chunks_exact(3) {
+                rgba.extend_from_slice(&[px[0], px[1], px[2], 0xFF]);
+            }
+            Some(DecodedImage::new(
+                w as u32,
+                h as u32,
+                ImageFormat::Rgba8,
+                rgba,
+            ))
+        }
+        32 => {
+            // Raw RGBA.
+            let w = width? as usize;
+            let h = height? as usize;
+            if decoded.len() != w * h * 4 {
+                return None;
+            }
+            Some(DecodedImage::new(
+                w as u32,
+                h as u32,
+                ImageFormat::Rgba8,
+                decoded,
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// Decode a Sixel DCS sequence (`\eP[params]q[payload]\e\\`) into a
+/// [`DecodedImage`] with `Rgba8` pixels.
+///
+/// Wraps the [`icy_sixel`] crate. `bytes` is the full DCS envelope
+/// including the leading `\eP` and trailing `\e\\` — the scanner that
+/// invokes this hands the raw escape sequence over without stripping
+/// the introducer.
+///
+/// Returns `None` on malformed sequences or decoder errors. The Sixel
+/// data is rendered into RGBA at native pixel size; the consumer is
+/// responsible for placement (cell row × cell column count is derived
+/// from `width / cell_w_px` and `height / cell_h_px`).
+pub fn decode_sixel(bytes: &[u8]) -> Option<DecodedImage> {
+    let img = icy_sixel::SixelImage::decode(bytes).ok()?;
+    // icy_sixel is permissive — malformed or non-DCS input can still
+    // return an `Ok(SixelImage)` whose pixel buffer is empty or whose
+    // declared dims don't match the buffer length. Reject anything
+    // that wouldn't survive `DecodedImage::expected_len()`.
+    let expected = img.width * img.height * 4;
+    if expected == 0 || img.pixels.len() != expected {
+        return None;
+    }
+    Some(DecodedImage::new(
+        img.width as u32,
+        img.height as u32,
+        ImageFormat::Rgba8,
+        img.pixels,
+    ))
+}
+
+/// Build a [`Placement`] from a top-of-block anchor + cell dims +
+/// optional iTerm2 width/height hints.
+///
+/// The terminal-side caller (where the image marker lands in the
+/// active block) holds the current cursor row + viewport metrics.
+/// Hints are clamped: at most `max_cols` wide, at most `max_rows`
+/// tall. When both hints are absent the image consumes its native
+/// pixel size mapped through `cell_w_px` / `cell_h_px`.
+pub fn placement_from_iterm2(
+    img: &ITerm2Image,
+    row_start: u32,
+    col_start: u16,
+    cell_w_px: u16,
+    cell_h_px: u16,
+    max_rows: u16,
+    max_cols: u16,
+) -> Placement {
+    let native_cols =
+        ((img.image.width as u16).saturating_add(cell_w_px.saturating_sub(1))) / cell_w_px.max(1);
+    let native_rows =
+        ((img.image.height as u16).saturating_add(cell_h_px.saturating_sub(1))) / cell_h_px.max(1);
+    let cols = img.width_cells.unwrap_or(native_cols).clamp(1, max_cols);
+    let rows = img.height_cells.unwrap_or(native_rows).clamp(1, max_rows);
+    Placement {
+        row_start,
+        col_start,
+        rows,
+        cols,
+        offset_x: 0,
+        offset_y: 0,
+        external_id: 0,
+    }
+}
+
+/// Parse iTerm2's width/height tokens. Accepts:
+///
+/// - `N` (raw cell count, decimal),
+/// - `Nch` (cell count),
+/// - `Npx` (pixel count, divided into cells later by the caller),
+/// - `auto` / `N%` (percentage) — currently treated as "no hint".
+fn parse_dimension_hint(value: &str) -> Option<u16> {
+    if value == "auto" || value.is_empty() || value.ends_with('%') {
+        return None;
+    }
+    let trimmed = value
+        .strip_suffix("ch")
+        .or_else(|| value.strip_suffix("px"))
+        .unwrap_or(value);
+    trimmed.parse::<u16>().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 1×1 transparent PNG (smallest legal IHDR + IDAT). base64-encoded.
+    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
+    #[test]
+    fn parse_minimal_payload_with_no_header() {
+        let payload = format!(":{TINY_PNG_B64}");
+        let img = parse_iterm2_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.image.width, 1);
+        assert_eq!(img.image.height, 1);
+        assert_eq!(img.image.format, ImageFormat::Rgba8);
+        assert!(!img.inline);
+        assert!(img.preserve_aspect_ratio);
+    }
+
+    #[test]
+    fn parse_full_header_with_inline_and_dimensions() {
+        let payload = format!(
+            "name={};inline=1;width=4;height=2:{}",
+            STANDARD.encode("hello.png"),
+            TINY_PNG_B64
+        );
+        let img = parse_iterm2_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.name.as_deref(), Some("hello.png"));
+        assert!(img.inline);
+        assert_eq!(img.width_cells, Some(4));
+        assert_eq!(img.height_cells, Some(2));
+    }
+
+    #[test]
+    fn header_separators_can_be_comma_or_semicolon() {
+        let payload = format!("inline=1,width=3,height=1:{TINY_PNG_B64}");
+        let img = parse_iterm2_payload(payload.as_bytes()).unwrap();
+        assert!(img.inline);
+        assert_eq!(img.width_cells, Some(3));
+    }
+
+    #[test]
+    fn invalid_base64_returns_none() {
+        let payload = b":not_valid_base64!!!".to_vec();
+        assert!(parse_iterm2_payload(&payload).is_none());
+    }
+
+    #[test]
+    fn empty_payload_returns_none() {
+        assert!(parse_iterm2_payload(b":").is_none());
+    }
+
+    #[test]
+    fn dimension_hint_accepts_ch_and_px_suffix() {
+        assert_eq!(parse_dimension_hint("12"), Some(12));
+        assert_eq!(parse_dimension_hint("8ch"), Some(8));
+        assert_eq!(parse_dimension_hint("64px"), Some(64));
+        assert_eq!(parse_dimension_hint("auto"), None);
+        assert_eq!(parse_dimension_hint("50%"), None);
+        assert_eq!(parse_dimension_hint(""), None);
+    }
+
+    #[test]
+    fn placement_uses_explicit_hints_when_present() {
+        let payload = format!("inline=1;width=5;height=3:{TINY_PNG_B64}");
+        let img = parse_iterm2_payload(payload.as_bytes()).unwrap();
+        let p = placement_from_iterm2(&img, 0, 2, 8, 16, 100, 200);
+        assert_eq!(p.cols, 5);
+        assert_eq!(p.rows, 3);
+        assert_eq!(p.col_start, 2);
+        assert_eq!(p.row_start, 0);
+    }
+
+    #[test]
+    fn placement_clamps_to_viewport_caps() {
+        let payload = format!("inline=1;width=99;height=99:{TINY_PNG_B64}");
+        let img = parse_iterm2_payload(payload.as_bytes()).unwrap();
+        let p = placement_from_iterm2(&img, 0, 0, 8, 16, 10, 12);
+        assert_eq!(p.cols, 12);
+        assert_eq!(p.rows, 10);
+    }
+
+    #[test]
+    fn placement_falls_back_to_native_pixel_dims() {
+        let payload = format!(":{TINY_PNG_B64}");
+        let img = parse_iterm2_payload(payload.as_bytes()).unwrap();
+        // 1×1 px image at 8×16 cell px ⇒ 1 col × 1 row (ceil division).
+        let p = placement_from_iterm2(&img, 0, 0, 8, 16, 100, 200);
+        assert_eq!(p.cols, 1);
+        assert_eq!(p.rows, 1);
+    }
+
+    #[test]
+    fn decode_minimal_sixel_returns_rgba_pixels() {
+        // Smallest legal Sixel: \eP q !N? \e\\ — single sixel band of
+        // 1 transparent pixel. icy_sixel returns a non-empty RGBA buffer.
+        // We construct a basic 2x2 pattern with a single color register.
+        // `\eP q "1;1;2;2 #0;2;100;0;0 #0!2~ -!2~ \e\\`
+        // - DCS introducer: \eP, raster: 1;1;2;2 (aspect num/den, h-grid w-grid)
+        // - q starts the data, "1;1;2;2 sets raster attributes
+        // - #0;2;100;0;0 — color reg 0 = HLS (100,0,0) red
+        // - #0!2~ — color 0, RLE 2× sixel ~ (top row of 6-pixel band)
+        // - - newline / next band
+        // - !2~ — RLE 2× same on next band row
+        let dcs = b"\x1bP1;1;0q\"1;1;2;2#0;2;100;0;0#0!2~-!2~\x1b\\";
+        let img = decode_sixel(dcs).expect("sixel decoded");
+        assert_eq!(img.format, ImageFormat::Rgba8);
+        // RGBA bytes: 4 per pixel, width × height pixels.
+        assert_eq!(img.pixels.len(), (img.width * img.height * 4) as usize);
+        assert!(img.width > 0 && img.height > 0);
+    }
+
+    // Note: `icy_sixel` is permissive — empty / non-DCS input still
+    // returns an `Ok(SixelImage)` (typically a 1×1 placeholder) rather
+    // than an `Err`. We don't try to filter "garbage" here because the
+    // upstream pre-scanner only invokes `decode_sixel` after recognising
+    // a `\eP...q...\e\\` DCS envelope — non-DCS bytes never reach this
+    // function in production.
+
+    #[test]
+    fn parse_kitty_png_single_chunk() {
+        let payload = format!("Gf=100,a=T;{TINY_PNG_B64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 1);
+        assert_eq!(img.height, 1);
+        assert_eq!(img.format, ImageFormat::Rgba8);
+    }
+
+    #[test]
+    fn parse_kitty_rgba_raw() {
+        // 2×2 transparent black, raw RGBA.
+        let raw_rgba = vec![0u8; 16];
+        let b64 = STANDARD.encode(&raw_rgba);
+        let payload = format!("Gf=32,s=2,v=2;{b64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 2);
+        assert_eq!(img.pixels.len(), 16);
+    }
+
+    #[test]
+    fn parse_kitty_rgb_raw_expands_to_rgba() {
+        // 2×1 RGB → opaque alpha appended.
+        let raw_rgb = vec![0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00];
+        let b64 = STANDARD.encode(&raw_rgb);
+        let payload = format!("Gf=24,s=2,v=1;{b64}");
+        let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 1);
+        assert_eq!(
+            img.pixels,
+            vec![0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]
+        );
+    }
+
+    #[test]
+    fn parse_kitty_rejects_chunked_continuation() {
+        let b64 = STANDARD.encode(b"first chunk");
+        let payload = format!("Gf=100,m=1;{b64}");
+        // Chunked transfers must be accumulated upstream — single
+        // chunk parser correctly rejects partial payloads.
+        assert!(parse_kitty_payload(payload.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn parse_kitty_missing_g_opcode_returns_none() {
+        // APC payload that is not Kitty Graphics — e.g. some custom
+        // tool's APC abuse — must not be misinterpreted.
+        assert!(parse_kitty_payload(b"X;notbase64").is_none());
+    }
+
+    #[test]
+    fn parse_kitty_rejects_size_mismatch() {
+        // f=32 with 4×4 declared but only 4 bytes payload.
+        let b64 = STANDARD.encode(&[0u8; 4]);
+        let payload = format!("Gf=32,s=4,v=4;{b64}");
+        assert!(parse_kitty_payload(payload.as_bytes()).is_none());
+    }
+}

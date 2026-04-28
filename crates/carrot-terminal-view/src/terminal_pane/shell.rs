@@ -79,11 +79,10 @@ impl TerminalPane {
                         self.current_git_root = new_git_root;
                     }
 
-                    if cwd_changed
-                        && let Some(project) = self.project.as_ref().and_then(|p| p.upgrade())
-                    {
+                    if cwd_changed {
                         use carrot_shell::scope_policy::{ProjectKind, WorktreeRoot, classify};
                         use inazuma_settings_framework::Settings as _;
+
                         let classification = classify(&new_cwd);
                         let (worktree_path, detected_kind) = match &classification {
                             WorktreeRoot::ProjectLike { root, kind, .. } => {
@@ -91,41 +90,52 @@ impl TerminalPane {
                             }
                             WorktreeRoot::AdHoc { cwd } => (cwd.clone(), None),
                         };
-                        let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
-                            let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
-                            scope
-                                .git_track_decision(&worktree_path)
-                                .should_track_immediately()
-                        };
-                        project.update(cx, |project, cx| {
-                            if should_track {
-                                project
-                                    .ensure_tracked_worktree(&worktree_path, cx)
-                                    .detach_and_log_err(cx);
-                            } else {
-                                project
-                                    .ensure_browseable_worktree(&worktree_path, cx)
-                                    .detach_and_log_err(cx);
-                            }
-                        });
-                        if let Some(kind) = detected_kind
-                            && !should_track
-                        {
-                            let notify = match kind {
-                                ProjectKind::Git => {
-                                    carrot_settings::WorktreeScopeSettings::get_global(cx)
-                                        .git_track_decision(&worktree_path)
-                                        .is_ask()
-                                }
-                                ProjectKind::AgentRules => true,
-                                ProjectKind::Manifest(_) => false,
+
+                        if self.focus_handle.contains_focused(window, cx) {
+                            carrot_session::command_history::ActiveTerminalScope::set_global(
+                                new_cwd.clone(),
+                                worktree_path.clone(),
+                                cx,
+                            );
+                        }
+
+                        if let Some(project) = self.project.as_ref().and_then(|p| p.upgrade()) {
+                            let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
+                                let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
+                                scope
+                                    .git_track_decision(&worktree_path)
+                                    .should_track_immediately()
                             };
-                            if notify {
-                                cx.emit(TerminalPaneEvent::ProjectDetected {
-                                    root: worktree_path.clone(),
-                                    kind,
-                                });
-                                self.show_project_detected_toast(worktree_path, kind, cx);
+                            project.update(cx, |project, cx| {
+                                if should_track {
+                                    project
+                                        .ensure_tracked_worktree(&worktree_path, cx)
+                                        .detach_and_log_err(cx);
+                                } else {
+                                    project
+                                        .ensure_browseable_worktree(&worktree_path, cx)
+                                        .detach_and_log_err(cx);
+                                }
+                            });
+                            if let Some(kind) = detected_kind
+                                && !should_track
+                            {
+                                let notify = match kind {
+                                    ProjectKind::Git => {
+                                        carrot_settings::WorktreeScopeSettings::get_global(cx)
+                                            .git_track_decision(&worktree_path)
+                                            .is_ask()
+                                    }
+                                    ProjectKind::AgentRules => true,
+                                    ProjectKind::Manifest(_) => false,
+                                };
+                                if notify {
+                                    cx.emit(TerminalPaneEvent::ProjectDetected {
+                                        root: worktree_path.clone(),
+                                        kind,
+                                    });
+                                    self.show_project_detected_toast(worktree_path, kind, cx);
+                                }
                             }
                         }
                     }
@@ -256,6 +266,49 @@ impl TerminalPane {
             carrot_terminal::ShellMarker::AgentEditActive => {
                 // OSC 133 ;L — consumed by `carrot-cmdline`'s AI
                 // ghost-text suppression path, no-op here.
+            }
+            carrot_terminal::ShellMarker::ImageInlineITerm2(payload) => {
+                use carrot_grid::{parse_iterm2_payload, placement_from_iterm2};
+                let Some(parsed) = parse_iterm2_payload(&payload) else {
+                    log::warn!("Failed to parse OSC 1337 iTerm2 image payload");
+                    return;
+                };
+                let handle = self.terminal.handle();
+                let mut term = handle.lock();
+                let viewport_cols = term.columns() as u16;
+                let viewport_rows = term.screen_lines() as u16;
+                if let carrot_term::block::ActiveTarget::Block { block, .. } =
+                    term.block_router_mut().active()
+                {
+                    let row_start = block.grid().total_rows() as u32;
+                    let placement = placement_from_iterm2(
+                        &parsed,
+                        row_start,
+                        0,
+                        IMAGE_CELL_W_PX,
+                        IMAGE_CELL_H_PX,
+                        viewport_rows,
+                        viewport_cols,
+                    );
+                    install_image_into_block(block, parsed.image, placement, viewport_cols);
+                }
+                cx.notify();
+            }
+            carrot_terminal::ShellMarker::ImageInlineSixel(payload) => {
+                use carrot_grid::decode_sixel;
+                let Some(decoded) = decode_sixel(&payload) else {
+                    log::warn!("Failed to decode Sixel DCS payload");
+                    return;
+                };
+                self.install_protocol_image(decoded, cx);
+            }
+            carrot_terminal::ShellMarker::ImageInlineKitty(payload) => {
+                use carrot_grid::parse_kitty_payload;
+                let Some(decoded) = parse_kitty_payload(&payload) else {
+                    log::warn!("Failed to decode Kitty Graphics APC payload");
+                    return;
+                };
+                self.install_protocol_image(decoded, cx);
             }
         }
     }
@@ -462,3 +515,81 @@ impl TerminalPane {
 const _: fn() = || {
     let _ = std::mem::size_of::<InputState>;
 };
+
+/// Approximate cell-pixel dimensions used by the image-protocol
+/// dispatch to derive `Placement.rows / .cols` from native pixel
+/// sizes. The renderer scales to the actual cell dims at paint time
+/// — these constants only sway the auto-fit clamp math.
+const IMAGE_CELL_W_PX: u16 = 8;
+const IMAGE_CELL_H_PX: u16 = 16;
+
+/// Push a decoded image into the active block's `ImageStore` and
+/// reserve the corresponding `Placement.rows × Placement.cols` cells
+/// with `Cell::image(idx)` (Cell-Tag 4). The renderer's image-pass
+/// skips text emission for those cells and emits a textured quad in
+/// their place.
+fn install_image_into_block(
+    block: &mut carrot_term::block::ActiveBlock,
+    image: std::sync::Arc<carrot_grid::DecodedImage>,
+    placement: carrot_grid::Placement,
+    viewport_cols: u16,
+) {
+    use carrot_grid::{Cell, CellStyleId};
+    let placement_rows = placement.rows;
+    let placement_cols = placement.cols;
+    let image_idx = block.images_mut().push(image, placement);
+    let style = CellStyleId(0);
+    for _ in 0..placement_rows {
+        let row: Vec<Cell> = (0..placement_cols)
+            .map(|_| Cell::image(image_idx, style))
+            .chain(std::iter::repeat_n(
+                Cell::default(),
+                viewport_cols.saturating_sub(placement_cols) as usize,
+            ))
+            .collect();
+        block.grid_mut().append_row(&row);
+    }
+}
+
+impl TerminalPane {
+    /// Hook for protocol image markers (Sixel + Kitty Graphics) that
+    /// don't carry a width/height hint of their own. Derives placement
+    /// from the native pixel dimensions of the decoded image, clamping
+    /// to the current viewport, and forwards to
+    /// `install_image_into_block`.
+    fn install_protocol_image(
+        &self,
+        decoded: carrot_grid::DecodedImage,
+        cx: &mut inazuma::Context<Self>,
+    ) {
+        let handle = self.terminal.handle();
+        let mut term = handle.lock();
+        let viewport_cols = term.columns() as u16;
+        let viewport_rows = term.screen_lines() as u16;
+        if let carrot_term::block::ActiveTarget::Block { block, .. } =
+            term.block_router_mut().active()
+        {
+            let row_start = block.grid().total_rows() as u32;
+            let native_cols = ((decoded.width as u16) + IMAGE_CELL_W_PX.saturating_sub(1))
+                / IMAGE_CELL_W_PX.max(1);
+            let native_rows = ((decoded.height as u16) + IMAGE_CELL_H_PX.saturating_sub(1))
+                / IMAGE_CELL_H_PX.max(1);
+            let placement = carrot_grid::Placement {
+                row_start,
+                col_start: 0,
+                rows: native_rows.clamp(1, viewport_rows),
+                cols: native_cols.clamp(1, viewport_cols),
+                offset_x: 0,
+                offset_y: 0,
+                external_id: 0,
+            };
+            install_image_into_block(
+                block,
+                std::sync::Arc::new(decoded),
+                placement,
+                viewport_cols,
+            );
+        }
+        cx.notify();
+    }
+}

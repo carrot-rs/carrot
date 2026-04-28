@@ -455,7 +455,7 @@ impl Render for ProfilerWindow {
         window: &mut inazuma::Window,
         cx: &mut inazuma::Context<Self>,
     ) -> impl inazuma::IntoElement {
-        let ui_font = carrot_theme_settings::setup_ui_font(window, cx);
+        let ui_font = carrot_theme_settings::setup_body_font(window, cx);
         if !self.paused {
             self.poll_timings(cx);
             window.request_animation_frame();

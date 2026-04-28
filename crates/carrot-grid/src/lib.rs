@@ -16,14 +16,17 @@ pub mod cell;
 pub mod cell_id;
 pub mod color;
 pub mod compress;
+pub mod coordinates;
 pub mod custom_render;
 pub mod grapheme;
 pub mod hyperlink;
 pub mod image;
+pub mod image_protocols;
 pub mod page;
 pub mod page_list;
 pub mod reflow;
 pub mod search;
+pub mod snapshot;
 pub mod style;
 pub mod tabstops;
 
@@ -31,12 +34,17 @@ pub use cell::{Cell, CellFlags, CellStyleId, CellTag, GraphemeIndex, ImageIndex,
 pub use cell_id::{CellId, CellIdRow, CellIdSpan};
 pub use color::{Color, NamedColor, rgb_to_oklch};
 pub use compress::{CompressError, CompressedCells, compress, decompress};
+pub use coordinates::{GridBounds, RowAddr};
 pub use custom_render::{
     CustomDraw, CustomRenderIndex, CustomRenderRect, CustomRenderRegistry, CustomRenderer,
 };
 pub use grapheme::GraphemeStore;
 pub use hyperlink::{HyperlinkId, HyperlinkStore};
 pub use image::{DecodedImage, ImageEntry, ImageFormat, ImageStore, Placement};
+pub use image_protocols::{
+    ITerm2Image, decode_image_bytes, decode_sixel, parse_iterm2_payload, parse_kitty_payload,
+    placement_from_iterm2,
+};
 pub use page::{Page, PageCapacity};
 pub use page_list::{PageList, RowIter};
 pub use reflow::{
@@ -44,5 +52,6 @@ pub use reflow::{
     ThreadedReflowDriver,
 };
 pub use search::{SearchMatch, SearchOptions, search_cells};
+pub use snapshot::BlockSnapshot;
 pub use style::{CellStyle, CellStyleAtlas, CellStyleFlags};
 pub use tabstops::{INITIAL_TABSTOPS, TabStops};

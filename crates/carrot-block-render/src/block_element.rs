@@ -4,9 +4,9 @@
 //! # Scope
 //!
 //! Minimal text + background-quad rendering. The element takes a
-//! [`RenderSnapshot`] (owned block data), a font + cell dimensions, and
-//! emits per-cell draws via the existing `Window::paint_glyph` +
-//! `Window::paint_quad` APIs.
+//! [`carrot_grid::BlockSnapshot`] (owned block data), a font + cell
+//! dimensions, and emits per-cell draws via the existing
+//! `Window::paint_glyph` + `Window::paint_quad` APIs.
 //!
 //! Out of scope for F.2 (later F.x phases):
 //! - MSDF glyph atlas (F.4) — uses Inazuma's CoreText / DirectWrite /
@@ -19,83 +19,20 @@
 //!
 //! # Ownership
 //!
-//! This first cut takes an owned [`RenderSnapshot`] because Inazuma's
-//! `Element` trait requires the Self type to be `'static`. Callers
-//! build the snapshot once per frame from their `ActiveBlock` /
-//! `FrozenBlock` — the copy cost is one memcpy per visible row, which
-//! is acceptable.
+//! This first cut takes an owned [`carrot_grid::BlockSnapshot`] because
+//! Inazuma's `Element` trait requires the Self type to be `'static`.
+//! Callers build the snapshot once per frame from their `ActiveBlock`
+//! / `FrozenBlock` — the copy cost is one memcpy per visible row,
+//! which is acceptable.
 
 use inazuma::{
     App, Bounds, Element, Font, FontId, GlobalElementId, GlyphId, InspectorElementId, IntoElement,
     LayoutId, Oklch, Pixels, Point, Style, Window, fill, oklcha, point, px, relative, size,
 };
 
-use carrot_grid::{Cell, CellStyle, CellTag, PageList};
+use carrot_grid::{BlockSnapshot, CellTag};
 
 use crate::soft_wrap;
-
-/// Owned per-frame snapshot of block data the element will render.
-///
-/// Built by the consumer immediately before constructing the element.
-/// Keeps the [`Element`] impl `'static` without requiring the full
-/// block to be `Arc`-wrapped (that optimisation lands in F.3).
-#[derive(Clone)]
-pub struct RenderSnapshot {
-    /// Rows of cells in data order (first row at index 0). Each row
-    /// should have the same length (= source block cols).
-    pub rows: Vec<Vec<Cell>>,
-    /// Cell-style atlas snapshot indexed by `CellStyleId.0 as usize`. Index 0
-    /// must be the default style.
-    pub atlas: Vec<CellStyle>,
-}
-
-impl RenderSnapshot {
-    /// Empty snapshot — renders as a zero-height empty element.
-    pub fn empty() -> Self {
-        Self {
-            rows: Vec::new(),
-            atlas: vec![CellStyle::DEFAULT],
-        }
-    }
-
-    /// Build a snapshot from already-owned row data. The common
-    /// Phase-G caller (`carrot-terminal-view::block_list`) extracts
-    /// rows via `block::RenderView` and has nothing to gain from
-    /// re-cloning via `from_grid`. Kept generic on purpose —
-    /// `carrot-block-render` cannot depend on `carrot-term`, so the
-    /// constructor signature stays primitive.
-    pub fn from_owned(rows: Vec<Vec<Cell>>, atlas: Vec<CellStyle>) -> Self {
-        Self { rows, atlas }
-    }
-
-    /// Build a snapshot from the `carrot-grid` data model: walks every
-    /// row in the page list and clones into a flat `Vec<Vec<Cell>>`.
-    /// The atlas slice is copied once.
-    ///
-    /// Intended for consumers that hold an `Arc<FrozenBlock>` or a
-    /// live `ActiveBlock` and want to feed [`BlockElement`] a single
-    /// owned value per frame. Row count and cell width match the
-    /// source `PageList` exactly — no soft-wrap here, that's the
-    /// element's job.
-    pub fn from_grid(pages: &PageList, atlas: &[CellStyle]) -> Self {
-        let total = pages.total_rows();
-        let mut rows = Vec::with_capacity(total);
-        for row in pages.rows(0, total) {
-            rows.push(row.to_vec());
-        }
-        Self {
-            rows,
-            atlas: atlas.to_vec(),
-        }
-    }
-
-    fn style(&self, id: carrot_grid::CellStyleId) -> CellStyle {
-        self.atlas
-            .get(id.0 as usize)
-            .copied()
-            .unwrap_or(CellStyle::DEFAULT)
-    }
-}
 
 /// Per-cell glyph resolved during prepaint, drawn during paint.
 struct CellGlyph {
@@ -178,7 +115,7 @@ pub struct BlockPrepaintState {
 
 /// Inazuma element that renders one terminal block.
 pub struct BlockElement {
-    snapshot: RenderSnapshot,
+    snapshot: BlockSnapshot,
     font: Font,
     font_size: Pixels,
     line_height_multiplier: f32,
@@ -221,7 +158,7 @@ pub type GridOriginStore = std::rc::Rc<std::cell::Cell<Option<Pixels>>>;
 
 impl BlockElement {
     pub fn new(
-        snapshot: RenderSnapshot,
+        snapshot: BlockSnapshot,
         font: Font,
         font_size: Pixels,
         line_height_multiplier: f32,
@@ -428,9 +365,10 @@ impl Element for BlockElement {
                                     origin: point(x, y + ascent),
                                     font_id,
                                     glyph_id,
-                                    color: oklch_from_arr(self.palette.resolve(
+                                    color: oklch_from_arr(self.palette.resolve_styled(
                                         style.fg,
                                         crate::palette::DefaultSlot::Foreground,
+                                        style.flags.contains(carrot_grid::CellStyleFlags::BOLD),
                                     )),
                                 });
                             }
@@ -503,7 +441,7 @@ fn same_color(a: Oklch, b: Oklch) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use carrot_grid::{CellStyleAtlas, CellStyleId, PageCapacity};
+    use carrot_grid::{Cell, CellStyle, CellStyleAtlas, CellStyleId, PageCapacity, PageList};
 
     fn row(cols: u16, byte: u8) -> Vec<Cell> {
         (0..cols)
@@ -513,7 +451,7 @@ mod tests {
 
     #[test]
     fn empty_snapshot_has_one_atlas_entry_and_zero_rows() {
-        let snap = RenderSnapshot::empty();
+        let snap = BlockSnapshot::empty();
         assert_eq!(snap.rows.len(), 0);
         assert_eq!(snap.atlas.len(), 1);
         assert_eq!(snap.atlas[0], CellStyle::DEFAULT);
@@ -527,7 +465,7 @@ mod tests {
             pages.append_row(&row(4, b));
         }
         let atlas = CellStyleAtlas::new();
-        let snap = RenderSnapshot::from_grid(&pages, atlas.as_slice());
+        let snap = BlockSnapshot::from_pages(&pages, atlas.as_slice());
         assert_eq!(snap.rows.len(), 3);
         assert_eq!(snap.rows[0][0].content(), b'a' as u32);
         assert_eq!(snap.rows[1][0].content(), b'b' as u32);
@@ -541,7 +479,7 @@ mod tests {
         let cap = PageCapacity::new(4, 128);
         let pages = PageList::new(cap);
         let atlas = CellStyleAtlas::new();
-        let snap = RenderSnapshot::from_grid(&pages, atlas.as_slice());
+        let snap = BlockSnapshot::from_pages(&pages, atlas.as_slice());
         assert!(snap.rows.is_empty());
         assert_eq!(snap.atlas.len(), 1);
     }

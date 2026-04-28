@@ -34,6 +34,10 @@ pub struct FrozenBlock {
     /// re-rendering on font / theme change without re-running the
     /// command, and debug replay for support tickets.
     replay: ReplayBuffer,
+    /// Lifecycle marker carried over from the active block. See
+    /// [`super::kind::BlockKind`] — sticky once set, even if the live
+    /// frame was cleared before `finish()` ran.
+    kind: super::kind::BlockKind,
 }
 
 impl FrozenBlock {
@@ -48,6 +52,7 @@ impl FrozenBlock {
         exit_code: Option<i32>,
         finished_at: Option<Instant>,
         replay: ReplayBuffer,
+        kind: super::kind::BlockKind,
     ) -> Self {
         Self {
             grid,
@@ -59,7 +64,15 @@ impl FrozenBlock {
             exit_code,
             finished_at,
             replay,
+            kind,
         }
+    }
+
+    /// Lifecycle marker — `Shell` for ordinary commands, `Tui` if the
+    /// block had any TUI activity before freezing.
+    #[inline]
+    pub fn kind(&self) -> super::kind::BlockKind {
+        self.kind
     }
 
     /// Access the frozen page list (immutable).

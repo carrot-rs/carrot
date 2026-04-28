@@ -576,6 +576,7 @@ mod tests {
             family: "Arial".into(),
             weight: FontWeight::default(),
             style: FontStyle::Normal,
+            stretch: inazuma::FontStretch::default(),
             features: FontFeatures::default(),
             fallbacks: None,
         };
@@ -785,6 +786,7 @@ mod tests {
             family: "Arial".into(),
             weight: FontWeight::default(),
             style: FontStyle::Normal,
+            stretch: inazuma::FontStretch::default(),
             features: FontFeatures::default(),
             fallbacks: None,
         };

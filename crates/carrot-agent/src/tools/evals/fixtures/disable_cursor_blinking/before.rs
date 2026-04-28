@@ -193,7 +193,7 @@ use inazuma_sum_tree::TreeMap;
 use inazuma_text::{BufferId, FromAnchor, OffsetUtf16, Rope};
 use carrot_theme::{
     ActiveTheme, PlayerColor, StatusColors, SyntaxTheme, ThemeColors, ThemeSettings,
-    observe_buffer_font_size_adjustment,
+    observe_mono_font_size_adjustment,
 };
 use carrot_ui::{
     ButtonSize, ButtonStyle, ContextMenu, Disclosure, IconButton, IconButtonShape, IconName,
@@ -1776,7 +1776,7 @@ impl Editor {
                 cx.observe_in(&display_map, window, Self::on_display_map_changed),
                 cx.observe(&blink_manager, |_, _, cx| cx.notify()),
                 cx.observe_global_in::<SettingsStore>(window, Self::settings_changed),
-                observe_buffer_font_size_adjustment(cx, |_, cx| cx.notify()),
+                observe_mono_font_size_adjustment(cx, |_, cx| cx.notify()),
                 cx.observe_window_activation(window, |editor, window, cx| {
                     let active = window.is_window_active();
                     editor.blink_manager.update(cx, |blink_manager, cx| {

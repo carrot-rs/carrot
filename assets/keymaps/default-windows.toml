@@ -10,8 +10,9 @@ context = ""
 [section.bindings]
 "alt-f4" = "carrot::Quit"
 "ctrl-," = "carrot::OpenSettings"
-"ctrl-shift-p" = "carrot::ToggleCommandPalette"
-"ctrl-p" = "command_search::ToggleCommandSearch"
+"ctrl-p" = "command_palette::Toggle"
+"ctrl-shift-p" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Sessions" } }
+"ctrl-r" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "History" } }
 "ctrl-t" = "theme_selector::Toggle"
 "ctrl-shift-n" = "carrot::NewWindow"
 "ctrl-shift-w" = "carrot::CloseWindow"
@@ -25,7 +26,7 @@ context = ""
 context = "Workspace"
 
 [section.bindings]
-"ctrl-o" = "file_finder::Toggle"
+"ctrl-o" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Files" } }
 "ctrl-shift-t" = "workspace::NewTerminal"
 "ctrl-d" = "pane::SplitAndMoveRight"
 "ctrl-shift-d" = "pane::SplitAndMoveDown"

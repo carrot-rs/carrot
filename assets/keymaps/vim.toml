@@ -526,7 +526,7 @@ context = "(vim_mode == helix_normal || vim_mode == helix_select) && !menu"
 "space w d" = "pane::SplitDown" # not a helix default
 
 # Space mode
-"space f" = "file_finder::Toggle"
+"space f" = { action = "command_palette::ToggleWithFilter", data = { category_filter = "Files" } }
 "space k" = "editor::Hover"
 "space s" = "outline::Toggle"
 "space shift-s" = "project_symbols::Toggle"

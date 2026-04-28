@@ -34,7 +34,6 @@ carrot-cli-agents = { workspace = true }
 carrot-client = { workspace = true }
 carrot-collab-ui = { workspace = true }
 carrot-command-palette = { workspace = true }
-carrot-command-search = { workspace = true }
 carrot-completions = { path = "../carrot-completions" }
 carrot-crashes = { workspace = true }
 carrot-credentials-provider = { workspace = true }
@@ -48,7 +47,6 @@ carrot-encoding-selector = { workspace = true }
 carrot-extension-host = { workspace = true }
 carrot-feature-flags = { workspace = true }
 carrot-feedback = { workspace = true }
-carrot-file-finder = { workspace = true }
 carrot-fs = { workspace = true }
 carrot-git-ui = { workspace = true }
 carrot-go-to-line = { workspace = true }
@@ -118,6 +116,17 @@ lsp-types = { workspace = true, features = ["proposed"] }
 ropey = "1"
 url = { workspace = true }
 uuid = { workspace = true }
+
+[features]
+default = []
+# Pulls in the workspace-wide `test-support` cascade needed by
+# `src/carrot/visual_tests.rs` (real-rendering screenshot harness).
+# Opt-in only: regular `cargo test -p carrot-app` does NOT activate it.
+test-support = [
+    "inazuma/test-support",
+    "carrot-workspace/test-support",
+    "carrot-fs/test-support",
+]
 
 [lints]
 workspace = true

@@ -142,7 +142,7 @@ pub struct TerminalPane {
     // Input system
     pub(crate) input_state: Entity<InputState>,
     pub(crate) shell_completion: Rc<ShellCompletionProvider>,
-    pub(crate) command_history: Arc<RwLock<CommandHistory>>,
+    pub command_history: Arc<RwLock<CommandHistory>>,
     pub(crate) history_panel: HistoryPanel,
     pub(crate) correction_suggestion: Option<command_correction::CorrectionResult>,
 
@@ -303,6 +303,24 @@ impl TerminalPane {
             this.input_state.update(cx, |state, cx| {
                 state.focus(window, cx);
             });
+            // Tell the command palette's History source which shell
+            // history belongs to the pane the user is actively in.
+            // Last-focused wins; this is exactly the semantics the
+            // palette wants since Cmd+R recalls *this* terminal's
+            // history, not whatever was focused before.
+            carrot_session::command_history::ActiveCommandHistory::set_global(
+                this.command_history.clone(),
+                cx,
+            );
+            let cwd = std::path::PathBuf::from(&this.shell_context.cwd);
+            if !cwd.as_os_str().is_empty() {
+                let project_root = this.current_git_root.clone().unwrap_or_else(|| cwd.clone());
+                carrot_session::command_history::ActiveTerminalScope::set_global(
+                    cwd,
+                    project_root,
+                    cx,
+                );
+            }
             // Notify the cli-agents session manager that this
             // pane received focus so it can clear the Vertical-
             // Tabs unread dot. `registered_pane_id` is populated
@@ -461,26 +479,19 @@ impl Render for TerminalPane {
             .bg(bg_color)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_send_interrupt))
+            .on_action(cx.listener(Self::on_insert_into_input))
             .on_key_down(cx.listener(Self::on_key_down_interactive));
 
         // NO title bar here — the Workspace renders it above us
 
         // Terminal output + resize logic
         let handle = self.terminal.handle();
-        let appearance = {
-            use inazuma_settings_framework::Settings;
-            carrot_settings::AppearanceSettings::get_global(cx).clone()
-        };
-        let font_family = appearance.font_family.clone();
-        let font_size = appearance.font_size;
-        let line_height_multiplier = appearance.line_height;
+        let font = carrot_theme::terminal_font(cx).clone();
+        let font_size: f32 = carrot_theme::terminal_font_size(cx).into();
+        let line_height_multiplier =
+            carrot_theme::theme_settings(cx).line_height(carrot_theme::FontRole::Terminal, cx);
 
         {
-            let font = inazuma::Font {
-                family: font_family.clone().into(),
-                weight: inazuma::FontWeight::NORMAL,
-                ..inazuma::Font::default()
-            };
             let font_id = window.text_system().resolve_font(&font);
             let font_px = px(font_size);
             let cell_width = window

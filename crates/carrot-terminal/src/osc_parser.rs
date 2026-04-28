@@ -22,18 +22,39 @@ pub use carrot_shell_integration::{PositionedMarker, PromptKindType, ShellMarker
 pub struct OscScanner {
     state: ScanState,
     param_buf: Vec<u8>,
+    /// Accumulator for in-flight DCS sequences (Sixel images). Kept
+    /// separate from `param_buf` because the OSC and DCS state
+    /// machines may not interleave but **could** under future
+    /// protocol additions; isolating the buffers makes the
+    /// state-transition logic obvious.
+    dcs_buf: Vec<u8>,
+    /// Accumulator for in-flight APC sequences (Kitty Graphics).
+    /// Distinct from `dcs_buf` for the same reason.
+    apc_buf: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScanState {
-    /// Normal byte processing, not inside an OSC sequence.
+    /// Normal byte processing, not inside any escape sequence.
     Normal,
-    /// Saw ESC (0x1B), waiting for ] to confirm OSC start.
+    /// Saw ESC (0x1B), waiting for `]` (OSC), `P` (DCS) or other.
     SawEsc,
     /// Inside an OSC sequence, accumulating parameter bytes.
     InOsc,
-    /// Inside OSC, saw ESC — waiting for \ (ST terminator).
+    /// Inside OSC, saw ESC — waiting for `\` (ST terminator).
     InOscSawEsc,
+    /// Inside a DCS sequence (`\eP...\e\\`), accumulating raw bytes
+    /// for an image-protocol decoder. The full envelope is preserved
+    /// — `dcs_buf` already holds the leading `\eP`.
+    InDcs,
+    /// Inside DCS, saw ESC — waiting for `\` (ST terminator).
+    InDcsSawEsc,
+    /// Inside an APC sequence (`\e_...\e\\`). Used by the Kitty
+    /// Graphics protocol — the body is buffered raw and handed to
+    /// `parse_kitty_payload` on terminator.
+    InApc,
+    /// Inside APC, saw ESC — waiting for `\` (ST terminator).
+    InApcSawEsc,
 }
 
 impl OscScanner {
@@ -41,6 +62,8 @@ impl OscScanner {
         Self {
             state: ScanState::Normal,
             param_buf: Vec::with_capacity(512),
+            dcs_buf: Vec::new(),
+            apc_buf: Vec::new(),
         }
     }
 
@@ -69,6 +92,20 @@ impl OscScanner {
                     if byte == b']' {
                         self.param_buf.clear();
                         self.state = ScanState::InOsc;
+                    } else if byte == b'P' {
+                        // DCS introducer. Preserve the `\eP` prefix in
+                        // the buffer so `decode_sixel` receives the
+                        // full envelope.
+                        self.dcs_buf.clear();
+                        self.dcs_buf.extend_from_slice(b"\x1bP");
+                        self.state = ScanState::InDcs;
+                    } else if byte == b'_' {
+                        // APC introducer (Kitty Graphics). The
+                        // payload starts after `\e_`; we only buffer
+                        // the body so `parse_kitty_payload` sees the
+                        // raw `G…;base64` shape.
+                        self.apc_buf.clear();
+                        self.state = ScanState::InApc;
                     } else {
                         self.state = ScanState::Normal;
                     }
@@ -107,10 +144,102 @@ impl OscScanner {
                         self.state = ScanState::InOsc;
                     }
                 }
+
+                ScanState::InDcs => {
+                    if byte == 0x1B {
+                        self.state = ScanState::InDcsSawEsc;
+                    } else {
+                        self.dcs_buf.push(byte);
+                    }
+                }
+
+                ScanState::InDcsSawEsc => {
+                    if byte == b'\\' {
+                        // Append the closing `\e\\` so the buffer holds
+                        // the complete DCS envelope.
+                        self.dcs_buf.extend_from_slice(b"\x1b\\");
+                        if let Some(marker) = self.try_parse_dcs() {
+                            markers.push(PositionedMarker {
+                                marker,
+                                start: osc_start,
+                                end: i + 1,
+                            });
+                        }
+                        self.dcs_buf.clear();
+                        self.state = ScanState::Normal;
+                    } else {
+                        self.dcs_buf.push(0x1B);
+                        self.dcs_buf.push(byte);
+                        self.state = ScanState::InDcs;
+                    }
+                }
+
+                ScanState::InApc => {
+                    if byte == 0x1B {
+                        self.state = ScanState::InApcSawEsc;
+                    } else {
+                        self.apc_buf.push(byte);
+                    }
+                }
+
+                ScanState::InApcSawEsc => {
+                    if byte == b'\\' {
+                        if let Some(marker) = self.try_parse_apc() {
+                            markers.push(PositionedMarker {
+                                marker,
+                                start: osc_start,
+                                end: i + 1,
+                            });
+                        }
+                        self.apc_buf.clear();
+                        self.state = ScanState::Normal;
+                    } else {
+                        self.apc_buf.push(0x1B);
+                        self.apc_buf.push(byte);
+                        self.state = ScanState::InApc;
+                    }
+                }
             }
         }
 
         markers
+    }
+
+    /// Recognise APC sequences. Currently only Kitty Graphics
+    /// (`G…;base64`); other APC opcodes are dropped.
+    fn try_parse_apc(&self) -> Option<ShellMarker> {
+        if self.apc_buf.first().copied() != Some(b'G') {
+            return None;
+        }
+        Some(ShellMarker::ImageInlineKitty(self.apc_buf.clone()))
+    }
+
+    /// Recognise DCS sequences we care about — currently only Sixel.
+    /// The classic Sixel introducer signature is `q` somewhere in the
+    /// DCS params, e.g. `\eP1;1;0q...`. Any DCS that contains a literal
+    /// `q` byte before the first `\e\\` terminator is treated as Sixel
+    /// and forwarded to `carrot_grid::decode_sixel`.
+    fn try_parse_dcs(&self) -> Option<ShellMarker> {
+        // Look for `q` after the `\eP` introducer (positions 0..=1).
+        // Only DCS sequences with a `q` action byte are Sixel under
+        // ECMA-48; everything else (DECRQSS, DECRSPS, …) is ignored.
+        if self.dcs_buf.len() < 4 {
+            return None;
+        }
+        let payload = &self.dcs_buf[2..]; // skip `\eP`
+        let q_pos = payload.iter().position(|&b| b == b'q')?;
+        // Anything between `\eP` and `q` is the parameter prefix —
+        // numeric semicolon-separated. Reject DCS sequences whose
+        // param prefix has non-numeric / non-`;` bytes; those are
+        // certainly not Sixel.
+        let params = &payload[..q_pos];
+        if !params
+            .iter()
+            .all(|b| b.is_ascii_digit() || *b == b';' || *b == b':')
+        {
+            return None;
+        }
+        Some(ShellMarker::ImageInlineSixel(self.dcs_buf.clone()))
     }
 
     /// Try parsing the accumulated OSC against every known sub-schema
@@ -122,6 +251,28 @@ impl OscScanner {
             .or_else(|| self.parse_osc_7777_metadata())
             .or_else(|| self.parse_osc_7777_tui_hint())
             .or_else(|| self.parse_osc_7777_agent())
+            .or_else(|| self.parse_osc_1337_iterm2_image())
+    }
+
+    /// Parse `OSC 1337 ; File=key=value,...:base64-data` into
+    /// [`ShellMarker::ImageInlineITerm2`]. The decoded marker carries
+    /// the raw payload **after** `1337;` (i.e. starts with `File=`);
+    /// `carrot_grid::parse_iterm2_payload` handles the rest.
+    ///
+    /// Reference: <https://iterm2.com/documentation-images.html>
+    fn parse_osc_1337_iterm2_image(&self) -> Option<ShellMarker> {
+        let params = &self.param_buf;
+        let prefix = b"1337;File=";
+        if params.len() <= prefix.len() || params[..prefix.len()] != *prefix {
+            return None;
+        }
+        // Hand the rest of the OSC body — including `File=` — to the
+        // grid layer's parser. Cloning here avoids borrowing from the
+        // scanner's reusable buffer; the marker outlives a `.scan()`
+        // call.
+        Some(ShellMarker::ImageInlineITerm2(
+            params[b"1337;".len()..].to_vec(),
+        ))
     }
 
     /// Parse `OSC 7777;carrot-precmd;<hex>` into `ShellMarker::Metadata`.

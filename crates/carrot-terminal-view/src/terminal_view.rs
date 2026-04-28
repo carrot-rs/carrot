@@ -9,7 +9,6 @@ pub mod block_interaction;
 pub mod block_list;
 pub mod block_search;
 pub mod builtin_font;
-pub mod colors;
 pub mod constants;
 
 // Terminal UI modules

@@ -56,6 +56,28 @@ pub enum ShellMarker {
     /// hex-decoded envelope JSON; routing and typing happens in
     /// `carrot-cli-agents::parse_envelope`.
     AgentEvent(String),
+    /// `OSC 1337 ; File=key=value,...:base64-payload` — iTerm2 inline
+    /// image. The carried `Vec<u8>` is the **raw OSC payload after
+    /// `1337;`** — i.e. starts with `File=`. The marker consumer
+    /// passes it to `carrot_grid::parse_iterm2_payload` which handles
+    /// the header parsing + base64 + image decode in one call.
+    ///
+    /// Held as bytes (not String) because the base64 payload may be
+    /// arbitrarily large (~MB for screenshots) and we don't want to
+    /// pay UTF-8-validation cost on the hot OSC scan path.
+    ImageInlineITerm2(Vec<u8>),
+    /// `\eP[params]q[sixel-data]\e\\` — Sixel DCS image. Carried bytes
+    /// are the **complete DCS envelope including** the leading `\eP`
+    /// and trailing `\e\\` so `carrot_grid::decode_sixel` can hand them
+    /// straight to `icy_sixel`. DCS — not OSC — but lives in the same
+    /// pre-VT scanner because the byte-introducer recognition is
+    /// adjacent (`ESC P` vs `ESC ]`).
+    ImageInlineSixel(Vec<u8>),
+    /// `\e_G[key=value,...];[base64]\e\\` — Kitty Graphics inline
+    /// image. Carried bytes are the APC body **after** `\e_` and
+    /// **before** `\e\\` (i.e. starts with `G`). The marker consumer
+    /// hands them to `carrot_grid::parse_kitty_payload`.
+    ImageInlineKitty(Vec<u8>),
 }
 
 /// Nushell prompt-kind types from `OSC 133 ; P`.

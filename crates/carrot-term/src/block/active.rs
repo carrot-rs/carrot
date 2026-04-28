@@ -57,6 +57,11 @@ pub struct ActiveBlock {
     /// Active live-frame region while a TUI is doing in-place
     /// redraws. `None` during normal linear shell output.
     live_frame: Option<super::live_frame::LiveFrameRegion>,
+    /// Lifecycle marker: `Shell` (default) or `Tui` (set by the first
+    /// TUI promotion signal). See [`super::kind::BlockKind`] —
+    /// **sticky**, never reverts. Renderers route on this to pick
+    /// inline (Shell) vs PinnedFooter (Tui).
+    kind: super::kind::BlockKind,
 }
 
 impl ActiveBlock {
@@ -80,7 +85,20 @@ impl ActiveBlock {
             replay: ReplayBuffer::default(),
             selection: None,
             live_frame: None,
+            kind: super::kind::BlockKind::default(),
         }
+    }
+
+    /// Lifecycle marker — `Shell` until the TUI detector promotes it.
+    #[inline]
+    pub fn kind(&self) -> super::kind::BlockKind {
+        self.kind
+    }
+
+    /// Internal write access for the TUI detector path. Promotes the
+    /// kind in place — sticky, idempotent.
+    pub(super) fn promote_kind_to_tui(&mut self) {
+        self.kind.promote_to_tui();
     }
 
     /// Access the selection slot (internal — the public surface lives
@@ -226,6 +244,7 @@ impl ActiveBlock {
             exit_code,
             finished_at,
             self.replay,
+            self.kind,
         ))
     }
 }

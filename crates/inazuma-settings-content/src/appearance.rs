@@ -3,31 +3,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::terminal::{CursorShapeContent, TerminalBlink};
-use crate::{FontFamilyName, FontSize};
 
 /// Content for the `[appearance]` section in settings.toml.
 ///
-/// In Carrot, the terminal font IS the main font. These settings control
-/// the primary visual appearance of the entire application.
+/// Holds cursor / contrast / colorspace knobs. Fonts live in
+/// `theme.fonts.{ui,mono}` and are read via the `body_font(cx)` /
+/// `code_font(cx)` / `terminal_font(cx)` convenience accessors.
 #[with_fallible_options]
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct AppearanceSettingsContent {
-    /// The main font family used for terminal output and UI.
-    ///
-    /// Default: "DankMono Nerd Font Mono"
-    pub font_family: Option<FontFamilyName>,
-
-    /// The main font size in pixels.
-    ///
-    /// Default: 15
-    pub font_size: Option<FontSize>,
-
-    /// Line height as a multiplier of font size.
-    ///
-    /// Default: 1.6
-    #[serde(serialize_with = "crate::serialize_optional_f32_with_two_decimal_places")]
-    pub line_height: Option<f32>,
-
     /// Default cursor shape for the terminal.
     /// Can be "bar", "block", "underline", or "hollow".
     ///
@@ -76,18 +60,6 @@ pub struct AppearanceSettingsContent {
     ///
     /// Default: 85
     pub window_opacity: Option<u32>,
-
-    /// Symbol maps: map Unicode ranges to specific font families.
-    /// Useful for Nerd Font icons, Powerline glyphs, etc.
-    ///
-    /// Example in settings.toml:
-    /// ```toml
-    /// [[appearance.symbol_map]]
-    /// start = "E0B0"
-    /// end = "E0D7"
-    /// font_family = "Symbols Nerd Font Mono"
-    /// ```
-    pub symbol_map: Option<Vec<SymbolMapEntry>>,
 }
 
 /// Window colorspace setting.
@@ -108,54 +80,17 @@ pub struct AppearanceSettingsContent {
 #[serde(rename_all = "snake_case")]
 pub enum AppearanceColorspace {
     /// Explicit sRGB tagging — prevents oversaturation on P3 displays.
+    /// Matches our `Oklch → Rgba` pipeline, which gamut-maps to sRGB
+    /// per CSS Color 4. Switching to `DisplayP3` here without also
+    /// routing the pipeline through `to_gamut_p3` would feed sRGB
+    /// pixels into a P3-tagged layer and shift hues.
     #[default]
     Srgb,
-    /// Enable the wider Display P3 gamut for richer colors.
+    /// Enable the wider Display P3 gamut for richer colors. **Pipeline
+    /// caveat**: the color resolver must produce P3-mapped Rgba, which
+    /// is not yet wired up — flipping this on right now over-saturates
+    /// theme tokens. Tracked for a follow-up.
     DisplayP3,
     /// Use the display's native colorspace without explicit tagging.
     Native,
-}
-
-/// Maps a Unicode codepoint range to a specific font family.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom)]
-pub struct SymbolMapEntry {
-    /// Start of Unicode range (hex, e.g. "E0B0").
-    pub start: String,
-    /// End of Unicode range (hex, e.g. "E0D7").
-    pub end: String,
-    /// Font family to use for characters in this range.
-    pub font_family: String,
-}
-
-/// Parsed symbol map entry with resolved codepoint range.
-#[derive(Debug, Clone)]
-pub struct ResolvedSymbolMap {
-    pub start: u32,
-    pub end: u32,
-    pub font_family: String,
-}
-
-impl SymbolMapEntry {
-    /// Parse hex start/end into a resolved entry.
-    pub fn resolve(&self) -> Option<ResolvedSymbolMap> {
-        let start = u32::from_str_radix(&self.start, 16).ok()?;
-        let end = u32::from_str_radix(&self.end, 16).ok()?;
-        Some(ResolvedSymbolMap {
-            start,
-            end,
-            font_family: self.font_family.clone(),
-        })
-    }
-}
-
-impl ResolvedSymbolMap {
-    /// Check if a character falls in this range and return the font family.
-    pub fn match_char(&self, c: char) -> Option<&str> {
-        let cp = c as u32;
-        if cp >= self.start && cp <= self.end {
-            Some(&self.font_family)
-        } else {
-            None
-        }
-    }
 }

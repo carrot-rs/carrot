@@ -99,7 +99,7 @@ fn main() {
                     ..Default::default()
                 },
                 move |window, cx| {
-                    carrot_theme_settings::setup_ui_font(window, cx);
+                    carrot_theme_settings::setup_body_font(window, cx);
 
                     cx.new(|cx| StoryWrapper::new(selector.story(window, cx)))
                 },

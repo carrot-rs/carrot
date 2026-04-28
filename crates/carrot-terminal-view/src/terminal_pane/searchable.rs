@@ -144,7 +144,7 @@ impl SearchableItem for TerminalPane {
             .map(|(i, entry)| {
                 let router_id = entry.id;
                 let rows = entry.total_rows();
-                let legacy_id = carrot_term::BlockId(router_id.0 as usize);
+                let legacy_id = carrot_term::BlockId::from(router_id);
                 let key = (legacy_id, rows);
                 current_keys.insert(key);
                 let (text, command) = self.search_text_cache.entry(key).or_insert_with(|| {

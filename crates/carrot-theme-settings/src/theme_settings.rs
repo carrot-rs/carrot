@@ -1,32 +1,73 @@
 use std::sync::Arc;
 
 use carrot_theme::{
-    Appearance, DEFAULT_DARK_THEME, FontFamilyCache, GlobalTheme, LoadThemes, SystemAppearance,
-    ThemeRegistry, ThemeSettingsProvider, UiDensity, icon_theme::default_icon_theme,
-    set_theme_settings_provider,
+    Appearance, DEFAULT_DARK_THEME, FontFamilyCache, FontRole, GlobalTheme, LoadThemes,
+    ResolvedSymbolMap, SystemAppearance, ThemeRegistry, ThemeSettingsProvider, UiDensity,
+    icon_theme::default_icon_theme, set_theme_settings_provider,
 };
 use inazuma::{App, AssetSource, Font, Pixels};
 use inazuma_settings_framework::{Settings, SettingsStore};
 
-use crate::settings::{ThemeSettings, default_theme, reset_buffer_font_size, reset_ui_font_size};
+use crate::settings::{ThemeSettings, default_theme, reset_body_font_size, reset_mono_font_size};
 
 struct ThemeSettingsProviderImpl;
 
 impl ThemeSettingsProvider for ThemeSettingsProviderImpl {
+    fn font<'a>(&'a self, role: FontRole, cx: &'a App) -> &'a Font {
+        let settings = ThemeSettings::get_global(cx);
+        match role {
+            FontRole::Body => &settings.fonts.ui.font,
+            FontRole::Code | FontRole::Terminal => &settings.fonts.mono.font,
+        }
+    }
+
+    fn font_size(&self, role: FontRole, cx: &App) -> Pixels {
+        match role {
+            FontRole::Body => ThemeSettings::get_global(cx).ui_font_size(cx),
+            FontRole::Code | FontRole::Terminal => {
+                ThemeSettings::get_global(cx).buffer_font_size(cx)
+            }
+        }
+    }
+
+    fn line_height(&self, role: FontRole, cx: &App) -> f32 {
+        match role {
+            FontRole::Body => 1.3,
+            // Editor / REPL / markdown code share the user-configured
+            // `theme.fonts.mono.line_height` (default `comfortable`,
+            // 1.618). Terminal grids hard-code 1.0 — terminal output is
+            // line-dense by convention and the configured `comfortable`
+            // value would scatter `ls` listings across the screen.
+            FontRole::Code => ThemeSettings::get_global(cx).fonts.mono.line_height.value(),
+            FontRole::Terminal => 1.0,
+        }
+    }
+
+    fn symbol_map_for<'a>(&'a self, role: FontRole, cx: &'a App) -> &'a [ResolvedSymbolMap] {
+        match role {
+            FontRole::Body => &[],
+            FontRole::Code | FontRole::Terminal => {
+                &ThemeSettings::get_global(cx).fonts.mono.symbol_map
+            }
+        }
+    }
+
+    // ── Legacy shims (delegated to the role-based methods above) ───────
+
     fn ui_font<'a>(&'a self, cx: &'a App) -> &'a Font {
-        &ThemeSettings::get_global(cx).ui_font
+        self.font(FontRole::Body, cx)
     }
 
     fn buffer_font<'a>(&'a self, cx: &'a App) -> &'a Font {
-        &ThemeSettings::get_global(cx).buffer_font
+        self.font(FontRole::Code, cx)
     }
 
     fn ui_font_size(&self, cx: &App) -> Pixels {
-        ThemeSettings::get_global(cx).ui_font_size(cx)
+        self.font_size(FontRole::Body, cx)
     }
 
     fn buffer_font_size(&self, cx: &App) -> Pixels {
-        ThemeSettings::get_global(cx).buffer_font_size(cx)
+        self.font_size(FontRole::Code, cx)
     }
 
     fn ui_density(&self, cx: &App) -> UiDensity {
@@ -119,8 +160,8 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
 
     // 6. Set up SettingsStore observer for live theme/font reloading
     let settings = ThemeSettings::get_global(cx);
-    let mut prev_buffer_font_size_settings = settings.buffer_font_size_settings();
-    let mut prev_ui_font_size_settings = settings.ui_font_size_settings();
+    let mut prev_mono_font_size_settings = settings.mono_font_size_settings();
+    let mut prev_body_font_size_settings = settings.body_font_size_settings();
     let mut prev_theme_name = settings.theme.name(Appearance::Dark);
     let mut prev_icon_theme_name = settings.icon_theme.name(Appearance::Dark);
     let mut prev_theme_overrides = (
@@ -131,8 +172,8 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
     cx.observe_global::<SettingsStore>(move |cx| {
         let settings = ThemeSettings::get_global(cx);
 
-        let buffer_font_size_settings = settings.buffer_font_size_settings();
-        let ui_font_size_settings = settings.ui_font_size_settings();
+        let mono_font_size_settings = settings.mono_font_size_settings();
+        let body_font_size_settings = settings.body_font_size_settings();
         let theme_name = settings.theme.name(Appearance::Dark);
         let icon_theme_name = settings.icon_theme.name(Appearance::Dark);
         let theme_overrides = (
@@ -140,14 +181,14 @@ pub fn init(themes_to_load: LoadThemes, cx: &mut App) {
             settings.theme_overrides.clone(),
         );
 
-        if buffer_font_size_settings != prev_buffer_font_size_settings {
-            prev_buffer_font_size_settings = buffer_font_size_settings;
-            reset_buffer_font_size(cx);
+        if mono_font_size_settings != prev_mono_font_size_settings {
+            prev_mono_font_size_settings = mono_font_size_settings;
+            reset_mono_font_size(cx);
         }
 
-        if ui_font_size_settings != prev_ui_font_size_settings {
-            prev_ui_font_size_settings = ui_font_size_settings;
-            reset_ui_font_size(cx);
+        if body_font_size_settings != prev_body_font_size_settings {
+            prev_body_font_size_settings = body_font_size_settings;
+            reset_body_font_size(cx);
         }
 
         if theme_name != prev_theme_name || theme_overrides != prev_theme_overrides {

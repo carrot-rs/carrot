@@ -251,10 +251,7 @@ pub fn app_menus(cx: &mut App) -> Vec<Menu> {
                 MenuItem::action("Back", carrot_workspace::GoBack),
                 MenuItem::action("Forward", carrot_workspace::GoForward),
                 MenuItem::separator(),
-                MenuItem::action(
-                    "Command Palette...",
-                    carrot_actions::command_palette::Toggle,
-                ),
+                MenuItem::action("Command Palette...", carrot_command_palette::Toggle),
                 MenuItem::separator(),
                 MenuItem::action(
                     "Go to File...",

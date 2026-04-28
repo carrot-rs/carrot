@@ -159,6 +159,7 @@ impl DirectWriteState {
             ref fallbacks,
             weight,
             style,
+            stretch,
         }: &Font,
         collection: &IDWriteFontCollection1,
         factory: &IDWriteFactory5,
@@ -178,7 +179,7 @@ impl DirectWriteState {
                 .GetMatchingFonts(
                     &font_family_h,
                     font_weight_to_dwrite(weight),
-                    DWRITE_FONT_STRETCH_NORMAL,
+                    font_stretch_to_dwrite(stretch),
                     font_style_to_dwrite(style),
                 )
                 .log_err()?
@@ -242,7 +243,7 @@ impl DirectWriteState {
                         collection,
                         font_info.font_face.GetWeight(),
                         font_info.font_face.GetStyle(),
-                        DWRITE_FONT_STRETCH_NORMAL,
+                        font_info.font_face.GetStretch(),
                         font_size.as_f32(),
                         &components.locale,
                     )?

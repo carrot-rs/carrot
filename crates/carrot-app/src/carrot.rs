@@ -10,7 +10,7 @@ mod open_url_modal;
 // mod quick_action_bar;
 pub mod remote_debug;
 pub mod telemetry_log;
-#[cfg(all(target_os = "macos", any(test, feature = "test-support")))]
+#[cfg(all(target_os = "macos", feature = "test-support"))]
 pub mod visual_tests;
 #[cfg(target_os = "windows")]
 pub(crate) mod windows_only_instance;
@@ -862,14 +862,18 @@ fn register_actions(
             move |_, action: &carrot_actions::IncreaseUiFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, cx| {
-                        let ui_font_size = ThemeSettings::get_global(cx).ui_font_size(cx) + px(1.0);
-                        let _ = settings
+                        let ui_font_size =
+                            carrot_theme_settings::clamp_font_size(carrot_theme::body_font_size(cx) + px(1.0));
+                        settings
                             .theme
-                            .ui_font_size
-                            .insert(f32::from(carrot_theme_settings::clamp_font_size(ui_font_size)).into());
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .ui
+                            .get_or_insert_with(Default::default)
+                            .size = Some(f32::from(ui_font_size).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_ui_font_size(cx, |size| size + px(1.0));
+                    carrot_theme_settings::adjust_body_font_size(cx, |size| size + px(1.0));
                 }
             }
         })
@@ -878,14 +882,18 @@ fn register_actions(
             move |_, action: &carrot_actions::DecreaseUiFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, cx| {
-                        let ui_font_size = ThemeSettings::get_global(cx).ui_font_size(cx) - px(1.0);
-                        let _ = settings
+                        let ui_font_size =
+                            carrot_theme_settings::clamp_font_size(carrot_theme::body_font_size(cx) - px(1.0));
+                        settings
                             .theme
-                            .ui_font_size
-                            .insert(f32::from(carrot_theme_settings::clamp_font_size(ui_font_size)).into());
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .ui
+                            .get_or_insert_with(Default::default)
+                            .size = Some(f32::from(ui_font_size).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_ui_font_size(cx, |size| size - px(1.0));
+                    carrot_theme_settings::adjust_body_font_size(cx, |size| size - px(1.0));
                 }
             }
         })
@@ -894,10 +902,17 @@ fn register_actions(
             move |_, action: &carrot_actions::ResetUiFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, _| {
-                        settings.theme.ui_font_size = None;
+                        if let Some(ui) = settings
+                            .theme
+                            .fonts
+                            .as_mut()
+                            .and_then(|f| f.ui.as_mut())
+                        {
+                            ui.size = None;
+                        }
                     });
                 } else {
-                    carrot_theme_settings::reset_ui_font_size(cx);
+                    carrot_theme_settings::reset_body_font_size(cx);
                 }
             }
         })
@@ -906,15 +921,18 @@ fn register_actions(
             move |_, action: &carrot_actions::IncreaseBufferFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, cx| {
-                        let buffer_font_size =
-                            ThemeSettings::get_global(cx).buffer_font_size(cx) + px(1.0);
-                        let _ = settings
+                        let mono_font_size =
+                            carrot_theme_settings::clamp_font_size(carrot_theme::code_font_size(cx) + px(1.0));
+                        settings
                             .theme
-                            .buffer_font_size
-                            .insert(f32::from(carrot_theme_settings::clamp_font_size(buffer_font_size)).into());
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .mono
+                            .get_or_insert_with(Default::default)
+                            .size = Some(f32::from(mono_font_size).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_buffer_font_size(cx, |size| size + px(1.0));
+                    carrot_theme_settings::adjust_mono_font_size(cx, |size| size + px(1.0));
                 }
             }
         })
@@ -923,15 +941,18 @@ fn register_actions(
             move |_, action: &carrot_actions::DecreaseBufferFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, cx| {
-                        let buffer_font_size =
-                            ThemeSettings::get_global(cx).buffer_font_size(cx) - px(1.0);
-                        let _ = settings
+                        let mono_font_size =
+                            carrot_theme_settings::clamp_font_size(carrot_theme::code_font_size(cx) - px(1.0));
+                        settings
                             .theme
-                            .buffer_font_size
-                            .insert(f32::from(carrot_theme_settings::clamp_font_size(buffer_font_size)).into());
+                            .fonts
+                            .get_or_insert_with(Default::default)
+                            .mono
+                            .get_or_insert_with(Default::default)
+                            .size = Some(f32::from(mono_font_size).into());
                     });
                 } else {
-                    carrot_theme_settings::adjust_buffer_font_size(cx, |size| size - px(1.0));
+                    carrot_theme_settings::adjust_mono_font_size(cx, |size| size - px(1.0));
                 }
             }
         })
@@ -940,10 +961,17 @@ fn register_actions(
             move |_, action: &carrot_actions::ResetBufferFontSize, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, _| {
-                        settings.theme.buffer_font_size = None;
+                        if let Some(mono) = settings
+                            .theme
+                            .fonts
+                            .as_mut()
+                            .and_then(|f| f.mono.as_mut())
+                        {
+                            mono.size = None;
+                        }
                     });
                 } else {
-                    carrot_theme_settings::reset_buffer_font_size(cx);
+                    carrot_theme_settings::reset_mono_font_size(cx);
                 }
             }
         })
@@ -952,14 +980,18 @@ fn register_actions(
             move |_, action: &carrot_actions::ResetAllZoom, _window, cx| {
                 if action.persist {
                     update_settings_file(fs.clone(), cx, move |settings, _| {
-                        settings.theme.ui_font_size = None;
-                        settings.theme.buffer_font_size = None;
-                        settings.theme.agent_ui_font_size = None;
-                        settings.theme.agent_buffer_font_size = None;
+                        if let Some(fonts) = settings.theme.fonts.as_mut() {
+                            if let Some(ui) = fonts.ui.as_mut() {
+                                ui.size = None;
+                            }
+                            if let Some(mono) = fonts.mono.as_mut() {
+                                mono.size = None;
+                            }
+                        }
                     });
                 } else {
-                    carrot_theme_settings::reset_ui_font_size(cx);
-                    carrot_theme_settings::reset_buffer_font_size(cx);
+                    carrot_theme_settings::reset_body_font_size(cx);
+                    carrot_theme_settings::reset_mono_font_size(cx);
                     carrot_theme_settings::reset_agent_ui_font_size(cx);
                     carrot_theme_settings::reset_agent_buffer_font_size(cx);
                 }
@@ -1311,8 +1343,8 @@ fn quit(_: &Quit, cx: &mut App) {
             workspace_windows.sort_by_key(|window| window.is_active(cx) == Some(false));
         });
 
-        if should_confirm && let Some(multi_workspace) = workspace_windows.first() {
-            let answer = multi_workspace
+        if should_confirm && let Some(workspace_window) = workspace_windows.first() {
+            let answer = workspace_window
                 .update(cx, |_, window, cx| {
                     window.prompt(
                         PromptLevel::Info,

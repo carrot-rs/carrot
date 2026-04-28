@@ -28,15 +28,18 @@ mode = "dark"
 light = "Carrot Light"
 dark = "Carrot Dark"
 icon_theme = "Carrot (Default)"
-buffer_font_family = ".CarrotMono"
-buffer_font_size = 15
-buffer_font_weight = 400
-buffer_line_height = "comfortable"
-ui_font_family = ".CarrotSans"
-ui_font_weight = 400
-ui_font_size = 16
-agent_buffer_font_size = 12
 unnecessary_code_fade = 0.3
+
+[theme.fonts.ui]
+family = ".CarrotSans"
+size = 16
+weight = 400
+
+[theme.fonts.mono]
+family = ".CarrotMono"
+size = 13
+weight = 400
+line_height = "comfortable"
 
 [workspace]
 bottom_dock_layout = "contained"
@@ -228,7 +231,7 @@ show_diagnostics = "off"
 
 [vertical_tabs]
 button = true
-default_width = 260.0
+default_width = 200.0
 dock = "left"
 density = "compact"
 view_mode = "panes"
@@ -374,9 +377,9 @@ html = true
 
 [profiles]
 
-[theme.buffer_font_features]
+[theme.fonts.mono.features]
 
-[theme.ui_font_features]
+[theme.fonts.ui.features]
 calt = false
 
 [workspace.active_pane_modifiers]

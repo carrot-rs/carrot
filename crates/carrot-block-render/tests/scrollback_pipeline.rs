@@ -2,12 +2,12 @@
 //!
 //! Simulates the terminal-view rendering path end-to-end:
 //!
-//!   PTY bytes ──► VtWriter ──► ActiveBlock ──► RenderSnapshot::from_grid
+//!   PTY bytes ──► VtWriter ──► ActiveBlock ──► BlockSnapshot::from_pages
 //!                                             ──► BlockElement (render)
 //!
 //!   + PromptStart/CommandStart/CommandEnd via the BlockRouter lifecycle.
 //!   + finish() hands an Arc<FrozenBlock> to the scrollback list.
-//!   + FrozenBlock → RenderSnapshot::from_grid → BlockElement.
+//!   + FrozenBlock → BlockSnapshot::from_pages → BlockElement.
 //!
 //! This mirrors what `carrot-terminal-view::block_list.rs` does:
 //! walk `term.block_router().entries()`, render each with
@@ -16,7 +16,7 @@
 //! Lives in carrot-block-render tests because it covers the consumer-
 //! facing contract of this crate (not the terminal behaviour).
 
-use carrot_block_render::RenderSnapshot;
+use carrot_grid::BlockSnapshot;
 use carrot_term::block::{ActiveBlock, BlockRouter, VtWriter, VtWriterState};
 use carrot_term::vte::ansi::{Processor, StdSyncHandler};
 
@@ -39,7 +39,7 @@ fn active_block_is_renderable_through_snapshot() {
 
     // Build the snapshot the renderer consumes.
     let atlas = block.atlas().as_slice();
-    let snap = RenderSnapshot::from_grid(block.grid(), atlas);
+    let snap = BlockSnapshot::from_pages(block.grid(), atlas);
 
     assert_eq!(snap.rows.len(), 1, "single-line input produces 1 row");
     assert_eq!(snap.rows[0][0].content(), b'h' as u32);
@@ -67,7 +67,7 @@ fn router_frozen_block_is_renderable_via_snapshot() {
 
     // CommandEnd → frozen block pops out.
     let frozen = router.on_command_end(0).expect("frozen block");
-    let snap = RenderSnapshot::from_grid(frozen.grid(), frozen.atlas());
+    let snap = BlockSnapshot::from_pages(frozen.grid(), frozen.atlas());
 
     assert!(snap.rows.len() >= 2, "two output lines land as rows");
     assert_eq!(frozen.exit_code(), Some(0));
@@ -78,7 +78,7 @@ fn router_frozen_block_is_renderable_via_snapshot() {
 fn router_frozen_entries_iterator_feeds_scrollback_list() {
     // Simulate three finished blocks, then render them all via
     // the scrollback idiom: iterate frozen_entries,
-    // build RenderSnapshot, hand off to BlockElement.
+    // build BlockSnapshot, hand off to BlockElement.
     let mut router = BlockRouter::new(10);
     for i in 0..3u8 {
         router.on_prompt_start();
@@ -96,7 +96,7 @@ fn router_frozen_entries_iterator_feeds_scrollback_list() {
     let snapshots: Vec<_> = router
         .frozen_entries()
         .filter_map(|entry| entry.variant.as_frozen())
-        .map(|frozen| RenderSnapshot::from_grid(frozen.grid(), frozen.atlas()))
+        .map(|frozen| BlockSnapshot::from_pages(frozen.grid(), frozen.atlas()))
         .collect();
 
     assert_eq!(snapshots.len(), 3, "three commands → three snapshots");

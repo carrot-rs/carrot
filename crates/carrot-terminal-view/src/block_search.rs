@@ -48,7 +48,7 @@ pub fn find_via_router<T: carrot_term::event::EventListener>(
     // Walk router entries in chronological order so `block_index`
     // lines up with the Inazuma block list.
     for (block_index, entry) in router.entries().iter().enumerate() {
-        let legacy_id = BlockId(entry.id.0 as usize);
+        let legacy_id = BlockId::from(entry.id);
         for hit in router
             .search(needle, options)
             .filter(|m| m.block_id == entry.id)

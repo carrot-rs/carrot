@@ -111,7 +111,7 @@ impl IncomingCallNotification {
 
 impl Render for IncomingCallNotification {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = carrot_theme_settings::setup_ui_font(window, cx);
+        let ui_font = carrot_theme_settings::setup_body_font(window, cx);
 
         div().size_full().font(ui_font).child(
             CollabNotification::new(

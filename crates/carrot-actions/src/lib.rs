@@ -331,6 +331,18 @@ pub mod command_palette {
             Toggle,
         ]
     );
+
+    /// Inserts `text` verbatim into the focused terminal pane's input
+    /// editor without executing it — used by the History source so users
+    /// can recall a previous command, edit it, then hit enter when ready.
+    #[derive(
+        Clone, Debug, PartialEq, serde::Deserialize, schemars::JsonSchema, inazuma::Action,
+    )]
+    #[action(namespace = command_palette)]
+    #[serde(deny_unknown_fields)]
+    pub struct InsertIntoInput {
+        pub text: String,
+    }
 }
 
 pub mod project_panel {

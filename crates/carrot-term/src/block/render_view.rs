@@ -16,11 +16,12 @@
 
 use std::sync::Arc;
 
-use carrot_grid::{Cell, CellStyle, CellStyleAtlas, GraphemeStore, HyperlinkStore};
+use carrot_grid::{BlockSnapshot, CellStyle, CellStyleAtlas, GraphemeStore, HyperlinkStore};
 
 use super::active::ActiveBlock;
 use super::display::DisplayState;
 use super::frozen::FrozenBlock;
+use super::kind::BlockKind;
 use super::live_frame::LiveFrameRegion;
 use super::router::{BlockId, BlockRouter, RouterBlockMetadata, RouterEntry};
 use super::selection::BlockSelection;
@@ -50,12 +51,17 @@ pub struct FrozenView {
     pub id: BlockId,
     pub block: Arc<FrozenBlock>,
     pub metadata: RouterBlockMetadata,
+    /// Lifecycle marker carried over from the active block (sticky).
+    /// Renderers route Shell blocks inline and Tui blocks through
+    /// the PinnedFooter surface.
+    pub kind: BlockKind,
 }
 
-/// Active-block snapshot. `rows` is a hard copy because the live
-/// `PageList` is mutated by the writer on every PTY byte. Atlas /
-/// hyperlink / grapheme stores are `Arc`-cloned, so multiple
-/// successive views share the style interning state without a copy.
+/// Active-block snapshot. The grid data lives in [`BlockSnapshot`] —
+/// rows + atlas + bounds in one bundle, with `bounds.first_row_offset`
+/// available so selection mapping doesn't need to cache the prune
+/// offset on the side. Hyperlink / grapheme stores are `Arc`-cloned so
+/// multiple successive views share the interning state without a copy.
 ///
 /// The active view carries NO cursor field. Shell-block carets live in
 /// `carrot-cmdline`; TUI-block cursors live on the `carrot-term` VT
@@ -63,17 +69,18 @@ pub struct FrozenView {
 /// state, not via a field on the block view.
 pub struct ActiveBlockView {
     pub id: BlockId,
-    pub rows: Vec<Vec<Cell>>,
-    pub atlas: Arc<[CellStyle]>,
+    /// Owned snapshot of the live block's grid data + atlas + bounds.
+    /// `snapshot.bounds.columns()` is the viewport column count — no
+    /// duplicate `cols` field required.
+    pub snapshot: BlockSnapshot,
     pub hyperlinks: Arc<HyperlinkStore>,
     pub graphemes: Arc<GraphemeStore>,
     pub metadata: RouterBlockMetadata,
     pub selection: Option<BlockSelection>,
     pub live_frame: Option<LiveFrameRegion>,
-    /// Viewport cols — same as `RenderView::grid_dims.0`, duplicated
-    /// here so the active view is self-contained for callers that
-    /// render it independently.
-    pub cols: u16,
+    /// Lifecycle marker — `Shell` until promoted to `Tui` by the
+    /// detector. Sticky for the block's lifetime.
+    pub kind: BlockKind,
     /// Monotonic frame id. Bumped every time the active block's
     /// `sync_update_frame_id` advances — Layer 5 memoizes its
     /// rendered snapshot keyed on `(block_id, frame_id)`.
@@ -100,10 +107,12 @@ impl RenderView {
         for entry in router.entries() {
             match &entry.variant {
                 BlockVariant::Frozen(block) => {
+                    let kind = block.kind();
                     frozen.push(FrozenView {
                         id: entry.id,
                         block: block.clone(),
                         metadata: entry.metadata.clone(),
+                        kind,
                     });
                 }
                 BlockVariant::Active(block) => {
@@ -137,35 +146,20 @@ fn active_view(
     // signature so future callers that need VT-derived fields (e.g.
     // scroll region for soft-wrap hints) don't need a new entry point.
     let _ = vt_state;
-    let rows = snapshot_rows(block);
-    let atlas = Arc::from(block.atlas().as_slice().to_vec());
+    let snapshot = BlockSnapshot::from_pages(block.grid(), block.atlas().as_slice());
     let hyperlinks = Arc::new(block.hyperlinks().clone());
     let graphemes = Arc::new(block.graphemes().clone());
-    let cols = block.grid().capacity().cols;
     ActiveBlockView {
         id: entry.id,
-        sync_update_frame_id: rows.len() as u64,
-        rows,
-        atlas,
+        sync_update_frame_id: snapshot.total_rows() as u64,
+        snapshot,
         hyperlinks,
         graphemes,
         metadata: entry.metadata.clone(),
         selection: block.selection().copied(),
         live_frame: block.live_frame().cloned(),
-        cols,
+        kind: block.kind(),
     }
-}
-
-fn snapshot_rows(block: &ActiveBlock) -> Vec<Vec<Cell>> {
-    let grid = block.grid();
-    let total = grid.total_rows();
-    let mut rows = Vec::with_capacity(total);
-    for ix in 0..total {
-        if let Some(row) = grid.row(ix) {
-            rows.push(row.to_vec());
-        }
-    }
-    rows
 }
 
 /// Wrapper around [`CellStyleAtlas`] for consumers that want to hand

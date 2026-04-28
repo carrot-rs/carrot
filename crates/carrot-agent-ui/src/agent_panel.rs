@@ -1614,28 +1614,14 @@ impl AgentPanel {
         self.handle_font_size_action(action.persist, px(-1.0), cx);
     }
 
-    fn handle_font_size_action(&mut self, persist: bool, delta: Pixels, cx: &mut Context<Self>) {
+    fn handle_font_size_action(&mut self, _persist: bool, delta: Pixels, cx: &mut Context<Self>) {
         match self.active_view.which_font_size_used() {
             WhichFontSize::AgentFont => {
-                if persist {
-                    update_settings_file(self.fs.clone(), cx, move |settings, cx| {
-                        let agent_ui_font_size =
-                            ThemeSettings::get_global(cx).agent_ui_font_size(cx) + delta;
-                        let agent_buffer_font_size =
-                            ThemeSettings::get_global(cx).agent_buffer_font_size(cx) + delta;
-
-                        let _ = settings.theme.agent_ui_font_size.insert(
-                            f32::from(carrot_theme_settings::clamp_font_size(agent_ui_font_size)).into(),
-                        );
-                        let _ = settings.theme.agent_buffer_font_size.insert(
-                            f32::from(carrot_theme_settings::clamp_font_size(agent_buffer_font_size))
-                                .into(),
-                        );
-                    });
-                } else {
-                    carrot_theme_settings::adjust_agent_ui_font_size(cx, |size| size + delta);
-                    carrot_theme_settings::adjust_agent_buffer_font_size(cx, |size| size + delta);
-                }
+                // Agent panel zoom is in-memory only — there's no schema slot
+                // for agent-specific font sizes (the panel inherits from the
+                // role-based body / mono fonts).
+                carrot_theme_settings::adjust_agent_ui_font_size(cx, |size| size + delta);
+                carrot_theme_settings::adjust_agent_buffer_font_size(cx, |size| size + delta);
             }
             WhichFontSize::BufferFont => {
                 // Prompt editor uses the buffer font size, so allow the action to propagate to the
@@ -1648,19 +1634,12 @@ impl AgentPanel {
 
     pub fn reset_font_size(
         &mut self,
-        action: &ResetBufferFontSize,
+        _action: &ResetBufferFontSize,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if action.persist {
-            update_settings_file(self.fs.clone(), cx, move |settings, _| {
-                settings.theme.agent_ui_font_size = None;
-                settings.theme.agent_buffer_font_size = None;
-            });
-        } else {
-            carrot_theme_settings::reset_agent_ui_font_size(cx);
-            carrot_theme_settings::reset_agent_buffer_font_size(cx);
-        }
+        carrot_theme_settings::reset_agent_ui_font_size(cx);
+        carrot_theme_settings::reset_agent_buffer_font_size(cx);
     }
 
     pub fn reset_agent_zoom(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
@@ -5143,12 +5122,12 @@ mod tests {
 
         let project = Project::test(fs.clone(), [], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace_a = multi_workspace.root(cx).unwrap();
+        let workspace_a = workspace_window.root(cx).unwrap();
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         workspace_a.update_in(cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -5492,12 +5471,12 @@ mod tests {
         let fs = FakeFs::new(cx.executor());
         let project = Project::test(fs.clone(), [], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
-        let mut cx = VisualTestContext::from_window(multi_workspace.into(), cx);
+        let mut cx = VisualTestContext::from_window(workspace_window.into(), cx);
 
         let panel = workspace.update_in(&mut cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -5826,16 +5805,16 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -5921,16 +5900,16 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -6009,12 +5988,12 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         let panel = workspace.update_in(cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -6108,10 +6087,10 @@ mod tests {
 
         let project = Project::test(app_state.fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
@@ -6137,7 +6116,7 @@ mod tests {
             .detach();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -6199,7 +6178,7 @@ mod tests {
         let new_workspace_window = cx
             .windows()
             .into_iter()
-            .find(|w| w.window_id() != multi_workspace.into().window_id())
+            .find(|w| w.window_id() != workspace_window.into().window_id())
             .expect("expected a new workspace window to have been created");
 
         let found_codex = new_workspace_window

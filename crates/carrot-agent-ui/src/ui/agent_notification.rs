@@ -86,7 +86,7 @@ impl AgentNotification {
 
 impl Render for AgentNotification {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = carrot_theme_settings::setup_ui_font(window, cx);
+        let ui_font = carrot_theme_settings::setup_body_font(window, cx);
         let line_height = window.line_height();
 
         let bg = cx.theme().colors().elevated_surface;

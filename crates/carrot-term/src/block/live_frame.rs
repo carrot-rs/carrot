@@ -143,6 +143,11 @@ impl ActiveBlock {
                     Some(LiveFrameRegion::new(start_origin, initial_height, source));
             }
         }
+        // Sticky promotion: any successful live-frame activation marks
+        // this block as a TUI block for the rest of its lifetime, even
+        // if the region is later cleared (heuristic reset, alt-screen
+        // exit). See `super::kind::BlockKind` doc-comment.
+        self.promote_kind_to_tui();
     }
 
     /// Drop the region only if it was activated by the `Heuristic`

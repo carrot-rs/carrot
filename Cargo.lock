@@ -1783,6 +1783,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "by_address"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64fa3c856b712db6612c019f14756e64e4bcea13337a6b33b696333a9eaa2d06"
+
+[[package]]
 name = "bytecheck"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2460,7 +2466,6 @@ dependencies = [
  "carrot-client",
  "carrot-collab-ui",
  "carrot-command-palette",
- "carrot-command-search",
  "carrot-completions",
  "carrot-crashes",
  "carrot-credentials-provider",
@@ -2474,7 +2479,6 @@ dependencies = [
  "carrot-extension-host",
  "carrot-feature-flags",
  "carrot-feedback",
- "carrot-file-finder",
  "carrot-fs",
  "carrot-git-ui",
  "carrot-go-to-line",
@@ -3120,13 +3124,13 @@ dependencies = [
  "carrot-cloud-api-types",
  "carrot-collab",
  "carrot-collab-ui",
+ "carrot-command-palette",
  "carrot-command-palette-hooks",
  "carrot-dap",
  "carrot-dap-adapters",
  "carrot-debugger-ui",
  "carrot-editor",
  "carrot-extension",
- "carrot-file-finder",
  "carrot-fs",
  "carrot-git",
  "carrot-git-hosting-providers",
@@ -3248,25 +3252,23 @@ dependencies = [
  "carrot-client",
  "carrot-command-palette-hooks",
  "carrot-db",
- "carrot-editor",
- "carrot-go-to-line",
- "carrot-language",
- "carrot-project",
- "carrot-telemetry",
+ "carrot-session",
  "carrot-theme",
- "carrot-theme-settings",
  "carrot-ui",
  "carrot-workspace",
+ "crossbeam",
+ "dirs",
+ "ignore",
  "inazuma",
- "inazuma-collections",
  "inazuma-fuzzy",
- "inazuma-menu",
- "inazuma-picker",
  "inazuma-settings-framework",
  "inazuma-util",
  "log",
+ "num_cpus",
  "postage",
+ "schemars",
  "serde",
+ "tempfile",
  "time",
 ]
 
@@ -3278,23 +3280,6 @@ dependencies = [
  "derive_more 0.99.20",
  "inazuma",
  "inazuma-collections",
-]
-
-[[package]]
-name = "carrot-command-search"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "carrot-actions",
- "carrot-theme",
- "carrot-ui",
- "carrot-workspace",
- "inazuma",
- "inazuma-fuzzy",
- "inazuma-settings-framework",
- "log",
- "schemars",
- "serde",
 ]
 
 [[package]]
@@ -4028,7 +4013,7 @@ dependencies = [
  "itertools 0.14.0",
  "linkify",
  "log",
- "ordered-float",
+ "ordered-float 4.6.0",
  "parking_lot",
  "pretty_assertions",
  "proptest",
@@ -4293,45 +4278,6 @@ dependencies = [
  "inazuma",
  "inazuma-util",
  "urlencoding",
-]
-
-[[package]]
-name = "carrot-file-finder"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "carrot-actions",
- "carrot-channel",
- "carrot-client",
- "carrot-editor",
- "carrot-file-icons",
- "carrot-log",
- "carrot-open-path-prompt",
- "carrot-project",
- "carrot-project-panel",
- "carrot-remote-connection",
- "carrot-settings",
- "carrot-shell",
- "carrot-theme",
- "carrot-theme-settings",
- "carrot-ui",
- "carrot-workspace",
- "crossbeam",
- "ctor",
- "futures 0.3.32",
- "ignore",
- "inazuma",
- "inazuma-collections",
- "inazuma-fuzzy",
- "inazuma-menu",
- "inazuma-picker",
- "inazuma-settings-framework",
- "inazuma-util",
- "num_cpus",
- "pretty_assertions",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]
@@ -4613,7 +4559,10 @@ dependencies = [
 name = "carrot-grid"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "criterion",
+ "icy_sixel",
+ "image",
  "inazuma-collections",
  "proptest",
  "zstd 0.13.3",
@@ -5596,7 +5545,7 @@ dependencies = [
  "inazuma-settings-framework",
  "inazuma-util",
  "indoc",
- "ordered-float",
+ "ordered-float 4.6.0",
  "serde_json",
  "smol",
 ]
@@ -5851,7 +5800,7 @@ dependencies = [
  "inazuma-picker",
  "inazuma-settings-framework",
  "inazuma-util",
- "ordered-float",
+ "ordered-float 4.6.0",
  "semver",
  "serde_json",
 ]
@@ -5933,7 +5882,7 @@ dependencies = [
  "inazuma-util",
  "indoc",
  "log",
- "ordered-float",
+ "ordered-float 4.6.0",
  "semver",
  "serde",
  "serde_json",
@@ -6461,7 +6410,7 @@ version = "0.1.0"
 dependencies = [
  "inazuma-rope",
  "inazuma-util",
- "ordered-float",
+ "ordered-float 4.6.0",
  "rand 0.9.4",
 ]
 
@@ -6740,6 +6689,7 @@ dependencies = [
  "derive_more 0.99.20",
  "inazuma",
  "inazuma-refineable",
+ "inazuma-settings-content",
  "itertools 0.14.0",
  "log",
  "parking_lot",
@@ -6819,7 +6769,7 @@ dependencies = [
  "carrot-channel",
  "carrot-client",
  "carrot-cloud-api-types",
- "carrot-command-search",
+ "carrot-command-palette",
  "carrot-db",
  "carrot-git-ui",
  "carrot-livekit-client",
@@ -9576,6 +9526,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fast-srgb8"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd2e7510819d6fbf51a5545c8f922716ecfb14df168a3242f7d33e0239efe6a1"
+
+[[package]]
 name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11300,6 +11256,16 @@ dependencies = [
  "zerofrom",
  "zerotrie",
  "zerovec",
+]
+
+[[package]]
+name = "icy_sixel"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85518b9086bf01117761b90e7691c0ef3236fa8adfb1fb44dd248fe5f87215d5"
+dependencies = [
+ "quantette",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -14568,6 +14534,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "ordered-multimap"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14686,6 +14661,30 @@ checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "palette"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cbf71184cc5ecc2e4e1baccdb21026c20e5fc3dcf63028a086131b3ab00b6e6"
+dependencies = [
+ "bytemuck",
+ "fast-srgb8",
+ "libm",
+ "palette_derive",
+]
+
+[[package]]
+name = "palette_derive"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5030daf005bface118c096f510ffb781fc28f9ab6a32ab224d8631be6851d30"
+dependencies = [
+ "by_address",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -16281,6 +16280,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "quantette"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c98fecda8b16396ff9adac67644a523dd1778c42b58606a29df5c31ca925d174"
+dependencies = [
+ "bitvec",
+ "bytemuck",
+ "image",
+ "libm",
+ "num-traits",
+ "ordered-float 5.3.0",
+ "palette",
+ "rand 0.9.4",
+ "rand_xoshiro",
+ "rayon",
+ "ref-cast",
+ "wide",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16513,6 +16532,15 @@ name = "rand_xorshift"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
+dependencies = [
+ "rand_core 0.9.5",
+]
+
+[[package]]
+name = "rand_xoshiro"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41"
 dependencies = [
  "rand_core 0.9.5",
 ]
@@ -17437,6 +17465,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "safe_arch"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "629516c85c29fe757770fa03f2074cf1eac43d44c02a3de9fc2ef7b0e207dfdd"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "safetensors"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17647,7 +17684,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "inherent",
- "ordered-float",
+ "ordered-float 4.6.0",
  "rust_decimal",
  "serde_json",
  "time",
@@ -21748,7 +21785,7 @@ dependencies = [
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",
  "once_cell",
- "ordered-float",
+ "ordered-float 4.6.0",
  "parking_lot",
  "profiling",
  "range-alloc",
@@ -21808,6 +21845,16 @@ checksum = "5d4a4db5077702ca3015d3d02d74974948aba2ad9e12ab7df718ee64ccd7e97d"
 dependencies = [
  "libredox",
  "wasite",
+]
+
+[[package]]
+name = "wide"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13ca908d26e4786149c48efcf6c0ea09ab0e06d1fe3c17dc1b4b0f1ca4a7e788"
+dependencies = [
+ "bytemuck",
+ "safe_arch",
 ]
 
 [[package]]
