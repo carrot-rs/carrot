@@ -105,10 +105,6 @@ impl PlatformTitleBar {
     pub fn init(cx: &mut App) {
         SystemWindowTabs::init(cx);
     }
-
-    pub fn is_multi_workspace_enabled(_cx: &App) -> bool {
-        false
-    }
 }
 
 impl Render for PlatformTitleBar {

@@ -4772,7 +4772,7 @@ pub mod test {
             .await
             .expect("Failed to create worktree_c");
 
-        let (_multi_workspace1, cx) = cx.add_window_view(|window, cx| {
+        let (_workspace_window1, cx) = cx.add_window_view(|window, cx| {
             let workspace = cx.new(|cx| {
                 Workspace::new(
                     Default::default(),
@@ -4785,7 +4785,7 @@ pub mod test {
             AppShell::new(workspace, window, cx)
         });
 
-        let (_multi_workspace2, cx) = cx.add_window_view(|window, cx| {
+        let (_workspace_window2, cx) = cx.add_window_view(|window, cx| {
             let workspace = cx.new(|cx| {
                 Workspace::new(
                     Default::default(),
@@ -4917,7 +4917,7 @@ pub mod test {
             .await
             .expect("Failed to create worktree_a");
 
-        let (_multi_workspace1, cx) = cx.add_window_view(|window, cx| {
+        let (_workspace_window1, cx) = cx.add_window_view(|window, cx| {
             let workspace = cx.new(|cx| {
                 Workspace::new(
                     Default::default(),
@@ -4967,7 +4967,7 @@ pub mod test {
             .await
             .expect("Failed to create worktree_b");
 
-        let (_multi_workspace2, cx) = cx.add_window_view(|window, cx| {
+        let (_workspace_window2, cx) = cx.add_window_view(|window, cx| {
             let workspace = cx.new(|cx| {
                 Workspace::new(
                     Default::default(),

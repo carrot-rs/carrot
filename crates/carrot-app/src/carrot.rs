@@ -1343,8 +1343,8 @@ fn quit(_: &Quit, cx: &mut App) {
             workspace_windows.sort_by_key(|window| window.is_active(cx) == Some(false));
         });
 
-        if should_confirm && let Some(multi_workspace) = workspace_windows.first() {
-            let answer = multi_workspace
+        if should_confirm && let Some(workspace_window) = workspace_windows.first() {
+            let answer = workspace_window
                 .update(cx, |_, window, cx| {
                     window.prompt(
                         PromptLevel::Info,

@@ -5122,12 +5122,12 @@ mod tests {
 
         let project = Project::test(fs.clone(), [], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace_a = multi_workspace.root(cx).unwrap();
+        let workspace_a = workspace_window.root(cx).unwrap();
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         workspace_a.update_in(cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -5471,12 +5471,12 @@ mod tests {
         let fs = FakeFs::new(cx.executor());
         let project = Project::test(fs.clone(), [], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
-        let mut cx = VisualTestContext::from_window(multi_workspace.into(), cx);
+        let mut cx = VisualTestContext::from_window(workspace_window.into(), cx);
 
         let panel = workspace.update_in(&mut cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -5805,16 +5805,16 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -5900,16 +5900,16 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -5988,12 +5988,12 @@ mod tests {
 
         let project = Project::test(fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         let panel = workspace.update_in(cx, |workspace, window, cx| {
             let text_thread_store = cx.new(|cx| TextThreadStore::fake(project.clone(), cx));
@@ -6087,10 +6087,10 @@ mod tests {
 
         let project = Project::test(app_state.fs.clone(), [Path::new("/project")], cx).await;
 
-        let multi_workspace =
+        let workspace_window =
             cx.add_window(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        let workspace = multi_workspace.root(cx).unwrap();
+        let workspace = workspace_window.root(cx).unwrap();
 
         workspace.update(cx, |workspace, _cx| {
             workspace.set_random_database_id();
@@ -6116,7 +6116,7 @@ mod tests {
             .detach();
         });
 
-        let cx = &mut VisualTestContext::from_window(multi_workspace.into(), cx);
+        let cx = &mut VisualTestContext::from_window(workspace_window.into(), cx);
 
         // Wait for the project to discover the git repository.
         cx.run_until_parked();
@@ -6178,7 +6178,7 @@ mod tests {
         let new_workspace_window = cx
             .windows()
             .into_iter()
-            .find(|w| w.window_id() != multi_workspace.into().window_id())
+            .find(|w| w.window_id() != workspace_window.into().window_id())
             .expect("expected a new workspace window to have been created");
 
         let found_codex = new_workspace_window

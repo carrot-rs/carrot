@@ -446,7 +446,6 @@ pub fn init(
 fn update_command_palette_filter(cx: &mut App) {
     let disable_ai = DisableAiSettings::get_global(cx).disable_ai;
     let agent_enabled = AgentSettings::get_global(cx).enabled;
-    let agent_v2_enabled = cx.has_flag::<AgentV2FeatureFlag>();
     let edit_prediction_provider = AllLanguageSettings::get_global(cx)
         .edit_predictions
         .provider;
@@ -513,12 +512,6 @@ fn update_command_palette_filter(cx: &mut App) {
 
             filter.show_namespace("carrot_predict_onboarding");
             filter.show_action_types(&[TypeId::of::<carrot_actions::OpenCarrotPredictOnboarding>()]);
-        }
-
-        if agent_v2_enabled {
-            filter.show_namespace("multi_workspace");
-        } else {
-            filter.hide_namespace("multi_workspace");
         }
     });
 }
