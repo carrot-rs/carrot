@@ -8,7 +8,7 @@ use carrot_theme::{
 use inazuma::{App, AssetSource, Font, Pixels};
 use inazuma_settings_framework::{Settings, SettingsStore};
 
-use crate::settings::{ThemeSettings, default_theme, reset_mono_font_size, reset_body_font_size};
+use crate::settings::{ThemeSettings, default_theme, reset_body_font_size, reset_mono_font_size};
 
 struct ThemeSettingsProviderImpl;
 
@@ -38,9 +38,7 @@ impl ThemeSettingsProvider for ThemeSettingsProviderImpl {
             // 1.618). Terminal grids hard-code 1.0 — terminal output is
             // line-dense by convention and the configured `comfortable`
             // value would scatter `ls` listings across the screen.
-            FontRole::Code => {
-                ThemeSettings::get_global(cx).fonts.mono.line_height.value()
-            }
+            FontRole::Code => ThemeSettings::get_global(cx).fonts.mono.line_height.value(),
             FontRole::Terminal => 1.0,
         }
     }

@@ -42,6 +42,7 @@ pub use font_family_cache::FontFamilyCache;
 pub use global::{ActiveTheme, GlobalTheme};
 pub use icon_theme::IconTheme;
 pub use icon_theme_schema::{IconThemeFamilyContent, deserialize_icon_theme};
+pub use inazuma_settings_content::ResolvedSymbolMap;
 pub use loader::{load_theme_from_toml, load_theme_from_toml_with_base_dir, parse_color};
 pub use players::{PlayerColor, PlayerColors};
 pub use registry::{
@@ -60,10 +61,8 @@ pub use theme::{
 };
 pub use theme_settings_provider::{
     FontRole, ThemeSettingsProvider, body_font, body_font_size, code_font, code_font_size,
-    set_theme_settings_provider, symbol_map_for, terminal_font, terminal_font_size,
-    theme_settings,
+    set_theme_settings_provider, symbol_map_for, terminal_font, terminal_font_size, theme_settings,
 };
-pub use inazuma_settings_content::ResolvedSymbolMap;
 pub use ui_density::UiDensity;
 
 /// The name of the default dark theme.

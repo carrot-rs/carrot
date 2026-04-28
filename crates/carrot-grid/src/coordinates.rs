@@ -123,7 +123,11 @@ impl GridBounds {
     #[inline]
     pub fn origin_to_row(&self, origin: u64) -> Option<usize> {
         let rel = origin.checked_sub(self.first_row_offset)? as usize;
-        if rel >= self.total_rows { None } else { Some(rel) }
+        if rel >= self.total_rows {
+            None
+        } else {
+            Some(rel)
+        }
     }
 
     /// Pixel-Y → Row-Index, geclamped an `[0, total_rows.saturating_sub(1)]`.
@@ -254,7 +258,10 @@ mod tests {
         assert_eq!(b.clamped_range(2..3), 2..3);
         assert_eq!(b.clamped_range(0..100), 0..5);
         assert_eq!(b.clamped_range(99..200), 5..5);
-        assert_eq!(b.clamped_range(8..2), 0..0);
+        // Reversed range — built via field syntax so the empty-range
+        // lint doesn't trip on a literal. The point of this assertion
+        // is that the API stays defensive against malformed input.
+        assert_eq!(b.clamped_range(Range { start: 8, end: 2 }), 0..0);
     }
 
     #[test]
@@ -289,10 +296,7 @@ mod tests {
             .iter(&pages)
             .map(|(addr, row)| (addr.index, addr.origin, row.len()))
             .collect();
-        assert_eq!(
-            collected,
-            vec![(0, 0, 8), (1, 1, 8), (2, 2, 8), (3, 3, 8)]
-        );
+        assert_eq!(collected, vec![(0, 0, 8), (1, 1, 8), (2, 2, 8), (3, 3, 8)]);
     }
 
     #[test]
@@ -328,11 +332,18 @@ mod tests {
         let over: Vec<usize> = b.iter_range(&pages, 4..99).map(|(a, _)| a.index).collect();
         assert_eq!(over, vec![4, 5]);
 
-        let empty: Vec<usize> = b.iter_range(&pages, 99..200).map(|(a, _)| a.index).collect();
+        let empty: Vec<usize> = b
+            .iter_range(&pages, 99..200)
+            .map(|(a, _)| a.index)
+            .collect();
         assert!(empty.is_empty());
 
-        let reversed: Vec<usize> =
-            b.iter_range(&pages, 5..2).map(|(a, _)| a.index).collect();
+        // Same defensive-API check as above; field syntax avoids the
+        // empty-range lint on the literal form.
+        let reversed: Vec<usize> = b
+            .iter_range(&pages, Range { start: 5, end: 2 })
+            .map(|(a, _)| a.index)
+            .collect();
         assert!(reversed.is_empty());
     }
 

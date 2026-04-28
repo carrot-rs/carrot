@@ -463,20 +463,19 @@ impl MacTextSystemState {
         // the full set of registered faces (Regular / Bold / Italic /
         // Bold Italic / Light / Medium / …), which is what the matcher
         // in `font_id` needs to score against.
-        let face_blobs: Vec<(Arc<Vec<u8>>, u32)> = if let Some(family_info) =
-            self.collection.family_by_name(name)
-        {
-            family_info
-                .fonts()
-                .iter()
-                .filter_map(|font_info| {
-                    let blob = font_info.load(Some(&mut self.source_cache))?;
-                    Some((Arc::new(blob.as_ref().to_vec()), font_info.index()))
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let face_blobs: Vec<(Arc<Vec<u8>>, u32)> =
+            if let Some(family_info) = self.collection.family_by_name(name) {
+                family_info
+                    .fonts()
+                    .iter()
+                    .filter_map(|font_info| {
+                        let blob = font_info.load(Some(&mut self.source_cache))?;
+                        Some((Arc::new(blob.as_ref().to_vec()), font_info.index()))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
 
         let mut found_via_fontique = false;
         for (data, index) in face_blobs {

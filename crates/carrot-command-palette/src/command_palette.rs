@@ -271,12 +271,7 @@ impl CommandPalette {
         Some(first)
     }
 
-    fn on_key_down(
-        &mut self,
-        event: &KeyDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event.keystroke.key.as_str() {
             "tab" => {
                 if let Some(cat) = self.pending_prefix_completion(cx) {
@@ -289,9 +284,7 @@ impl CommandPalette {
                 // discards the active prefix and falls back to the
                 // universal Cmd+P view, exposing the discovery chip
                 // strip again.
-                if self.active_prefix.is_some()
-                    && self.search.read(cx).value().is_empty()
-                {
+                if self.active_prefix.is_some() && self.search.read(cx).value().is_empty() {
                     self.set_filter(None, window, cx);
                 }
             }
@@ -812,7 +805,10 @@ impl Render for CommandPalette {
                     if show_suggested_header {
                         self.render_grouped_results(window, cx).into_any_element()
                     } else {
-                        v_flex().gap_0p5().children(result_elements).into_any_element()
+                        v_flex()
+                            .gap_0p5()
+                            .children(result_elements)
+                            .into_any_element()
                     }
                 } else {
                     div()
@@ -832,11 +828,7 @@ impl CommandPalette {
     /// anything else uses the category's own label. Matches Warp's
     /// empty-state behaviour where a handful of curated shortcuts and a
     /// short history of recent files live in distinct groups.
-    fn render_grouped_results(
-        &self,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render_grouped_results(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text_muted = cx.theme().colors().text_muted;
         let mut groups: Vec<(SearchCategory, Vec<usize>)> = Vec::new();
         for (ix, row) in self.results.iter().enumerate() {

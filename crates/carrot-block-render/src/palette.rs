@@ -99,7 +99,8 @@ impl TerminalPalette {
     ///
     /// `bg` channels and indexed/RGB colors are left untouched.
     pub fn resolve_styled(&self, color: Color, default_slot: DefaultSlot, bold: bool) -> OklchArr {
-        if bold && matches!(default_slot, DefaultSlot::Foreground)
+        if bold
+            && matches!(default_slot, DefaultSlot::Foreground)
             && let Color::Named(n) = color
         {
             return self.named(promote_to_bright(n));

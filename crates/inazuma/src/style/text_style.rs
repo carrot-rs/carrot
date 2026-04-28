@@ -1,7 +1,6 @@
 use crate::{
     AbsoluteLength, DefiniteLength, Font, FontFallbacks, FontFeatures, FontStretch, FontStyle,
-    FontWeight,
-    Oklch, Pixels, SharedString, TextRun, phi, rems,
+    FontWeight, Oklch, Pixels, SharedString, TextRun, phi, rems,
 };
 use refineable::Refineable;
 use schemars::JsonSchema;

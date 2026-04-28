@@ -29,15 +29,15 @@ pub(super) fn font_stretch_to_dwrite(stretch: FontStretch) -> DWRITE_FONT_STRETC
     // DWRITE_FONT_STRETCH is an i32 enum from 1 (UltraCondensed) to 9 (UltraExpanded).
     // CSS percentages map onto those buckets in the same nine-step layout.
     let bucket: i32 = match stretch.0 {
-        v if v <= 50.0 => 1,   // ultra-condensed
-        v if v <= 62.5 => 2,   // extra-condensed
-        v if v <= 75.0 => 3,   // condensed
-        v if v <= 87.5 => 4,   // semi-condensed
-        v if v <= 100.0 => 5,  // normal
-        v if v <= 112.5 => 6,  // semi-expanded
-        v if v <= 125.0 => 7,  // expanded
-        v if v <= 150.0 => 8,  // extra-expanded
-        _ => 9,                // ultra-expanded
+        v if v <= 50.0 => 1,  // ultra-condensed
+        v if v <= 62.5 => 2,  // extra-condensed
+        v if v <= 75.0 => 3,  // condensed
+        v if v <= 87.5 => 4,  // semi-condensed
+        v if v <= 100.0 => 5, // normal
+        v if v <= 112.5 => 6, // semi-expanded
+        v if v <= 125.0 => 7, // expanded
+        v if v <= 150.0 => 8, // extra-expanded
+        _ => 9,               // ultra-expanded
     };
     DWRITE_FONT_STRETCH(bucket)
 }

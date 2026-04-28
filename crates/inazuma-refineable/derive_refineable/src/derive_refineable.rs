@@ -20,6 +20,7 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
 
     let mut impl_debug_on_refinement = false;
     let mut derives_serialize = false;
+    let mut derives_deserialize = false;
     let mut refinement_traits_to_derive = vec![];
 
     if let Some(refineable_attr) = refineable_attr {
@@ -29,6 +30,19 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
             } else {
                 if meta.path.is_ident("Serialize") {
                     derives_serialize = true;
+                }
+                // Refinement sub-fields default to their empty refinement
+                // type when missing in the input — so deserialising a
+                // sparse JSON object (e.g. only `text`/`background`)
+                // doesn't error on the unprovided sub-structs.
+                if meta
+                    .path
+                    .segments
+                    .last()
+                    .map(|s| s.ident == "Deserialize")
+                    .unwrap_or(false)
+                {
+                    derives_deserialize = true;
                 }
                 refinement_traits_to_derive.push(meta.path);
             }
@@ -54,14 +68,16 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
     let field_attributes: Vec<TokenStream2> = fields
         .iter()
         .map(|f| {
-            if derives_serialize {
-                if is_refineable_field(f) {
-                    quote! { #[serde(default, skip_serializing_if = "::inazuma_refineable::IsEmpty::is_empty")] }
-                } else {
-                    quote! { #[serde(skip_serializing_if = "::std::option::Option::is_none")] }
-                }
-            } else {
-                quote! {}
+            let refineable = is_refineable_field(f);
+            match (derives_serialize, derives_deserialize, refineable) {
+                (true, _, true) => quote! {
+                    #[serde(default, skip_serializing_if = "::inazuma_refineable::IsEmpty::is_empty")]
+                },
+                (true, _, false) => quote! {
+                    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+                },
+                (false, true, true) => quote! { #[serde(default)] },
+                _ => quote! {},
             }
         })
         .collect();

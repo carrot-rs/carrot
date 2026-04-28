@@ -125,12 +125,7 @@ pub fn decode_image_bytes(bytes: &[u8]) -> Option<DecodedImage> {
     let rgba = dyn_img.into_rgba8();
     let (width, height) = rgba.dimensions();
     let pixels = rgba.into_raw();
-    Some(DecodedImage::new(
-        width,
-        height,
-        ImageFormat::Rgba8,
-        pixels,
-    ))
+    Some(DecodedImage::new(width, height, ImageFormat::Rgba8, pixels))
 }
 
 /// Parse a Kitty Graphics APC payload (`G[key=value,...];[base64]`)
@@ -201,7 +196,12 @@ pub fn parse_kitty_payload(payload: &[u8]) -> Option<DecodedImage> {
             for px in decoded.chunks_exact(3) {
                 rgba.extend_from_slice(&[px[0], px[1], px[2], 0xFF]);
             }
-            Some(DecodedImage::new(w as u32, h as u32, ImageFormat::Rgba8, rgba))
+            Some(DecodedImage::new(
+                w as u32,
+                h as u32,
+                ImageFormat::Rgba8,
+                rgba,
+            ))
         }
         32 => {
             // Raw RGBA.
@@ -210,7 +210,12 @@ pub fn parse_kitty_payload(payload: &[u8]) -> Option<DecodedImage> {
             if decoded.len() != w * h * 4 {
                 return None;
             }
-            Some(DecodedImage::new(w as u32, h as u32, ImageFormat::Rgba8, decoded))
+            Some(DecodedImage::new(
+                w as u32,
+                h as u32,
+                ImageFormat::Rgba8,
+                decoded,
+            ))
         }
         _ => None,
     }
@@ -263,10 +268,10 @@ pub fn placement_from_iterm2(
     max_rows: u16,
     max_cols: u16,
 ) -> Placement {
-    let native_cols = ((img.image.width as u16).saturating_add(cell_w_px.saturating_sub(1)))
-        / cell_w_px.max(1);
-    let native_rows = ((img.image.height as u16).saturating_add(cell_h_px.saturating_sub(1)))
-        / cell_h_px.max(1);
+    let native_cols =
+        ((img.image.width as u16).saturating_add(cell_w_px.saturating_sub(1))) / cell_w_px.max(1);
+    let native_rows =
+        ((img.image.height as u16).saturating_add(cell_h_px.saturating_sub(1))) / cell_h_px.max(1);
     let cols = img.width_cells.unwrap_or(native_cols).clamp(1, max_cols);
     let rows = img.height_cells.unwrap_or(native_rows).clamp(1, max_rows);
     Placement {
@@ -302,8 +307,7 @@ mod tests {
     use super::*;
 
     /// 1×1 transparent PNG (smallest legal IHDR + IDAT). base64-encoded.
-    const TINY_PNG_B64: &str =
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
 
     #[test]
     fn parse_minimal_payload_with_no_header() {
@@ -446,7 +450,10 @@ mod tests {
         let img = parse_kitty_payload(payload.as_bytes()).expect("decoded");
         assert_eq!(img.width, 2);
         assert_eq!(img.height, 1);
-        assert_eq!(img.pixels, vec![0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]);
+        assert_eq!(
+            img.pixels,
+            vec![0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]
+        );
     }
 
     #[test]

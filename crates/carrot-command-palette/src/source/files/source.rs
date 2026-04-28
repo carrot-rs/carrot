@@ -170,9 +170,7 @@ impl FilesSource {
         // terminal's cwd changes. That happens synchronously on every
         // OSC 7777 metadata payload, so it leads `Project::visible_worktrees`
         // by however long `ensure_*_worktree` takes to resolve its task.
-        if let Some(scope) =
-            carrot_session::command_history::ActiveTerminalScope::try_global(cx)
-        {
+        if let Some(scope) = carrot_session::command_history::ActiveTerminalScope::try_global(cx) {
             return scope.project_root;
         }
 

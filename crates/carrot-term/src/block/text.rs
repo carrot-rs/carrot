@@ -113,7 +113,7 @@ pub fn append_cell(cell: Cell, graphemes: &GraphemeStore, out: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use carrot_grid::{Cell, CellStyle, CellTag, PageCapacity, PageList};
+    use carrot_grid::{Cell, CellStyle, PageCapacity, PageList};
 
     fn ascii_cell(b: u8) -> Cell {
         Cell::ascii(b, carrot_grid::CellStyleId(0))

@@ -117,6 +117,17 @@ ropey = "1"
 url = { workspace = true }
 uuid = { workspace = true }
 
+[features]
+default = []
+# Pulls in the workspace-wide `test-support` cascade needed by
+# `src/carrot/visual_tests.rs` (real-rendering screenshot harness).
+# Opt-in only: regular `cargo test -p carrot-app` does NOT activate it.
+test-support = [
+    "inazuma/test-support",
+    "carrot-workspace/test-support",
+    "carrot-fs/test-support",
+]
+
 [lints]
 workspace = true
 

@@ -32,20 +32,15 @@
 use serde::{Deserialize, Serialize};
 
 /// Lifecycle semantics of a block.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockKind {
     /// Append-only shell-output stream. Default for newly-spawned
     /// active blocks.
+    #[default]
     Shell,
     /// Alt-screen / live-redraw session. Promoted from `Shell` once
     /// TUI activity is detected; sticky for the block's lifetime.
     Tui,
-}
-
-impl Default for BlockKind {
-    fn default() -> Self {
-        Self::Shell
-    }
 }
 
 impl BlockKind {

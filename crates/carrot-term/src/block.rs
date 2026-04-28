@@ -48,7 +48,9 @@ pub use router::{
 pub use search::BlockSearchMatch;
 pub use selection::{BlockSelection, SelectionKind, Side};
 pub use state::{BlockState, BlockVariant};
-pub use text::{append_cell, append_row, append_row_range, extract_block_lines, extract_block_text};
+pub use text::{
+    append_cell, append_row, append_row_range, extract_block_lines, extract_block_text,
+};
 pub use tui_detector::{TuiAwareness, TuiDetector, TuiEffect};
 pub use vt_report::{ModeReportState, REPORT_CHANNEL_CAPACITY, VtReport, VtReportSink};
 pub use vt_writer::{VtWriter, VtWriterState};

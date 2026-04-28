@@ -5122,7 +5122,7 @@ mod project_settings_update_tests {
 
         let text = buffer.read_with(cx, |buffer, _| buffer.text());
         assert!(
-            text.contains("\"tab_size\": 4"),
+            text.contains("tab_size = 4"),
             "Expected tab_size setting in: {}",
             text
         );
@@ -5130,7 +5130,7 @@ mod project_settings_update_tests {
 
     #[inazuma::test]
     async fn test_updates_existing_settings_file(cx: &mut TestAppContext) {
-        let setup = init_test(cx, Some(r#"{ "tab_size": 2 }"#)).await;
+        let setup = init_test(cx, Some("tab_size = 2\n")).await;
 
         let entry = ProjectSettingsUpdateEntry {
             worktree_id: setup.worktree_id,
@@ -5156,7 +5156,7 @@ mod project_settings_update_tests {
 
         let text = buffer.read_with(cx, |buffer, _| buffer.text());
         assert!(
-            text.contains("\"tab_size\": 8"),
+            text.contains("tab_size = 8"),
             "Expected updated tab_size in: {}",
             text
         );
@@ -5164,7 +5164,7 @@ mod project_settings_update_tests {
 
     #[inazuma::test]
     async fn test_updates_are_serialized(cx: &mut TestAppContext) {
-        let setup = init_test(cx, Some("{}")).await;
+        let setup = init_test(cx, Some("")).await;
 
         let update_order = Arc::new(std::sync::Mutex::new(Vec::new()));
 
@@ -5200,7 +5200,7 @@ mod project_settings_update_tests {
 
         let text = buffer.read_with(cx, |buffer, _| buffer.text());
         assert!(
-            text.contains("\"tab_size\": 3"),
+            text.contains("tab_size = 3"),
             "Final tab_size should be 3: {}",
             text
         );
@@ -5208,7 +5208,7 @@ mod project_settings_update_tests {
 
     #[inazuma::test]
     async fn test_queue_continues_after_failure(cx: &mut TestAppContext) {
-        let setup = init_test(cx, Some("{}")).await;
+        let setup = init_test(cx, Some("")).await;
 
         let successful_updates = Arc::new(AtomicUsize::new(0));
 
@@ -5279,7 +5279,7 @@ mod project_settings_update_tests {
 
         let text = buffer.read_with(cx, |buffer, _| buffer.text());
         assert!(
-            text.contains("\"tab_size\": 4"),
+            text.contains("tab_size = 4"),
             "Final tab_size should be 4 (third update): {}",
             text
         );
@@ -5287,7 +5287,7 @@ mod project_settings_update_tests {
 
     #[inazuma::test]
     async fn test_handles_dropped_worktree(cx: &mut TestAppContext) {
-        let setup = init_test(cx, Some("{}")).await;
+        let setup = init_test(cx, Some("")).await;
 
         let entry = ProjectSettingsUpdateEntry {
             worktree_id: setup.worktree_id,
@@ -5310,14 +5310,14 @@ mod project_settings_update_tests {
             .await
             .unwrap();
         assert_eq!(
-            file_content, "{}",
+            file_content, "",
             "File should be unchanged when worktree is dropped"
         );
     }
 
     #[inazuma::test]
     async fn test_reloads_conflicted_buffer(cx: &mut TestAppContext) {
-        let setup = init_test(cx, Some(r#"{ "tab_size": 2 }"#)).await;
+        let setup = init_test(cx, Some("tab_size = 2\n")).await;
 
         let buffer_store = setup
             .project
@@ -5340,7 +5340,7 @@ mod project_settings_update_tests {
             .fs
             .save(
                 "/project/.carrot/settings.toml".as_ref(),
-                &r#"{ "tab_size": 99 }"#.into(),
+                &"tab_size = 99\n".into(),
                 Default::default(),
             )
             .await
@@ -5377,7 +5377,7 @@ mod project_settings_update_tests {
 
         let text = buffer.read_with(cx, |buffer, _| buffer.text());
         assert!(
-            text.contains("\"tab_size\": 4"),
+            text.contains("tab_size = 4"),
             "Buffer should have the new tab_size after reload and update: {}",
             text
         );

@@ -326,9 +326,7 @@ impl ThemeSettings {
 
 pub fn adjust_mono_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
     let base = ThemeSettings::get_global(cx).buffer_font_size;
-    let adjusted_size = cx
-        .try_global::<MonoFontSize>()
-        .map_or(base, |s| s.0);
+    let adjusted_size = cx.try_global::<MonoFontSize>().map_or(base, |s| s.0);
     cx.set_global(MonoFontSize(clamp_font_size(f(adjusted_size))));
     cx.refresh_windows();
 }
@@ -360,9 +358,7 @@ pub fn setup_body_font(window: &mut Window, cx: &App) -> Font {
 
 pub fn adjust_body_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
     let base = ThemeSettings::get_global(cx).ui_font_size(cx);
-    let adjusted_size = cx
-        .try_global::<BodyFontSize>()
-        .map_or(base, |s| s.0);
+    let adjusted_size = cx.try_global::<BodyFontSize>().map_or(base, |s| s.0);
     cx.set_global(BodyFontSize(clamp_font_size(f(adjusted_size))));
     cx.refresh_windows();
 }
@@ -373,7 +369,6 @@ pub fn reset_body_font_size(cx: &mut App) {
         cx.refresh_windows();
     }
 }
-
 
 /// Sets the adjusted font size of agent responses in the agent panel.
 pub fn adjust_agent_ui_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
@@ -556,8 +551,7 @@ fn build_theme_fonts(theme: &inazuma_settings_content::ThemeSettingsContent) -> 
         .and_then(|c| c.features.clone())
         .unwrap_or_default()
         .into_inazuma();
-    let ui_fallbacks =
-        font_fallbacks_from_settings(ui_content.and_then(|c| c.fallbacks.clone()));
+    let ui_fallbacks = font_fallbacks_from_settings(ui_content.and_then(|c| c.fallbacks.clone()));
 
     let mono_family = mono_content
         .and_then(|c| c.family.as_ref())

@@ -94,4 +94,3 @@ pub enum AppearanceColorspace {
     /// Use the display's native colorspace without explicit tagging.
     Native,
 }
-

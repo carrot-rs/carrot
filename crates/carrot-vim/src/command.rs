@@ -326,7 +326,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::open_with_filter(workspace, "'<,'>", None, window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>", None, window, cx,
+            );
         })
     });
 
@@ -335,7 +337,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::open_with_filter(workspace, "'<,'>!", None, window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>!", None, window, cx,
+            );
         })
     });
 
@@ -354,7 +358,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             return;
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::open_with_filter(workspace, "'<,'>!", None, window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, "'<,'>!", None, window, cx,
+            );
         })
     });
 
@@ -870,7 +876,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
             ".".to_string()
         };
         workspace.update(cx, |workspace, cx| {
-            carrot_command_palette::CommandPalette::open_with_filter(workspace, &n, None, window, cx);
+            carrot_command_palette::CommandPalette::open_with_filter(
+                workspace, &n, None, window, cx,
+            );
         })
     });
 

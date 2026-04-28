@@ -100,14 +100,12 @@ impl TerminalPane {
                         }
 
                         if let Some(project) = self.project.as_ref().and_then(|p| p.upgrade()) {
-                            let should_track =
-                                matches!(detected_kind, Some(ProjectKind::Git)) && {
-                                    let scope =
-                                        carrot_settings::WorktreeScopeSettings::get_global(cx);
-                                    scope
-                                        .git_track_decision(&worktree_path)
-                                        .should_track_immediately()
-                                };
+                            let should_track = matches!(detected_kind, Some(ProjectKind::Git)) && {
+                                let scope = carrot_settings::WorktreeScopeSettings::get_global(cx);
+                                scope
+                                    .git_track_decision(&worktree_path)
+                                    .should_track_immediately()
+                            };
                             project.update(cx, |project, cx| {
                                 if should_track {
                                     project
@@ -572,11 +570,9 @@ impl TerminalPane {
             term.block_router_mut().active()
         {
             let row_start = block.grid().total_rows() as u32;
-            let native_cols = ((decoded.width as u16)
-                + IMAGE_CELL_W_PX.saturating_sub(1))
+            let native_cols = ((decoded.width as u16) + IMAGE_CELL_W_PX.saturating_sub(1))
                 / IMAGE_CELL_W_PX.max(1);
-            let native_rows = ((decoded.height as u16)
-                + IMAGE_CELL_H_PX.saturating_sub(1))
+            let native_rows = ((decoded.height as u16) + IMAGE_CELL_H_PX.saturating_sub(1))
                 / IMAGE_CELL_H_PX.max(1);
             let placement = carrot_grid::Placement {
                 row_start,

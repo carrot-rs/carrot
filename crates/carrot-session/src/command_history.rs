@@ -615,11 +615,7 @@ impl ActiveTerminalScope {
         cx.try_global::<Self>().cloned()
     }
 
-    pub fn set_global(
-        cwd: std::path::PathBuf,
-        project_root: std::path::PathBuf,
-        cx: &mut App,
-    ) {
+    pub fn set_global(cwd: std::path::PathBuf, project_root: std::path::PathBuf, cx: &mut App) {
         cx.set_global(Self { cwd, project_root });
     }
 }

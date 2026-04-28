@@ -297,9 +297,7 @@ fn linear_to_srgb(c: f32) -> f32 {
 /// Whether all of `r`, `g`, `b` are inside `[0.0, 1.0]`. Used to detect
 /// out-of-gamut sRGB triples produced by `Oklch::to_rgb_unclamped`.
 fn rgba_in_unit(rgba: &Rgba) -> bool {
-    (0.0..=1.0).contains(&rgba.r)
-        && (0.0..=1.0).contains(&rgba.g)
-        && (0.0..=1.0).contains(&rgba.b)
+    (0.0..=1.0).contains(&rgba.r) && (0.0..=1.0).contains(&rgba.g) && (0.0..=1.0).contains(&rgba.b)
 }
 
 /// Clamp each RGB channel into `[0.0, 1.0]`. Used both as the safety

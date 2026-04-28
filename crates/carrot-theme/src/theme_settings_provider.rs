@@ -44,11 +44,7 @@ pub trait ThemeSettingsProvider: Send + Sync + 'static {
     /// Returns the resolved Unicode-range overrides for the given role.
     /// Empty slice for [`FontRole::Body`] — proportional fonts can't
     /// host monospace-aligned symbol overrides.
-    fn symbol_map_for<'a>(
-        &'a self,
-        role: FontRole,
-        cx: &'a App,
-    ) -> &'a [ResolvedSymbolMap];
+    fn symbol_map_for<'a>(&'a self, role: FontRole, cx: &'a App) -> &'a [ResolvedSymbolMap];
 
     // ── Legacy shims ───────────────────────────────────────────────────
     // Kept while ~78 call-sites migrate over. Every one of these will
@@ -77,15 +73,15 @@ pub trait ThemeSettingsProvider: Send + Sync + 'static {
 // fonts. They route through the role resolver, so adding a future
 // override slot for any specific role is non-breaking.
 
-pub fn body_font<'a>(cx: &'a App) -> &'a Font {
+pub fn body_font(cx: &App) -> &Font {
     theme_settings(cx).font(FontRole::Body, cx)
 }
 
-pub fn code_font<'a>(cx: &'a App) -> &'a Font {
+pub fn code_font(cx: &App) -> &Font {
     theme_settings(cx).font(FontRole::Code, cx)
 }
 
-pub fn terminal_font<'a>(cx: &'a App) -> &'a Font {
+pub fn terminal_font(cx: &App) -> &Font {
     theme_settings(cx).font(FontRole::Terminal, cx)
 }
 
@@ -101,7 +97,7 @@ pub fn terminal_font_size(cx: &App) -> Pixels {
     theme_settings(cx).font_size(FontRole::Terminal, cx)
 }
 
-pub fn symbol_map_for<'a>(role: FontRole, cx: &'a App) -> &'a [ResolvedSymbolMap] {
+pub fn symbol_map_for(role: FontRole, cx: &App) -> &[ResolvedSymbolMap] {
     theme_settings(cx).symbol_map_for(role, cx)
 }
 

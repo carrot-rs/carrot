@@ -98,15 +98,13 @@ impl BlockListView {
     }
 
     /// Read current font/appearance config and build Font + dimensions.
-    pub(crate) fn read_config(
-        cx: &App,
-    ) -> (Font, f32, f32, Vec<carrot_theme::ResolvedSymbolMap>) {
+    pub(crate) fn read_config(cx: &App) -> (Font, f32, f32, Vec<carrot_theme::ResolvedSymbolMap>) {
         let font = carrot_theme::terminal_font(cx).clone();
         let font_size: f32 = carrot_theme::terminal_font_size(cx).into();
-        let line_height = carrot_theme::theme_settings(cx)
-            .line_height(carrot_theme::FontRole::Terminal, cx);
-        let symbol_maps = carrot_theme::symbol_map_for(carrot_theme::FontRole::Terminal, cx)
-            .to_vec();
+        let line_height =
+            carrot_theme::theme_settings(cx).line_height(carrot_theme::FontRole::Terminal, cx);
+        let symbol_maps =
+            carrot_theme::symbol_map_for(carrot_theme::FontRole::Terminal, cx).to_vec();
         (font, font_size, line_height, symbol_maps)
     }
 
@@ -295,9 +293,9 @@ fn build_entries(view: &carrot_term::block::RenderView) -> Vec<RenderEntry> {
             let (s, e) = sel.range();
             let bounds = snapshot.bounds;
             let start_row = bounds.origin_to_row(s.origin).unwrap_or(0);
-            let end_row = bounds.origin_to_row(e.origin).unwrap_or_else(|| {
-                bounds.total_rows().saturating_sub(1)
-            });
+            let end_row = bounds
+                .origin_to_row(e.origin)
+                .unwrap_or_else(|| bounds.total_rows().saturating_sub(1));
             GridSelection {
                 start_row,
                 start_col: s.col,
