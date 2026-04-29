@@ -116,20 +116,35 @@ impl BlockListView {
         (font, font_size, line_height, symbol_maps)
     }
 
-    /// Clear all blocks. The v2 router doesn't expose a bulk-clear
-    /// API yet, so we drive a fresh prompt cycle (which empties the
-    /// router on the next on_prompt_start) and drop our local state.
+    /// Clear all blocks. Drops every frozen entry plus any in-flight
+    /// active block, resets the prompt buffer, zeroes scroll state,
+    /// and clears local view-side caches (selection, search
+    /// highlights, snapshot memoization, pin tracking, layout cache).
+    ///
+    /// Triggered by the user-facing `terminal::Clear` action
+    /// (Cmd+K / Ctrl+L) — the room visibly empties out and the next
+    /// shell prompt lands on a blank scrollback.
     pub fn clear(&mut self) {
         let handle = self.terminal.clone();
         let mut term = handle.lock();
-        // Switching to prompt resets the active id without evicting
-        // frozen entries. The renderer re-reads entries every frame
-        // from the router, so dropping our cache is enough to stop
-        // showing stale rows.
-        term.block_router_mut().on_prompt_start();
+        term.block_router_mut().clear();
         drop(term);
+
+        // Producer-side cleared. Mirror the wipe in every consumer
+        // that holds block ids: the inazuma `BlockState` (sumtree +
+        // id-to-index map), the local id mappings, layout cache,
+        // selection / search / pin / snapshot caches.
+        self.list_state.clear();
+        self.list_ids.clear();
+        self.router_ids.clear();
+        self.block_layout.clear();
         self.selected_block = None;
         self.selecting_block = None;
+        self.pending_block_toggle = None;
+        self.search_highlights.clear();
+        self.active_highlight_index = None;
+        self.last_active_render = None;
+        self.last_pinned = None;
     }
 
     /// Get the selected block index.

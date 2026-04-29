@@ -276,6 +276,22 @@ impl BlockRouter {
         self.prompt = ActiveBlock::new(self.cols);
     }
 
+    /// User-initiated full reset (Cmd+K / Ctrl+L). Drops every frozen
+    /// block, ends any in-flight active block, resets the prompt
+    /// buffer, and zeroes the display scroll state. `next_id` stays
+    /// monotonic so any external observers that cached an old id
+    /// continue to detect the rotation cleanly.
+    ///
+    /// The router is left in the same shape as right after `new()`
+    /// except for the preserved `next_id` and `cols`.
+    pub fn clear(&mut self) {
+        self.blocks.clear();
+        self.active_id = None;
+        self.pending_command = None;
+        self.prompt = ActiveBlock::with_page_bytes(self.cols, self.page_bytes);
+        self.display = super::display::DisplayState::new();
+    }
+
     /// `OSC 133 ; C` — command execution started. Allocates a new
     /// active block, wires it as the routing target, returns its
     /// freshly-minted ID.
@@ -641,5 +657,52 @@ mod tests {
         assert!(m.is_error());
         m.exit_code = Some(-1);
         assert!(m.is_error(), "any nonzero code is error");
+    }
+
+    #[test]
+    fn clear_drops_all_blocks_and_resets_active() {
+        let mut r = BlockRouter::new(80);
+        r.on_command_start();
+        r.on_command_end(0);
+        r.on_command_start();
+        r.on_command_end(0);
+        r.on_command_start();
+        assert!(r.has_active_block());
+        assert_eq!(r.len(), 3);
+
+        r.clear();
+        assert_eq!(r.len(), 0);
+        assert!(!r.has_active_block());
+        assert!(r.entries().is_empty());
+    }
+
+    #[test]
+    fn clear_keeps_id_counter_monotonic() {
+        let mut r = BlockRouter::new(80);
+        let id_a = r.on_command_start();
+        r.on_command_end(0);
+        r.clear();
+        let id_b = r.on_command_start();
+        assert!(
+            id_b.0 > id_a.0,
+            "next id after clear must not collide with pre-clear ids \
+             (a={}, b={})",
+            id_a.0,
+            id_b.0,
+        );
+    }
+
+    #[test]
+    fn clear_resets_pending_command_too() {
+        let mut r = BlockRouter::new(80);
+        r.set_pending_command("cargo build");
+        r.clear();
+        let id = r.on_command_start();
+        let entry = r.entry(id).expect("active block");
+        assert!(
+            entry.metadata.command.is_none(),
+            "stale pending command leaked across clear: {:?}",
+            entry.metadata.command,
+        );
     }
 }

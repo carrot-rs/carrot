@@ -38,6 +38,17 @@ impl TerminalPane {
         cx.notify();
     }
 
+    /// Wipe the visible block list (Cmd+K / Ctrl+L).
+    pub(crate) fn on_clear(
+        &mut self,
+        _: &crate::terminal_panel::Clear,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.block_list.update(cx, |list, _cx| list.clear());
+        cx.notify();
+    }
+
     /// Paste a command line into the input editor without executing. Used
     /// by the command palette's History source (`Cmd+R`) so recalling a
     /// past command gives the user a chance to edit before hitting enter.

@@ -164,6 +164,11 @@ actions!(
         OpenTerminal,
         ToggleFocus,
         Toggle,
-        SendInterrupt
+        SendInterrupt,
+        /// User-initiated "clear all blocks" — bound to Cmd+K and Ctrl+L
+        /// in the default keymaps. Empties the block router, resets
+        /// the prompt buffer, drops every consumer-side cache, leaves
+        /// the next shell prompt on a blank scrollback.
+        Clear
     ]
 );

@@ -479,6 +479,7 @@ impl Render for TerminalPane {
             .bg(bg_color)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_send_interrupt))
+            .on_action(cx.listener(Self::on_clear))
             .on_action(cx.listener(Self::on_insert_into_input))
             .on_key_down(cx.listener(Self::on_key_down_interactive));
 
