@@ -8,14 +8,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+pub(crate) use carrot_block_render::GridOriginStore;
 use carrot_term::BlockId;
-use inazuma::Pixels;
-
-/// Shared slot that `TerminalGridElement` writes the grid's Y origin
-/// into during prepaint, and `hit_test` reads during input handling.
-/// `None` = the element hasn't laid out yet this frame, so the caller
-/// falls back to a geometric estimate from the block's bounds.
-pub(crate) type GridOriginStore = Rc<Cell<Option<Pixels>>>;
 
 /// Cached layout info for one block — used for pixel→grid hit testing.
 #[derive(Clone)]
@@ -25,9 +19,10 @@ pub(crate) struct BlockLayoutEntry {
     pub(crate) content_rows: usize,
     pub(crate) command_row_count: usize,
     pub(crate) grid_history_size: usize,
-    /// Shared store: the grid element writes actual grid origin Y
-    /// during prepaint, hit_test reads it for exact pixel→row mapping
-    /// without sub-pixel drift.
+    /// Shared slot the grid element writes its actual paint-time origin
+    /// into during prepaint. Hit-test reads both x and y from this slot,
+    /// so layout-side padding tokens never have to be re-applied
+    /// downstream.
     pub(crate) grid_origin_store: GridOriginStore,
 }
 

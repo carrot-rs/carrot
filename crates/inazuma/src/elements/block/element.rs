@@ -175,7 +175,14 @@ impl Element for Block {
                 block_state
                     .0
                     .borrow_mut()
-                    .scroll(&scroll_top, height, pixel_delta)
+                    .scroll(&scroll_top, height, pixel_delta);
+                // Mutating the inner state alone does not invalidate the
+                // window — without this `refresh()` the new scroll
+                // position only reaches the GPU on the next unrelated
+                // frame trigger (PTY tick, window event, …), so trackpad
+                // motion looks chunky. Mirrors Zed's `cx.notify(view)`
+                // at the end of `gpui::list::scroll`.
+                window.refresh();
             }
         });
     }

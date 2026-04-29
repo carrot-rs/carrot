@@ -164,6 +164,32 @@ actions!(
         OpenTerminal,
         ToggleFocus,
         Toggle,
-        SendInterrupt
+        SendInterrupt,
+        /// User-initiated "clear all blocks" — bound to Cmd+K and Ctrl+L
+        /// in the default keymaps. Empties the block router, resets
+        /// the prompt buffer, drops every consumer-side cache, leaves
+        /// the next shell prompt on a blank scrollback.
+        Clear,
+        /// Copy the current selection to the clipboard.
+        Copy,
+        /// Paste the clipboard contents into the focused terminal.
+        Paste,
+        /// Open a new terminal tab in the focused workspace.
+        NewTab,
+        /// Move focus to the next terminal tab.
+        NextTab,
+        /// Move focus to the previous terminal tab.
+        PreviousTab,
+        /// Scroll the block list one page up.
+        ScrollPageUp,
+        /// Scroll the block list one page down.
+        ScrollPageDown,
+        /// Scroll to the top of the block list.
+        ScrollToTop,
+        /// Scroll to the bottom of the block list, re-engaging
+        /// follow-tail.
+        ScrollToBottom,
+        /// Open the in-pane find bar.
+        Find,
     ]
 );

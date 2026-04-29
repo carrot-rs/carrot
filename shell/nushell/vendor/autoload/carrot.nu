@@ -53,19 +53,28 @@ if "sudo" in $features {
     }
 }
 
-# TUI hint: emit OSC 7777 carrot-tui-hint for known TUI commands via the
-# pre_execution hook, before the command writes its first byte. Matches
-# the colon-separated $env.CARROT_KNOWN_TUIS list set by pty.rs.
+# Pre-execution emit: carries the about-to-run command line via the
+# carrot-precmd channel, plus the TUI hint when the command matches
+# $env.CARROT_KNOWN_TUIS. Both pieces of information land while the
+# command is queued but before its first byte arrives, so the
+# CommandStart marker (emitted by reedline immediately after) sees
+# the metadata already buffered.
 $env.config = ($env.config | upsert hooks {|config|
     let existing = ($config.hooks? | default {})
     let existing_pre_exec = ($existing.pre_execution? | default [])
 
     $existing | upsert pre_execution ($existing_pre_exec | append {|cmd|
+        # Always emit the command line itself — `to json -r` handles
+        # quoting / escaping for any input. ShellContext merges this
+        # with the precmd-time emit (cwd / git / etc.) field-by-field.
+        let cmd_hex = ({command: $cmd} | to json -r | encode hex)
+        print -n $"\e]7777;carrot-precmd;($cmd_hex)\u{07}"
+
         let tuis = ($env.CARROT_KNOWN_TUIS? | default "" | split row ":")
         if ($tuis | is-empty) {
             return
         }
-        # Skip when the command carries a non-interactive flag.
+        # Skip the TUI hint when the command carries a non-interactive flag.
         if ($cmd =~ ' (--version|--help|-V|-h|-\?)( |$)') {
             return
         }

@@ -243,6 +243,27 @@ impl BlockState {
         id
     }
 
+    /// Drop every block. Resets entries, id-to-index map, pinned
+    /// footer slot, scroll position, and layout caches. `next_id`
+    /// stays monotonic so any external observer that cached an old
+    /// id detects the rotation cleanly. `follow_tail` is restored to
+    /// its initial value derived from `scroll_behavior`.
+    ///
+    /// Used by view-level "clear all" actions (e.g. terminal Cmd+K)
+    /// when the producer has already dropped its underlying entries
+    /// and the list state has to follow.
+    pub fn clear(&self) {
+        let mut state = self.0.borrow_mut();
+        state.entries = SumTree::default();
+        state.id_to_ix.clear();
+        state.pinned_footer = None;
+        state.logical_scroll_top = None;
+        state.last_resolved_scroll_top = None;
+        state.last_leading_space = px(0.0);
+        state.measured_all = false;
+        state.follow_tail = matches!(state.config.scroll_behavior, ScrollBehavior::FollowTail);
+    }
+
     /// Remove the block with the given id. No-op if the id is not known.
     /// If the removed block was the pinned footer, the pin is cleared
     /// — leaving a stale `pinned_footer` id pointing at a removed entry

@@ -81,13 +81,14 @@ pub struct ActiveBlockView {
     /// Lifecycle marker — `Shell` until promoted to `Tui` by the
     /// detector. Sticky for the block's lifetime.
     pub kind: BlockKind,
-    /// Monotonic frame id. Bumped every time the active block's
-    /// `sync_update_frame_id` advances — Layer 5 memoizes its
-    /// rendered snapshot keyed on `(block_id, frame_id)`.
+    /// Monotonic frame id sourced from `ActiveBlock::generation` — the
+    /// single Lamport counter the producer ticks on every observable
+    /// mutation. Layer 5 memoizes its rendered snapshot keyed on
+    /// `(block_id, frame_id)`.
     ///
-    /// Implemented as a simple content-hash-adjacent counter in
-    /// later commits; today we use the row count as a proxy (monotonic
-    /// with appends, ~identity for a given block state).
+    /// Was previously a row-count proxy; that mis-keyed in-place
+    /// updates (progress bars, `\r` overwrites, partial-line emission)
+    /// because the row count stayed flat while cell content advanced.
     pub sync_update_frame_id: u64,
 }
 
@@ -151,7 +152,7 @@ fn active_view(
     let graphemes = Arc::new(block.graphemes().clone());
     ActiveBlockView {
         id: entry.id,
-        sync_update_frame_id: snapshot.total_rows() as u64,
+        sync_update_frame_id: block.generation(),
         snapshot,
         hyperlinks,
         graphemes,

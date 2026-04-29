@@ -88,6 +88,24 @@ _carrot_preexec() {
     zmodload -F zsh/datetime p:EPOCHREALTIME 2>/dev/null
     _carrot_cmd_start=$EPOCHREALTIME
 
+    # Emit the about-to-run command line via the same OSC 7777 channel
+    # the precmd-time emit uses. Reusing `carrot-precmd` keeps the
+    # parser path single — a new emit just merges into ShellContext
+    # field-by-field. JSON escapes backslashes / quotes / newlines so
+    # multiline commands and embedded quotes survive intact. Sent
+    # BEFORE OSC 133;C so the metadata is buffered when CommandStart
+    # fires.
+    local _cmd="$1"
+    local _esc="${_cmd//\\/\\\\}"
+    _esc="${_esc//\"/\\\"}"
+    _esc="${_esc//$'\n'/\\n}"
+    _esc="${_esc//$'\r'/\\r}"
+    _esc="${_esc//$'\t'/\\t}"
+    local _cmd_json='{"command":"'$_esc'"}'
+    local _cmd_hex
+    _cmd_hex=$(builtin printf '%s' "$_cmd_json" | xxd -p | tr -d '\n')
+    builtin printf '\e]7777;carrot-precmd;%s\a' "$_cmd_hex" >&$_carrot_fd
+
     # Mark prompt end / input region start
     builtin printf '\e]133;B\a' >&$_carrot_fd
 

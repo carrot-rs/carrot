@@ -145,9 +145,23 @@ pub(super) fn layout_entries(
             });
         }
 
+        // When the rendered content overflows the viewport, the topmost
+        // entry has to be clipped from above by exactly the overshoot —
+        // otherwise the LAST visible rows of the LAST entry slide off
+        // the bottom edge as new content streams in. The clip lives on
+        // the first entry's `offset_in_entry`; the per-entry paint loop
+        // in `element.rs` consumes it via `start_y - offset_in_entry`.
+        //
+        // Mirrors Zed's `gpui::list::layout`
+        // (`.reference/zed/crates/gpui/src/elements/list.rs:821-838`):
+        // ports are line-for-line, but the overshoot assignment was
+        // dropped on the way in. Recovering it fixes the
+        // "active block taller than viewport ⇒ content scrolls out the
+        // bottom while the user watches" regression.
+        let overshoot = (rendered_height - main_available_height).max(px(0.0));
         scroll_top = BlockOffset {
             entry_ix: cursor.start().0,
-            offset_in_entry: px(0.0),
+            offset_in_entry: overshoot,
         };
 
         if rendered_height < main_available_height {

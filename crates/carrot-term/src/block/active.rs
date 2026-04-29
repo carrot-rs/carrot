@@ -10,6 +10,7 @@
 //! Arc-wrappable, cheap to share across the render thread without locks.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use carrot_grid::{
@@ -62,6 +63,18 @@ pub struct ActiveBlock {
     /// **sticky**, never reverts. Renderers route on this to pick
     /// inline (Shell) vs PinnedFooter (Tui).
     kind: super::kind::BlockKind,
+    /// Lamport-style monotonic counter. Incremented on every observable
+    /// mutation (grid write, atlas intern, hyperlink/grapheme/image
+    /// insert, metadata change, kind promotion, …). Render-side caches
+    /// trust this single field as the dirty signal — they re-extract a
+    /// snapshot iff the counter advanced since their last frame.
+    ///
+    /// Mirrors `text::Buffer::version` in Zed: one source of truth at
+    /// the producer, atomic to keep the VT thread lock-free against the
+    /// render thread, `Relaxed` ordering because the surrounding
+    /// `Mutex<Term>` already provides synchronization for every actual
+    /// mutation site.
+    generation: AtomicU64,
 }
 
 impl ActiveBlock {
@@ -86,7 +99,20 @@ impl ActiveBlock {
             selection: None,
             live_frame: None,
             kind: super::kind::BlockKind::default(),
+            generation: AtomicU64::new(1),
         }
+    }
+
+    /// Current generation. Render-side caches compare against their
+    /// last-seen value to decide whether to re-extract a snapshot.
+    #[inline]
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    fn bump_generation(&self) {
+        self.generation.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Lifecycle marker — `Shell` until the TUI detector promotes it.
@@ -98,7 +124,11 @@ impl ActiveBlock {
     /// Internal write access for the TUI detector path. Promotes the
     /// kind in place — sticky, idempotent.
     pub(super) fn promote_kind_to_tui(&mut self) {
+        let was_tui = self.kind.is_tui();
         self.kind.promote_to_tui();
+        if !was_tui {
+            self.bump_generation();
+        }
     }
 
     /// Access the selection slot (internal — the public surface lives
@@ -110,6 +140,7 @@ impl ActiveBlock {
 
     /// Mutable access to the selection slot.
     pub(super) fn selection_slot_mut(&mut self) -> &mut Option<super::selection::BlockSelection> {
+        self.bump_generation();
         &mut self.selection
     }
 
@@ -123,6 +154,7 @@ impl ActiveBlock {
     pub(super) fn live_frame_slot_mut(
         &mut self,
     ) -> &mut Option<super::live_frame::LiveFrameRegion> {
+        self.bump_generation();
         &mut self.live_frame
     }
 
@@ -136,7 +168,10 @@ impl ActiveBlock {
     /// before dispatching to the actual state machine. Truncation is
     /// silent; check `replay().is_truncated()` to detect it.
     pub fn record_bytes(&mut self, bytes: &[u8]) {
-        self.replay.extend(bytes);
+        if !bytes.is_empty() {
+            self.replay.extend(bytes);
+            self.bump_generation();
+        }
     }
 
     /// Access the underlying page list (read-only).
@@ -147,6 +182,7 @@ impl ActiveBlock {
     /// Mutable access to the underlying page list. The VT writer uses
     /// this for row-level edits (insert/delete lines, scroll region).
     pub fn grid_mut(&mut self) -> &mut PageList {
+        self.bump_generation();
         &mut self.grid
     }
 
@@ -157,6 +193,7 @@ impl ActiveBlock {
 
     /// Mutable style atlas for interning styles as SGR state changes.
     pub fn atlas_mut(&mut self) -> &mut CellStyleAtlas {
+        self.bump_generation();
         &mut self.atlas
     }
 
@@ -173,6 +210,7 @@ impl ActiveBlock {
     /// Mutable hyperlink store — the VT writer interns here when the
     /// remote emits `ESC ] 8 ; ... ; uri ST`.
     pub fn hyperlinks_mut(&mut self) -> &mut HyperlinkStore {
+        self.bump_generation();
         &mut self.hyperlinks
     }
 
@@ -186,6 +224,7 @@ impl ActiveBlock {
     /// Mutable grapheme store — VtWriter interns here when a
     /// zero-width combiner attaches to the previous cell.
     pub fn graphemes_mut(&mut self) -> &mut GraphemeStore {
+        self.bump_generation();
         &mut self.graphemes
     }
 
@@ -196,27 +235,32 @@ impl ActiveBlock {
 
     /// Mutably access metadata to set command/cwd/etc. at command-start.
     pub fn metadata_mut(&mut self) -> &mut ActiveMetadata {
+        self.bump_generation();
         &mut self.metadata
     }
 
     /// Intern a style and return its id. See [`CellStyleAtlas::intern`].
     pub fn intern_style(&mut self, style: CellStyle) -> CellStyleId {
+        self.bump_generation();
         self.atlas.intern(style)
     }
 
     /// Append a row of cells to the grid. O(1) amortized.
     pub fn append_row(&mut self, row: &[Cell]) {
         self.grid.append_row(row);
+        self.bump_generation();
     }
 
     /// Mark a specific row dirty for the next render pass.
     pub fn mark_dirty(&mut self, row: usize) {
         self.grid.mark_dirty(row);
+        self.bump_generation();
     }
 
     /// Access the image store mutably — the VT state machine appends
     /// entries here when it sees image protocol sequences.
     pub fn images_mut(&mut self) -> &mut ImageStore {
+        self.bump_generation();
         &mut self.images
     }
 
@@ -246,5 +290,86 @@ impl ActiveBlock {
             self.replay,
             self.kind,
         ))
+    }
+}
+
+#[cfg(test)]
+mod generation_tests {
+    use super::*;
+    use carrot_grid::{Cell, CellStyle};
+
+    #[test]
+    fn generation_starts_above_zero() {
+        let block = ActiveBlock::new(80);
+        // Zero is the never-observed sentinel for cache consumers; the
+        // initial state is already a real value.
+        assert!(block.generation() > 0);
+    }
+
+    #[test]
+    fn generation_advances_on_append_row() {
+        let mut block = ActiveBlock::new(4);
+        let g0 = block.generation();
+        block.append_row(&[Cell::ascii(b'x', CellStyleId(0)); 4]);
+        assert!(block.generation() > g0);
+    }
+
+    #[test]
+    fn generation_advances_on_grid_mut() {
+        let mut block = ActiveBlock::new(4);
+        let g0 = block.generation();
+        let _ = block.grid_mut();
+        assert!(block.generation() > g0);
+    }
+
+    #[test]
+    fn generation_advances_on_intern_style() {
+        let mut block = ActiveBlock::new(4);
+        let g0 = block.generation();
+        let _ = block.intern_style(CellStyle::DEFAULT);
+        assert!(block.generation() > g0);
+    }
+
+    #[test]
+    fn generation_advances_on_record_bytes() {
+        let mut block = ActiveBlock::new(4);
+        let g0 = block.generation();
+        block.record_bytes(b"hello");
+        assert!(block.generation() > g0);
+    }
+
+    #[test]
+    fn generation_holds_on_empty_record() {
+        let mut block = ActiveBlock::new(4);
+        let g0 = block.generation();
+        block.record_bytes(&[]);
+        // Empty input is not a mutation — the cache must not invalidate.
+        assert_eq!(block.generation(), g0);
+    }
+
+    #[test]
+    fn generation_advances_on_in_place_grid_writes() {
+        // The bug this whole counter exists to fix: write to a single
+        // row repeatedly, total_rows stays flat, generation must still
+        // advance so the render-side cache invalidates.
+        let mut block = ActiveBlock::new(4);
+        let pre_rows = block.total_rows();
+        let g0 = block.generation();
+        let _ = block.grid_mut();
+        let _ = block.grid_mut();
+        let _ = block.grid_mut();
+        assert_eq!(block.total_rows(), pre_rows);
+        assert!(block.generation() >= g0 + 3);
+    }
+
+    #[test]
+    fn generation_holds_on_idempotent_tui_promotion() {
+        let mut block = ActiveBlock::new(4);
+        block.promote_kind_to_tui();
+        let g_after_first = block.generation();
+        block.promote_kind_to_tui();
+        // Already-TUI second call must not bump — the kind is sticky and
+        // re-promotion is a true no-op, not a state change.
+        assert_eq!(block.generation(), g_after_first);
     }
 }

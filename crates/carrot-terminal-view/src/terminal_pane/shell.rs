@@ -66,20 +66,37 @@ impl TerminalPane {
         if let carrot_terminal::ShellMarker::Metadata(ref json) = marker {
             match serde_json::from_str::<carrot_shell_integration::ShellMetadataPayload>(json) {
                 Ok(payload) => {
-                    let cwd_changed = self.shell_context.cwd != payload.cwd;
-                    let new_cwd = std::path::PathBuf::from(&payload.cwd);
+                    // The preexec emit carries only `command`; the
+                    // precmd emit carries cwd / git / etc. Each branch
+                    // below short-circuits when the relevant field is
+                    // absent so a partial emit doesn't trigger
+                    // worktree-scope reclassification or cache
+                    // invalidation that the user didn't ask for.
+                    let cwd_changed = payload
+                        .cwd
+                        .as_ref()
+                        .is_some_and(|c| self.shell_context.cwd != *c);
+                    let new_cwd = payload.cwd.as_deref().map(std::path::PathBuf::from);
                     self.shell_context.update_from_metadata(&payload);
-                    self.shell_completion.update_cwd(new_cwd.clone());
-                    self.detection_cache.invalidate();
-                    self.last_exit_code = payload.last_exit_code;
-                    self.last_duration_ms = payload.last_duration_ms;
-
-                    let new_git_root = payload.git_root.as_ref().map(std::path::PathBuf::from);
-                    if new_git_root != self.current_git_root {
-                        self.current_git_root = new_git_root;
+                    if let Some(cwd) = new_cwd.as_ref() {
+                        self.shell_completion.update_cwd(cwd.clone());
+                        self.detection_cache.invalidate();
+                    }
+                    if let Some(exit) = payload.last_exit_code {
+                        self.last_exit_code = Some(exit);
+                    }
+                    if let Some(dur) = payload.last_duration_ms {
+                        self.last_duration_ms = Some(dur);
                     }
 
-                    if cwd_changed {
+                    if let Some(git_root) = payload.git_root.as_ref() {
+                        let new_git_root = Some(std::path::PathBuf::from(git_root));
+                        if new_git_root != self.current_git_root {
+                            self.current_git_root = new_git_root;
+                        }
+                    }
+
+                    if cwd_changed && let Some(new_cwd) = new_cwd {
                         use carrot_shell::scope_policy::{ProjectKind, WorktreeRoot, classify};
                         use inazuma_settings_framework::Settings as _;
 
@@ -158,9 +175,22 @@ impl TerminalPane {
                 {
                     let handle = self.terminal.handle();
                     let mut term = handle.lock();
+                    // Priority for the command field: shell-metadata
+                    // (preexec emit) > cmdline pending slot > None.
+                    // The pending slot was already consumed into
+                    // `entries().last().metadata.command` by
+                    // `on_command_start`; preserve that value when our
+                    // shell_context has nothing to add. `take()`
+                    // because the next command cycle starts clean.
+                    let existing_command = term
+                        .block_router()
+                        .entries()
+                        .last()
+                        .and_then(|e| e.metadata.command.clone());
+                    let command = self.shell_context.command.take().or(existing_command);
                     term.block_router_mut().set_last_metadata(
                         carrot_term::block::RouterBlockMetadata {
-                            command: None,
+                            command,
                             cwd: Some(self.shell_context.cwd.clone()),
                             username: Some(self.shell_context.username.clone()),
                             hostname: Some(self.shell_context.hostname.clone()),

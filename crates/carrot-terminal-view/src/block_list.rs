@@ -71,6 +71,13 @@ pub struct BlockListView {
     /// (DEC 2026 sync update or between PTY chunks). Cleared when
     /// either key component changes.
     pub(crate) last_active_render: Option<(RouterBlockId, u64, BlockSnapshot)>,
+    /// Last pinned-footer id we asked `BlockState` to hold, or `None`
+    /// when nothing was pinned. Lets `Render` skip the
+    /// `BlockState::pin / unpin` borrow_mut entirely when the desired
+    /// pin matches the live pin — pin/unpin are pseudo-idempotent on
+    /// the state side but still take the inner `RefCell`, which is
+    /// wasteful at 60–120 fps with one render per PTY tick.
+    pub(crate) last_pinned: Option<InazumaBlockId>,
 }
 
 impl BlockListView {
@@ -94,6 +101,7 @@ impl BlockListView {
             search_highlights: Vec::new(),
             active_highlight_index: None,
             last_active_render: None,
+            last_pinned: None,
         }
     }
 
@@ -108,20 +116,35 @@ impl BlockListView {
         (font, font_size, line_height, symbol_maps)
     }
 
-    /// Clear all blocks. The v2 router doesn't expose a bulk-clear
-    /// API yet, so we drive a fresh prompt cycle (which empties the
-    /// router on the next on_prompt_start) and drop our local state.
+    /// Clear all blocks. Drops every frozen entry plus any in-flight
+    /// active block, resets the prompt buffer, zeroes scroll state,
+    /// and clears local view-side caches (selection, search
+    /// highlights, snapshot memoization, pin tracking, layout cache).
+    ///
+    /// Triggered by the user-facing `terminal::Clear` action
+    /// (Cmd+K / Ctrl+L) — the room visibly empties out and the next
+    /// shell prompt lands on a blank scrollback.
     pub fn clear(&mut self) {
         let handle = self.terminal.clone();
         let mut term = handle.lock();
-        // Switching to prompt resets the active id without evicting
-        // frozen entries. The renderer re-reads entries every frame
-        // from the router, so dropping our cache is enough to stop
-        // showing stale rows.
-        term.block_router_mut().on_prompt_start();
+        term.block_router_mut().clear();
         drop(term);
+
+        // Producer-side cleared. Mirror the wipe in every consumer
+        // that holds block ids: the inazuma `BlockState` (sumtree +
+        // id-to-index map), the local id mappings, layout cache,
+        // selection / search / pin / snapshot caches.
+        self.list_state.clear();
+        self.list_ids.clear();
+        self.router_ids.clear();
+        self.block_layout.clear();
         self.selected_block = None;
         self.selecting_block = None;
+        self.pending_block_toggle = None;
+        self.search_highlights.clear();
+        self.active_highlight_index = None;
+        self.last_active_render = None;
+        self.last_pinned = None;
     }
 
     /// Get the selected block index.
@@ -340,16 +363,21 @@ impl Render for BlockListView {
         // TUI block is present we explicitly unpin — a previously
         // pinned TUI block that's now Shell (impossible by sticky
         // promotion, but defensive) or pruned would otherwise leave a
-        // stale pin.
+        // stale pin. Skip the call entirely when the desired pin
+        // matches the live pin — avoids a per-frame `borrow_mut` on
+        // `BlockState`'s inner `RefCell`.
         let pinned_tui = entries.iter().enumerate().rev().find_map(|(i, e)| {
             e.kind
                 .is_tui()
                 .then_some(())
                 .and_then(|_| self.list_ids.get(i).copied())
         });
-        match pinned_tui {
-            Some(id) => self.list_state.pin(id),
-            None => self.list_state.unpin(),
+        if pinned_tui != self.last_pinned {
+            match pinned_tui {
+                Some(id) => self.list_state.pin(id),
+                None => self.list_state.unpin(),
+            }
+            self.last_pinned = pinned_tui;
         }
 
         // Cache the v2 id mapping + layout per entry.
@@ -450,6 +478,7 @@ impl Render for BlockListView {
                     .w_full()
                     .flex_shrink_0()
                     .flex_col()
+                    .px(px(BLOCK_HEADER_PAD_X))
                     .border_b_1()
                     .border_color(Oklch::white().opacity(0.12));
 
@@ -581,8 +610,15 @@ fn render_block_entry(
 
     let error_bg = inazuma::oklcha(0.25, 0.08, 25.0, 0.15);
 
+    // Block envelope owns the horizontal inset. Both children — header
+    // chips and grid — render flush against the inset edge, so the
+    // content edge is the same x-coordinate everywhere a renderer or
+    // hit-tester might look at it. PTY column-budget at
+    // `terminal_pane.rs` and the prepainted `GridOriginStore` are then
+    // the only consumers of `BLOCK_HEADER_PAD_X`.
     div()
         .w_full()
+        .px(px(BLOCK_HEADER_PAD_X))
         .when(is_selected, |d| d.bg(block_selected_bg(theme)))
         .when(is_error && !is_selected, |d| d.bg(error_bg))
         .border_t_1()
@@ -594,7 +630,6 @@ fn render_block_entry(
         })
         .child(
             div()
-                .px(px(BLOCK_HEADER_PAD_X))
                 .pt(header_top_padding())
                 .pb(header_top_padding())
                 .flex()
@@ -644,6 +679,24 @@ fn render_block_entry(
                     )
                 }),
         )
+        // Command echo — the line the user typed. Rendered in the
+        // terminal font + size so it aligns with the cells of the
+        // output grid below; without it, silent-success commands
+        // (`cd`, `touch`, `export …`) would render as empty headers
+        // with no signal of what was actually run. Skipped when the
+        // shell hooks didn't emit a command (rare — only for the
+        // very first prompt before the integration loads).
+        .when(!entry.command.trim().is_empty(), |d| {
+            d.child(
+                div()
+                    .w_full()
+                    .pb(px(2.0))
+                    .font(font.clone())
+                    .text_size(px(font_size))
+                    .text_color(theme.colors().foreground)
+                    .child(inazuma::SharedString::from(entry.command.clone())),
+            )
+        })
         .child(element)
 }
 

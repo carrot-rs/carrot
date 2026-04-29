@@ -30,23 +30,9 @@ actions!(
     ]
 );
 
-// Terminal actions
-actions!(
-    terminal,
-    [
-        Copy,
-        Paste,
-        Clear,
-        NewTab,
-        NextTab,
-        PreviousTab,
-        ScrollPageUp,
-        ScrollPageDown,
-        ScrollToTop,
-        ScrollToBottom,
-        Find,
-    ]
-);
+// `terminal::*` actions live in `carrot_terminal_view::terminal_panel`
+// — they own the surface those keystrokes act on, and Layer-4
+// `carrot-app` is bootstrap-only per the architecture rules.
 
 // Input actions (Carrot Mode)
 actions!(

@@ -81,6 +81,21 @@ _carrot_preexec() {
 
     _carrot_cmd_start=$(date +%s%3N 2>/dev/null || echo 0)
 
+    # Emit the about-to-run command line via the OSC 7777 channel that
+    # the precmd-time emit uses. ShellContext merges the two emits
+    # field-by-field. Sent BEFORE OSC 133;C so it's buffered when
+    # CommandStart fires.
+    local _cmd="$BASH_COMMAND"
+    local _esc="${_cmd//\\/\\\\}"
+    _esc="${_esc//\"/\\\"}"
+    _esc="${_esc//$'\n'/\\n}"
+    _esc="${_esc//$'\r'/\\r}"
+    _esc="${_esc//$'\t'/\\t}"
+    local _cmd_json='{"command":"'"$_esc"'"}'
+    local _cmd_hex
+    _cmd_hex=$(builtin printf '%s' "$_cmd_json" | xxd -p | tr -d '\n')
+    builtin printf '\e]7777;carrot-precmd;%s\a' "$_cmd_hex" >&$_carrot_fd
+
     builtin printf '\e]133;B\a' >&$_carrot_fd
     builtin printf '\e]133;C\a' >&$_carrot_fd
 
