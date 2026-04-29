@@ -301,7 +301,10 @@ mod tests {
             processor.advance(&mut writer, b"");
             writer.finalize();
         }
-        let frozen = router.on_command_end(0).expect("frozen block");
+        // Non-zero exit so the silent-success rule in
+        // `on_command_end` doesn't drop the entry — this test wants a
+        // frozen handle with an empty replay buffer, not a dropped one.
+        let frozen = router.on_command_end(1).expect("frozen block");
         assert!(replay_frozen_block(&frozen, 20).is_none());
     }
 }
