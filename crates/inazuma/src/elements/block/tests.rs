@@ -134,6 +134,34 @@ fn follow_tail_sticks_to_tail_on_new_entries(cx: &mut TestAppContext) {
 }
 
 #[inazuma::test]
+fn follow_tail_clips_topmost_entry_when_content_overflows(cx: &mut TestAppContext) {
+    // Regression: with `VisualAnchor::Bottom` + `FollowTail`, when the
+    // last entry alone is taller than the viewport, the layout pass must
+    // clip the topmost visible entry from above by the overshoot — not
+    // pin it to the top edge. Otherwise newly-streaming content inside a
+    // tall active block scrolls off the bottom of the viewport while the
+    // user watches. Verified through `bounds_for_block`: the entry's
+    // bottom edge must coincide with the viewport's bottom edge, and
+    // its top edge must sit `overshoot` pixels above the viewport top.
+    let mut cx = cx.add_empty_window();
+    let state = BlockState::new(
+        BlockConfig::default()
+            .visual_anchor(VisualAnchor::Bottom)
+            .scroll_behavior(ScrollBehavior::FollowTail)
+            .measuring_behavior(BlockMeasuringBehavior::All),
+    );
+    let id = state.push(BlockMetadata::default(), None);
+    let height = Rc::new(Cell::new(1000.0));
+    draw_view(&mut cx, &state, &height, size(px(100.), px(400.)));
+
+    let bounds = state.bounds_for_block(id).expect("entry is in viewport");
+    // Bottom of the only entry sits exactly on the bottom edge.
+    assert_eq!(bounds.bottom(), px(400.));
+    // Top of the only entry is 600 px above the viewport top.
+    assert_eq!(bounds.top(), px(-600.));
+}
+
+#[inazuma::test]
 fn manual_scroll_breaks_follow_tail(cx: &mut TestAppContext) {
     let mut cx = cx.add_empty_window();
     let state = BlockState::new(
