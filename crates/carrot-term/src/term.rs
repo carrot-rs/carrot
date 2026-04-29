@@ -265,11 +265,6 @@ impl<T> Term<T> {
         self.block_router.on_prompt_start();
     }
 
-    pub fn route_to_new_block(&mut self, command: String) {
-        self.block_router.set_pending_command(command);
-        let _ = self.block_router.on_command_start();
-    }
-
     pub fn route_finalize_block(&mut self, exit_code: i32) {
         if self.mode.contains(TermMode::SYNC_UPDATE) {
             self.pending_finalize = Some(exit_code);

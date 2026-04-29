@@ -255,7 +255,25 @@ impl Terminal {
                                             term.route_to_prompt();
                                         }
                                         crate::osc_parser::ShellMarker::CommandStart => {
-                                            term.route_to_new_block(String::new());
+                                            // Direct call into the
+                                            // primitive — the wrapper
+                                            // `route_to_new_block` was
+                                            // deleted because it
+                                            // combined "set pending
+                                            // command + start", which
+                                            // makes sense only for the
+                                            // cmdline-submit path that
+                                            // owns the command text.
+                                            // Here at OSC 133;C we are
+                                            // the start signal, not the
+                                            // command source — pending
+                                            // (if any) was set earlier
+                                            // by the cmdline; the new
+                                            // block consumes whichever
+                                            // wins via the priority
+                                            // ladder in
+                                            // `handle_shell_marker`.
+                                            let _ = term.block_router_mut().on_command_start();
                                         }
                                         crate::osc_parser::ShellMarker::CommandEnd {
                                             exit_code,

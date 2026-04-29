@@ -69,6 +69,21 @@ end
 
 function _carrot_preexec --on-event fish_preexec
     set -g _carrot_cmd_start (date +%s%3N 2>/dev/null; or echo 0)
+
+    # Emit the about-to-run command line via the OSC 7777 channel that
+    # the precmd-time emit uses. ShellContext merges the two emits
+    # field-by-field. Sent BEFORE OSC 133;C so it's buffered when
+    # CommandStart fires.
+    set -l _cmd "$argv[1]"
+    set -l _esc (string replace -a '\\' '\\\\' -- $_cmd)
+    set _esc (string replace -a '"' '\\"' -- $_esc)
+    set _esc (string replace -a \n '\\n' -- $_esc)
+    set _esc (string replace -a \r '\\r' -- $_esc)
+    set _esc (string replace -a \t '\\t' -- $_esc)
+    set -l _cmd_json '{"command":"'$_esc'"}'
+    set -l _cmd_hex (printf '%s' "$_cmd_json" | xxd -p | string join '')
+    printf '\e]7777;carrot-precmd;%s\a' "$_cmd_hex"
+
     printf '\e]133;B\a'
     printf '\e]133;C\a'
 
