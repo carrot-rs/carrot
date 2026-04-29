@@ -679,6 +679,24 @@ fn render_block_entry(
                     )
                 }),
         )
+        // Command echo — the line the user typed. Rendered in the
+        // terminal font + size so it aligns with the cells of the
+        // output grid below; without it, silent-success commands
+        // (`cd`, `touch`, `export …`) would render as empty headers
+        // with no signal of what was actually run. Skipped when the
+        // shell hooks didn't emit a command (rare — only for the
+        // very first prompt before the integration loads).
+        .when(!entry.command.trim().is_empty(), |d| {
+            d.child(
+                div()
+                    .w_full()
+                    .pb(px(2.0))
+                    .font(font.clone())
+                    .text_size(px(font_size))
+                    .text_color(theme.colors().foreground)
+                    .child(inazuma::SharedString::from(entry.command.clone())),
+            )
+        })
         .child(element)
 }
 

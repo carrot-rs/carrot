@@ -199,17 +199,10 @@ mod tests {
 
     #[test]
     fn frozen_blocks_survive_snapshot() {
-        use carrot_grid::Cell;
         let mut r = BlockRouter::new(40);
         r.on_command_start();
-        // One row of output — without it the silent-success rule in
-        // `on_command_end` would drop the entry.
-        if let crate::block::ActiveTarget::Block { block, .. } = r.active() {
-            block.append_row(&[Cell::default()]);
-        }
         r.on_command_end(0);
         r.on_command_start();
-        // Exit 1 — failures stay regardless of empty output.
         r.on_command_end(1);
         let state = VtWriterState::new(40, 24);
         let display = DisplayState::new();

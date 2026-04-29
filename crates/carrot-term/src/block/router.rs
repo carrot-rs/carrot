@@ -314,35 +314,11 @@ impl BlockRouter {
     /// Freezes the active block and returns its `Arc<FrozenBlock>`
     /// for consumers (render thread, replay, scrollback search).
     ///
-    /// **Silent-success drop**: if the command produced zero output
-    /// rows AND exited with code `0` AND never promoted to a TUI
-    /// session, the entry is removed from the router instead of
-    /// frozen — `cd`, `touch`, `export FOO=bar`, ASSIGN-only commands,
-    /// etc. leave no visual record. Failures, TUI sessions, and any
-    /// command that wrote even a single row keep their entry. Single
-    /// invariant lives in the producer; consumers (render, search,
-    /// history, replay) never see the suppressed entries and never
-    /// have to filter independently.
-    ///
     /// Returns `None` if there was no active block (e.g. a spurious
-    /// `;D` without a preceding `;C`) or if the silent-success rule
-    /// dropped this one.
+    /// `;D` without a preceding `;C`).
     pub fn on_command_end(&mut self, exit_code: i32) -> Option<Arc<FrozenBlock>> {
         let id = self.active_id.take()?;
-        let pos = self.blocks.iter().position(|e| e.id == id)?;
-
-        // Silent-success path — remove the entry outright before
-        // committing exit metadata or building a Frozen wrapper. The
-        // active grid is dropped on the way out; nothing references
-        // its replay buffer either.
-        let drop_silently = matches!(&self.blocks[pos].variant, BlockVariant::Active(active)
-            if exit_code == 0 && active.total_rows() == 0 && !active.kind().is_tui());
-        if drop_silently {
-            self.blocks.remove(pos);
-            return None;
-        }
-
-        let entry = &mut self.blocks[pos];
+        let entry = self.blocks.iter_mut().find(|e| e.id == id)?;
         entry.metadata.exit_code = Some(exit_code);
         entry.metadata.finished_at = Some(Instant::now());
         // Swap the variant out, call `finish`, store the Frozen back.
@@ -513,16 +489,6 @@ impl<'a> ActiveTarget<'a> {
 mod tests {
     use super::*;
 
-    /// Push one row of output into the active block before ending it,
-    /// so `on_command_end` doesn't apply the silent-success drop. Most
-    /// router tests want to exercise the freeze/eviction/metadata path,
-    /// not the silent-success one.
-    fn produce_row(r: &mut BlockRouter) {
-        if let ActiveTarget::Block { block, .. } = r.active() {
-            block.append_row(&[Cell::default()]);
-        }
-    }
-
     #[test]
     fn new_router_has_no_active_block() {
         let r = BlockRouter::new(80);
@@ -557,7 +523,6 @@ mod tests {
     fn command_end_freezes_block_and_clears_active() {
         let mut r = BlockRouter::new(80);
         let id = r.on_command_start();
-        produce_row(&mut r);
         let frozen = r.on_command_end(0).expect("frozen block on end");
         assert_eq!(Arc::strong_count(&frozen), 2); // router + caller
         assert!(!r.has_active_block());
@@ -586,7 +551,6 @@ mod tests {
         let mut r = BlockRouter::with_limits(80, RouterLimits { max_blocks: 3 });
         for _ in 0..5 {
             r.on_command_start();
-            produce_row(&mut r);
             r.on_command_end(0);
         }
         assert_eq!(r.len(), 3);
@@ -599,10 +563,8 @@ mod tests {
     fn eviction_never_drops_active_block() {
         let mut r = BlockRouter::with_limits(80, RouterLimits { max_blocks: 2 });
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         // Now start a new one without ending it, then push another
         // end to overflow.
@@ -631,7 +593,6 @@ mod tests {
     fn metadata_attaches_to_last() {
         let mut r = BlockRouter::new(80);
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.set_last_metadata(RouterBlockMetadata {
             cwd: Some("/tmp".into()),
@@ -674,15 +635,13 @@ mod tests {
         let mut r = BlockRouter::new(10);
         r.on_prompt_start();
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.on_prompt_start();
         r.on_command_start();
         // One frozen, one active.
         assert_eq!(r.frozen_entries().count(), 1);
         assert_eq!(r.active_entries().count(), 1);
-        // Finish the second — now two frozen, zero active. Exit 1
-        // keeps the entry visible regardless of empty output.
+        // Finish the second — now two frozen, zero active.
         r.on_command_end(1);
         assert_eq!(r.frozen_entries().count(), 2);
         assert_eq!(r.active_entries().count(), 0);
@@ -704,10 +663,8 @@ mod tests {
     fn clear_drops_all_blocks_and_resets_active() {
         let mut r = BlockRouter::new(80);
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.on_command_start();
         assert!(r.has_active_block());
@@ -723,7 +680,6 @@ mod tests {
     fn clear_keeps_id_counter_monotonic() {
         let mut r = BlockRouter::new(80);
         let id_a = r.on_command_start();
-        produce_row(&mut r);
         r.on_command_end(0);
         r.clear();
         let id_b = r.on_command_start();
@@ -747,86 +703,6 @@ mod tests {
             entry.metadata.command.is_none(),
             "stale pending command leaked across clear: {:?}",
             entry.metadata.command,
-        );
-    }
-
-    #[test]
-    fn silent_success_command_drops_entry() {
-        // `cd Projects` / `touch x` / `export FOO=bar` — no stdout,
-        // exit 0. Router should drop the entry outright.
-        let mut r = BlockRouter::new(80);
-        r.on_command_start();
-        assert_eq!(r.len(), 1, "active block exists pre-end");
-        let frozen = r.on_command_end(0);
-        assert!(
-            frozen.is_none(),
-            "silent success must not produce a Frozen handle",
-        );
-        assert_eq!(
-            r.len(),
-            0,
-            "silent-success entry must be removed from the router",
-        );
-        assert!(!r.has_active_block());
-    }
-
-    #[test]
-    fn silent_failure_keeps_entry() {
-        // Rare but real: a command exits non-zero with no stderr.
-        // The user still wants to see it failed.
-        let mut r = BlockRouter::new(80);
-        r.on_command_start();
-        let frozen = r.on_command_end(1);
-        assert!(
-            frozen.is_some(),
-            "non-zero exit with no output must still freeze",
-        );
-        assert_eq!(r.len(), 1);
-    }
-
-    #[test]
-    fn produced_output_keeps_entry_even_on_zero_exit() {
-        let mut r = BlockRouter::new(80);
-        r.on_command_start();
-        produce_row(&mut r);
-        let frozen = r.on_command_end(0);
-        assert!(frozen.is_some());
-        assert_eq!(r.len(), 1);
-    }
-
-    #[test]
-    fn tui_session_keeps_entry_even_when_grid_is_empty() {
-        // Alt-screen TUI sessions promote `kind` to `Tui`; their
-        // persistent grid is often empty when they exit, but the
-        // session itself was meaningful — keep it.
-        use crate::block::LiveFrameSource;
-        let mut r = BlockRouter::new(80);
-        r.on_command_start();
-        if let ActiveTarget::Block { block, .. } = r.active() {
-            block.activate_live_frame(0, 1, LiveFrameSource::Heuristic);
-        }
-        let frozen = r.on_command_end(0);
-        assert!(
-            frozen.is_some(),
-            "TUI session must not be silently dropped on exit 0",
-        );
-        assert_eq!(r.len(), 1);
-    }
-
-    #[test]
-    fn silent_success_keeps_id_counter_monotonic() {
-        // Suppressing the entry should NOT roll back `next_id`.
-        // Otherwise an external observer that cached the dropped id
-        // would see it reused on the next command.
-        let mut r = BlockRouter::new(80);
-        let dropped = r.on_command_start();
-        r.on_command_end(0);
-        let next = r.on_command_start();
-        assert!(
-            next.0 > dropped.0,
-            "next id ({}) must exceed the dropped id ({})",
-            next.0,
-            dropped.0,
         );
     }
 }
